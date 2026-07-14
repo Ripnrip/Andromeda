@@ -1,0 +1,16 @@
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+.DS_Store
+.env
+.env.*
+!.env.example
+Config/local/
+Data/
+Telemetry/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.trace
+Secrets/
