@@ -57,6 +57,59 @@ struct SwiftDataStoreTests {
         #expect(fetchedByHash?.id == record.id)
     }
 
+    /// 🧪 Task #1 Proof Harness — DATA-CONTRACTS.md §12 hot capture store.
+    ///
+    /// Hot-path boundary (documented, structural):
+    /// `SwiftDataContainer.insert` only touches ModelContext + SwiftData save.
+    /// It does NOT import, construct, or await Obsidian writers, QdrantIndexer,
+    /// or LadybugIndexer. Cold projection (`materializedPath`) stays nil until
+    /// a separate materialization pass — proving store returns after local txn.
+    @Test("🧾 Task1 Proof Harness — in-memory insert, unique hash, private visibility, no cold-path side effects")
+    func testTask1HotStoreProofHarness() async throws {
+        let vault = try await createFreshVault()
+        let contentHash = "sha256:task1-proof-hot-store"
+        let provenance = "proof://anima-memory/task1/swiftdata-hot-store"
+
+        let snapshot = AnimaEpisodicRecordSnapshot(
+            id: UUID(),
+            contentHash: contentHash,
+            createdAt: Date(),
+            project: "MemoryKit",
+            agent: "cursor-proof",
+            narrative: "Task 1 proof: local ACID insert without Obsidian/Qdrant.",
+            visibility: "private",
+            provenance: provenance,
+            tags: ["proof/task1", "hot-store"],
+            materializedPath: nil
+        )
+
+        try await vault.insert(snapshot, checkUniqueHash: true)
+
+        let roundTrip = try await vault.fetchByContentHash(contentHash)
+        #expect(roundTrip != nil)
+        #expect(roundTrip?.id == snapshot.id)
+        #expect(roundTrip?.visibility == "private")
+        #expect(roundTrip?.provenance == provenance)
+        #expect(roundTrip?.contentHash == contentHash)
+        // 🌙 Cold path not invoked: Obsidian projection path remains unset after store.
+        #expect(roundTrip?.materializedPath == nil)
+
+        let duplicate = AnimaEpisodicRecordSnapshot(
+            id: UUID(),
+            contentHash: contentHash,
+            project: "MemoryKit",
+            agent: "cursor-proof",
+            narrative: "Duplicate must be rejected when uniqueness is enforced.",
+            visibility: "private",
+            provenance: provenance
+        )
+        await #expect(throws: AnimaStorageError.self) {
+            try await vault.insert(duplicate, checkUniqueHash: true)
+        }
+
+        #expect(try await vault.count() == 1)
+    }
+
     @Test("🛡️ Guard of Uniqueness - Throws duplicate error when configured to check")
     func testUniqueConstraintCheck() async throws {
         let vault = try await createFreshVault()
