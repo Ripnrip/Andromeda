@@ -1,6 +1,6 @@
 # Proof 33 — Live `project.state` → Linear∪Multica Bridge
 
-**Status:** PASS (Multica live; Linear soft-skip until `LINEAR_API_KEY`)  
+**Status:** PASS (Multica live; Linear live via dotenv/`LINEAR_API_KEY`)  
 **Date:** 2026-07-15  
 **Branch:** `feat/project-state-live-bridge`  
 **Package:** `Packages/MemoryKit`  
@@ -49,6 +49,16 @@ Live Studio: merged **27** Habitat issues into brand-neutral `project.state` ite
 
 ## Residuals / human follow-ups
 
-- Set `LINEAR_API_KEY` (and optional `LINEAR_TEAM_ID` / `LINEAR_PROJECT_ID`) for full Linear fan-out; until then Multica-only is honest, not greenwashed.
+- `LINEAR_API_KEY` loads from process env **or** `~/Developer/multibrain/.env` / `~/.multibrain/.env` (process env wins; values never logged).
+- Optional: set `LINEAR_TEAM_ID` / `LINEAR_PROJECT_ID` in the same dotenv if defaults need override.
 - Cancel leftover probe issues HAB-54…HAB-61 if any remain open (smoke probes).
-- Dual-home sync into Andromeda `Packages/MemoryKit` after merge (see workspace readiness doc).
+- Dual-home sync into Andromeda `Packages/MemoryKit` after Linear dotenv fix lands.
+
+## Linear dotenv verification (2026-07-15)
+
+| Check | Result |
+|-------|--------|
+| Dotenv unit parse (synthetic key) | PASS |
+| Factory wires LiveLinear when key present | PASS |
+| Live GraphQL list (`LiveLinearProjectStateTests`) | PASS — 30 brand-neutral items |
+| Soft-skip when key absent | still honest (NullLinear) |

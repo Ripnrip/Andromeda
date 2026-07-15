@@ -18,8 +18,8 @@ All of the following must be green before promoting Andromeda as the default app
 | 5 | **Indexes fail-open** | Qdrant / Ladybug down ⇒ recall still serves hot (vault degraded OK) | ✅ by design; optional Studio chaos check residual |
 | 6 | **Canonical Studio store smoke** | Optional: one store/recall against `~/.multibrain/anima-hot.store` (not only temp) | ⬜ optional human confirmation |
 | 7 | **`project.state` live Multica** | `MULTICA_LIVE=1` list/create; proof `PROOFS/33-…` | ✅ PASS |
-| 8 | **`project.state` live Linear** | Requires `LINEAR_API_KEY` fan-out | ⬜ blocked on key |
-| 9 | **Dual-home MemoryKit sync** | Andromeda `Packages/MemoryKit` matches multibrain tip used by bar | ⬜ after #5 merge |
+| 8 | **`project.state` live Linear** | `LINEAR_API_KEY` in process env or `~/Developer/multibrain/.env` | ✅ PASS (dotenv + live list) |
+| 9 | **Dual-home MemoryKit sync** | Andromeda `Packages/MemoryKit` matches multibrain tip used by bar | ✅ PR #2 merged; Linear dotenv follow-up on Autocache PR #1 |
 | 10 | **No paid spend on nightly** | OpenRouter/Haiku killed on Studio nightly + dreamcatcher | ✅ BIN-36 / HAB-50 |
 
 **Promotion rule:** Items 1–5 and 7 + 9 must be ✅. Item 8 is strongly preferred but Multica-only is acceptable if Linear remains operator-MCP-only. Item 6 is a final human gut-check.
