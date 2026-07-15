@@ -139,7 +139,20 @@ public enum SystemPrompt: Sendable, Equatable {
     }
 }
 
+/// 🪄 Dynamic JSON keys so unknown Anthropic fields survive decode→encode (proxy passthrough).
+struct DynamicCodingKey: CodingKey, Hashable {
+    var stringValue: String
+    var intValue: Int? { nil }
+
+    init?(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { nil }
+    init(_ string: String) { self.stringValue = string }
+}
+
 /// Anthropic Messages API request with Autocache-friendly system handling.
+///
+/// Unknown top-level fields (`tool_choice`, `metadata`, betas, etc.) live in `passthrough`
+/// so decode→mutate→encode does not silently strip them — even on Autocache bypass.
 public struct AnthropicRequest: Codable, Sendable, Equatable {
     public var model: String
     public var maxTokens: Int
@@ -151,6 +164,13 @@ public struct AnthropicRequest: Codable, Sendable, Equatable {
     public var topK: Int?
     public var stream: Bool?
     public var stopSequences: [String]?
+    /// 💎 Extra Anthropic request members preserved across the proxy hop.
+    public var passthrough: [String: JSONValue]
+
+    private static let knownKeyNames: Set<String> = [
+        "model", "max_tokens", "messages", "system", "tools",
+        "temperature", "top_p", "top_k", "stream", "stop_sequences",
+    ]
 
     public init(
         model: String,
@@ -162,7 +182,8 @@ public struct AnthropicRequest: Codable, Sendable, Equatable {
         topP: Double? = nil,
         topK: Int? = nil,
         stream: Bool? = nil,
-        stopSequences: [String]? = nil
+        stopSequences: [String]? = nil,
+        passthrough: [String: JSONValue] = [:]
     ) {
         self.model = model
         self.maxTokens = maxTokens
@@ -174,40 +195,35 @@ public struct AnthropicRequest: Codable, Sendable, Equatable {
         self.topK = topK
         self.stream = stream
         self.stopSequences = stopSequences
+        self.passthrough = passthrough
     }
 
     public var isStreaming: Bool { stream == true }
 
-    enum CodingKeys: String, CodingKey {
-        case model
-        case maxTokens = "max_tokens"
-        case messages, system, tools, temperature
-        case topP = "top_p"
-        case topK = "top_k"
-        case stream
-        case stopSequences = "stop_sequences"
-    }
-
     public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        model = try container.decode(String.self, forKey: .model)
-        maxTokens = try container.decode(Int.self, forKey: .maxTokens)
-        messages = try container.decode([Message].self, forKey: .messages)
-        tools = try container.decodeIfPresent([ToolDefinition].self, forKey: .tools)
-        temperature = try container.decodeIfPresent(Double.self, forKey: .temperature)
-        topP = try container.decodeIfPresent(Double.self, forKey: .topP)
-        topK = try container.decodeIfPresent(Int.self, forKey: .topK)
-        stream = try container.decodeIfPresent(Bool.self, forKey: .stream)
-        stopSequences = try container.decodeIfPresent([String].self, forKey: .stopSequences)
+        let container = try decoder.container(keyedBy: DynamicCodingKey.self)
+        model = try container.decode(String.self, forKey: DynamicCodingKey("model"))
+        maxTokens = try container.decode(Int.self, forKey: DynamicCodingKey("max_tokens"))
+        messages = try container.decode([Message].self, forKey: DynamicCodingKey("messages"))
+        tools = try container.decodeIfPresent([ToolDefinition].self, forKey: DynamicCodingKey("tools"))
+        temperature = try container.decodeIfPresent(Double.self, forKey: DynamicCodingKey("temperature"))
+        topP = try container.decodeIfPresent(Double.self, forKey: DynamicCodingKey("top_p"))
+        topK = try container.decodeIfPresent(Int.self, forKey: DynamicCodingKey("top_k"))
+        stream = try container.decodeIfPresent(Bool.self, forKey: DynamicCodingKey("stream"))
+        stopSequences = try container.decodeIfPresent(
+            [String].self,
+            forKey: DynamicCodingKey("stop_sequences")
+        )
 
-        if container.contains(.system) {
-            if let text = try? container.decode(String.self, forKey: .system) {
+        let systemKey = DynamicCodingKey("system")
+        if container.contains(systemKey) {
+            if let text = try? container.decode(String.self, forKey: systemKey) {
                 system = .text(text)
-            } else if let blocks = try? container.decode([ContentBlock].self, forKey: .system) {
+            } else if let blocks = try? container.decode([ContentBlock].self, forKey: systemKey) {
                 system = .blocks(blocks)
             } else {
                 throw DecodingError.dataCorruptedError(
-                    forKey: .system,
+                    forKey: systemKey,
                     in: container,
                     debugDescription: "system must be a string or content block array"
                 )
@@ -215,27 +231,38 @@ public struct AnthropicRequest: Codable, Sendable, Equatable {
         } else {
             system = nil
         }
+
+        // ✨ Capture every unknown top-level field so re-encode stays drop-in
+        var extras: [String: JSONValue] = [:]
+        for key in container.allKeys where !Self.knownKeyNames.contains(key.stringValue) {
+            extras[key.stringValue] = try container.decode(JSONValue.self, forKey: key)
+        }
+        passthrough = extras
     }
 
     public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(model, forKey: .model)
-        try container.encode(maxTokens, forKey: .maxTokens)
-        try container.encode(messages, forKey: .messages)
-        try container.encodeIfPresent(tools, forKey: .tools)
-        try container.encodeIfPresent(temperature, forKey: .temperature)
-        try container.encodeIfPresent(topP, forKey: .topP)
-        try container.encodeIfPresent(topK, forKey: .topK)
-        try container.encodeIfPresent(stream, forKey: .stream)
-        try container.encodeIfPresent(stopSequences, forKey: .stopSequences)
+        var container = encoder.container(keyedBy: DynamicCodingKey.self)
+        try container.encode(model, forKey: DynamicCodingKey("model"))
+        try container.encode(maxTokens, forKey: DynamicCodingKey("max_tokens"))
+        try container.encode(messages, forKey: DynamicCodingKey("messages"))
+        try container.encodeIfPresent(tools, forKey: DynamicCodingKey("tools"))
+        try container.encodeIfPresent(temperature, forKey: DynamicCodingKey("temperature"))
+        try container.encodeIfPresent(topP, forKey: DynamicCodingKey("top_p"))
+        try container.encodeIfPresent(topK, forKey: DynamicCodingKey("top_k"))
+        try container.encodeIfPresent(stream, forKey: DynamicCodingKey("stream"))
+        try container.encodeIfPresent(stopSequences, forKey: DynamicCodingKey("stop_sequences"))
 
         switch system {
         case .text(let text):
-            try container.encode(text, forKey: .system)
+            try container.encode(text, forKey: DynamicCodingKey("system"))
         case .blocks(let blocks):
-            try container.encode(blocks, forKey: .system)
+            try container.encode(blocks, forKey: DynamicCodingKey("system"))
         case .none:
             break
+        }
+
+        for (key, value) in passthrough.sorted(by: { $0.key < $1.key }) {
+            try container.encode(value, forKey: DynamicCodingKey(key))
         }
     }
 }

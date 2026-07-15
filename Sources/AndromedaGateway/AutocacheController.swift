@@ -2,6 +2,7 @@ import AndromedaAutoCache
 import AndromedaCore
 import Foundation
 import Logging
+import NIOCore
 
 /// Orchestrates Autocache injection, Anthropic proxying, and savings history.
 public struct AutocacheController: Sendable {
@@ -19,7 +20,12 @@ public struct AutocacheController: Sendable {
     ) {
         self.config = config
         let strategy = CacheStrategy(rawValue: config.cacheStrategy) ?? .moderate
-        self.injector = CacheInjector(strategy: strategy, logger: logger)
+        // 🌙 Pass MAX_CACHE_BREAKPOINTS so injector ceiling matches /metrics
+        self.injector = CacheInjector(
+            strategy: strategy,
+            maxBreakpoints: config.maxCacheBreakpoints,
+            logger: logger
+        )
         self.proxy = AnthropicProxyClient(anthropicURL: config.anthropicURL, logger: logger)
         self.history = SavingsHistory(capacity: config.savingsHistorySize)
         self.logger = logger
@@ -69,13 +75,30 @@ public struct AutocacheController: Sendable {
             forwardHeaders["anthropic-version"] = "2023-06-01"
         }
 
+        // 🌊 Stream SSE when client asked for stream:true — never buffer the whole show
+        if request.isStreaming {
+            let upstream = try await proxy.forwardMessagesStreaming(request, headers: forwardHeaders)
+            if let metadata {
+                await history.record(metadata)
+            }
+            return ProcessedMessagesResponse(
+                statusCode: upstream.statusCode,
+                headers: upstream.headers,
+                body: .stream(upstream.body),
+                metadata: metadata,
+                bypassed: bypass
+            )
+        }
+
         let upstream = try await proxy.forwardMessages(request, headers: forwardHeaders)
         if let metadata {
             await history.record(metadata)
         }
 
         return ProcessedMessagesResponse(
-            upstream: upstream,
+            statusCode: upstream.statusCode,
+            headers: upstream.headers,
+            body: .data(upstream.body),
             metadata: metadata,
             bypassed: bypass
         )
@@ -147,8 +170,26 @@ public struct AutocacheController: Sendable {
     }
 }
 
+/// 🎭 Upstream body — buffered JSON or live SSE ByteBuffer stream.
+public enum ProcessedUpstreamBody: Sendable {
+    case data(Data)
+    case stream(AsyncThrowingStream<ByteBuffer, Error>)
+}
+
 public struct ProcessedMessagesResponse: Sendable {
-    public var upstream: UpstreamResponse
+    public var statusCode: Int
+    public var headers: [String: String]
+    public var body: ProcessedUpstreamBody
     public var metadata: CacheMetadata?
     public var bypassed: Bool
+
+    /// Legacy convenience for buffered responses (tests / non-stream path).
+    public var upstream: UpstreamResponse {
+        switch body {
+        case .data(let data):
+            return UpstreamResponse(statusCode: statusCode, headers: headers, body: data)
+        case .stream:
+            return UpstreamResponse(statusCode: statusCode, headers: headers, body: Data())
+        }
+    }
 }

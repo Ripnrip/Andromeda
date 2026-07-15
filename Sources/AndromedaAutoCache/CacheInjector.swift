@@ -28,10 +28,13 @@ public struct CacheInjector: Sendable {
     private let tokenizer: HeuristicTokenizer
     private let pricing: PricingCalculator
     private let strategy: CacheStrategy
+    /// 🌙 Operator ceiling from `MAX_CACHE_BREAKPOINTS` / GatewayConfig — never exceed this.
+    private let maxBreakpointsLimit: Int
     private let logger: Logger
 
     public init(
         strategy: CacheStrategy = .moderate,
+        maxBreakpoints: Int = 4,
         tokenizer: HeuristicTokenizer = HeuristicTokenizer(),
         pricing: PricingCalculator = PricingCalculator(),
         logger: Logger = Logger(label: "andromeda.autocache")
@@ -39,6 +42,7 @@ public struct CacheInjector: Sendable {
         self.tokenizer = tokenizer
         self.pricing = pricing
         self.strategy = strategy
+        self.maxBreakpointsLimit = max(1, min(4, maxBreakpoints))
         self.logger = logger
     }
 
@@ -56,7 +60,8 @@ public struct CacheInjector: Sendable {
             strategyConfig: strategyConfig
         )
 
-        let maxBreakpoints = strategyConfig.maxBreakpoints
+        // ✨ Honor both strategy default and operator MAX_CACHE_BREAKPOINTS ceiling
+        let maxBreakpoints = min(strategyConfig.maxBreakpoints, maxBreakpointsLimit)
         if candidates.count > maxBreakpoints {
             candidates = Array(candidates.prefix(maxBreakpoints))
         }
