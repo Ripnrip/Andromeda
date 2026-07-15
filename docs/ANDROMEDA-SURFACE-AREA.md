@@ -214,6 +214,8 @@ Book/Mini satellite: nightly + health (+ optional claude-mem worker). Hub checks
 
 ### G. LaunchAgents / cron / watchdogs
 
+> Swift roster: `Packages/MemoryKit/Sources/MemoryKit/Registry/LaunchEntity{,Registry}.swift` (BIN-26 — observe-first; Mini tunnel isolated).
+
 | Label | Schedule | Role |
 |-------|----------|------|
 | `com.multibrain.nightly` | 02:30 | Dream batch |
