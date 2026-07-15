@@ -220,6 +220,41 @@ struct ProjectStateSurfaceTests {
         print("🎉 ✨ MULTICA-ONLY CREATE COMPLETE!")
     }
 
+    /// 🧪 Codex P1 landmine — create salt ≠ refresh salt caused itemNotFound after list.
+    @Test("🧷 create → refresh → update keeps stable item id (no itemNotFound)")
+    func testCreateRefreshUpdateStableID() async throws {
+        let linear = MockLinearProvider(issues: [])
+        let multica = MockMulticaProvider(issues: [])
+        let bridge = OperatorProjectStateBridge(linear: linear, multica: multica)
+
+        let created = try await bridge.createItem(
+            ProjectStateDraft(
+                projectID: ProjectStateID(rawValue: "andromeda"),
+                title: "Stable ID curtain",
+                status: .backlog,
+                notes: "must survive refresh"
+            )
+        )
+        #expect(created.id.rawValue.hasPrefix("ps-"))
+
+        // 🎨 Refresh rebuilds from providers — ID must match create's return value
+        let listed = try await bridge.listProjects()
+        let refreshed = try #require(listed[0].items.first { $0.title == "Stable ID curtain" })
+        #expect(refreshed.id == created.id)
+
+        // ✨ Update with the create-returned ID must NOT itemNotFound
+        let updated = try await bridge.updateItem(
+            created.id,
+            ProjectStatePatch(title: "Stable ID curtain v2", status: .active)
+        )
+        #expect(updated.id == created.id)
+        #expect(updated.title == "Stable ID curtain v2")
+        #expect(updated.status == .active)
+        #expect(linear.updated.count == 1)
+        #expect(multica.updated.count == 1)
+        print("🎉 ✨ CREATE→REFRESH→UPDATE STABLE ID RITUAL COMPLETE!")
+    }
+
     @Test("🔄 project.state.update patches both trackers via provenance")
     func testUpdateFanOut() async throws {
         let linear = MockLinearProvider(issues: [

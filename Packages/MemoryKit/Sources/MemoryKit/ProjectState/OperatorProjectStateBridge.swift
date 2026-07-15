@@ -181,10 +181,17 @@ public actor OperatorProjectStateBridge: ProjectStateSurface {
             }
         }
 
-        let itemID = Self.opaqueItemID(
-            salt: "create",
-            trackerID: linearID ?? multicaID ?? UUID().uuidString
-        )
+        // 🪄 Same salt scheme as refreshFromProviders — "create" salt made update-after-list itemNotFound.
+        // Prefer Linear salt when both wired (refresh merges Multica onto the Linear-derived id).
+        let itemID: ProjectStateItemID
+        if let linearID {
+            itemID = Self.opaqueItemID(salt: "linear", trackerID: linearID)
+        } else if let multicaID {
+            itemID = Self.opaqueItemID(salt: "multica", trackerID: multicaID)
+        } else {
+            // 🌩️ Unreachable: both-unwired already returned via cache.createItem above
+            itemID = Self.opaqueItemID(salt: "multica", trackerID: UUID().uuidString)
+        }
         let item = ProjectStateItem(
             id: itemID,
             title: draft.title,
