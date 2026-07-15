@@ -8,7 +8,7 @@ Updated: 2026-07-15 (Anima stopgap consolidation). No secrets in this file.
 - **Project:** [Anima Memory / Andromeda](https://linear.app/binary-bros/project/anima-memory-andromeda-24f49e6f052c)
 - **Project ID:** `df11aac0-8284-48ac-b2b8-b85838123938`
 - **Team:** Binary-bros (`BIN`)
-- **Issues:** BIN-21 … BIN-27 (canonical tracker)
+- **Issues:** BIN-21 … BIN-27 (canonical tracker); **BIN-29** MCP sprawl registry/dedupe
 
 ## Multica (Studio-local)
 
@@ -31,6 +31,7 @@ Updated: 2026-07-15 (Anima stopgap consolidation). No secrets in this file.
 | HAB-39 | NEXT: Skills / MCP / CLI registries | (follow-on) |
 | HAB-40 | NEXT: n8n wiring | (follow-on BIN-27) |
 | HAB-41 | NEXT: multibrain-bar integration | (follow-on) |
+| HAB-43 | MCP sprawl: registry + dedupe invisible `npm exec` | **BIN-29** |
 
 ### Multica resources
 
@@ -68,5 +69,7 @@ There is **no native Linear sync** in Multica on this stack — keep Linear as s
 ## Related docs
 
 - `docs/ANDROMEDA-SURFACE-AREA.md`
+- `docs/MCP-SPRAWL-PROBLEM.md` — Activity Monitor evidence + host inventory (THE MCP problem)
+- `docs/assets/mcp-sprawl-activity-monitor-2026-07-15.png`
 - `docs/FLEET.md`
 - `docs/MEMORY-ONEPAGER.md`
