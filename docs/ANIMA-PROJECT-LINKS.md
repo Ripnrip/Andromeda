@@ -1,11 +1,15 @@
 # Anima Memory / Andromeda — Project Links
 
 Short link map for the Anima memory + Andromeda control-plane workstream.
-Updated: 2026-07-15 (routing permutation guide). No secrets in this file.
+Updated: 2026-07-15 (operator routing vs client capabilities). No secrets in this file.
+
+> **Operator routing vs client capabilities (locked 2026-07-15)**  
+> This file’s Linear ∪ Multica ∪ Slack routing tables are for **fabric operators and meta-agents** — humans and agents that maintain the hive tracker fabric.  
+> **Andromeda app clients and satellite agents must NOT see this complexity.** They call stable capability IDs only: `project.state.list` / `get` / `create` / `update` (and `memory.*`, `infer.write`). Andromeda Observe→Evolve→Execute→Internalize owns Linear/Multica/Slack/n8n provider selection behind the curtain — same pattern as inference hiding Cerebras/OpenRouter. Never put Linear/Multica/n8n brands in end-user agent tool menus.
 
 ## Routing guide (what goes where)
 
-**Stack roles (do not invent a fourth tracker):**
+**Stack roles (do not invent a fourth tracker) — operator-facing:**
 
 | Layer | Role |
 |-------|------|
