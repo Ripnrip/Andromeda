@@ -30,6 +30,10 @@ let package = Package(
             dependencies: [
                 "MemoryKit",
                 .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            ],
+            exclude: [
+                "__Snapshots__",
+                "Snapshots/__Snapshots__",
             ]
         ),
     ]

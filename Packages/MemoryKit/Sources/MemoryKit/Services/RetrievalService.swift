@@ -205,6 +205,18 @@ public enum RetrievalServiceError: Error, LocalizedError, Sendable, Equatable {
             return "🌩️ recall_memory needs at least one filter or a text needle — the lantern cannot search the void."
         }
     }
+
+    // 🧮 Explicit Equatable — keeps synthesis honest across Error + associated storage.
+    public static func == (lhs: RetrievalServiceError, rhs: RetrievalServiceError) -> Bool {
+        switch (lhs, rhs) {
+        case (.emptyQuery, .emptyQuery):
+            return true
+        case (.storage(let a), .storage(let b)):
+            return a == b
+        default:
+            return false
+        }
+    }
 }
 
 // MARK: - Retrieval Service
