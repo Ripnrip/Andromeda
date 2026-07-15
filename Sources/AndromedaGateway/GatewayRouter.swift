@@ -98,7 +98,7 @@ public struct GatewayRouter: Sendable {
     }
 
     private static func makeUpstreamResponse(_ processed: ProcessedMessagesResponse) -> Response {
-        var fields = HTTPFields(upstreamFilteredHeaders(processed.upstream.headers))
+        var fields = HTTPFields(upstreamFilteredHeaders(processed.headers))
         if let metadata = processed.metadata {
             for header in CacheMetadataHeaders.make(from: metadata) {
                 if let name = HTTPField.Name(header.name) {
@@ -110,15 +110,28 @@ public struct GatewayRouter: Sendable {
                 fields[name] = "false"
             }
         }
-        if fields[.contentType] == nil {
-            fields[.contentType] = "application/json"
-        }
 
-        return Response(
-            status: .init(code: processed.upstream.statusCode, reasonPhrase: ""),
-            headers: fields,
-            body: .init(byteBuffer: ByteBuffer(data: processed.upstream.body))
-        )
+        switch processed.body {
+        case .data(let data):
+            if fields[.contentType] == nil {
+                fields[.contentType] = "application/json"
+            }
+            return Response(
+                status: .init(code: processed.statusCode, reasonPhrase: ""),
+                headers: fields,
+                body: .init(byteBuffer: ByteBuffer(data: data))
+            )
+        case .stream(let stream):
+            // 🌊 Pass SSE through without buffering the whole Anthropic performance
+            if fields[.contentType] == nil {
+                fields[.contentType] = "text/event-stream"
+            }
+            return Response(
+                status: .init(code: processed.statusCode, reasonPhrase: ""),
+                headers: fields,
+                body: .init(asyncSequence: stream)
+            )
+        }
     }
 
     private static func errorResponse(for error: AndromedaError) -> Response {

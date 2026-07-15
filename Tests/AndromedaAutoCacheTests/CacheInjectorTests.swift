@@ -125,6 +125,70 @@ struct CacheInjectorTests {
         #expect(request.messages.first?.content.first?.text == "Hi")
     }
 
+    /// 🧪 Codex P1 — unknown Anthropic fields must survive decode→encode (drop-in proxy).
+    @Test("preserves unknown Anthropic request fields through decode→encode")
+    func preservesUnknownFields() throws {
+        let json = """
+        {
+          "model": "claude-3-5-sonnet-20241022",
+          "max_tokens": 32,
+          "messages": [{"role": "user", "content": "Hi"}],
+          "tool_choice": {"type": "auto"},
+          "metadata": {"user_id": "seeker-42"},
+          "anthropic_beta": "prompt-caching-2024-07-31"
+        }
+        """.data(using: .utf8)!
+
+        let request = try JSONDecoder().decode(AnthropicRequest.self, from: json)
+        #expect(request.passthrough["tool_choice"] != nil)
+        #expect(request.passthrough["metadata"] != nil)
+        #expect(request.passthrough["anthropic_beta"] != nil)
+
+        let encoded = try JSONEncoder().encode(request)
+        let object = try JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        #expect(object?["tool_choice"] != nil)
+        #expect(object?["metadata"] != nil)
+        #expect(object?["anthropic_beta"] as? String == "prompt-caching-2024-07-31")
+        print("🎉 ✨ UNKNOWN FIELD PASSTHROUGH MASTERPIECE COMPLETE!")
+    }
+
+    /// 🧪 Codex P2 — MAX_CACHE_BREAKPOINTS must cap injector below strategy default.
+    @Test("honors maxBreakpoints ceiling below aggressive strategy default")
+    func honorsMaxBreakpointsCeiling() {
+        var request = AnthropicRequest(
+            model: "claude-3-5-sonnet-20241022",
+            maxTokens: 100,
+            messages: [
+                Message(role: "user", content: [ContentBlock(type: "text", text: "Calculate 2+2")]),
+            ],
+            system: .text(
+                String(repeating: "You are a helpful assistant with detailed instructions. ", count: 100)
+            ),
+            tools: [
+                ToolDefinition(
+                    name: "calculator",
+                    description: String(repeating: "A tool for calculations. ", count: 50),
+                    inputSchema: JSONValue.from([
+                        "type": "object",
+                        "properties": [
+                            "expression": [
+                                "type": "string",
+                                "description": "Mathematical expression to evaluate",
+                            ],
+                        ],
+                    ] as [String: Any])
+                ),
+            ]
+        )
+
+        // Aggressive would allow 2+; ceiling of 1 must win
+        let metadata = CacheInjector(strategy: .aggressive, maxBreakpoints: 1)
+            .injectCacheControl(into: &request)
+        #expect(metadata.cacheInjected)
+        #expect(metadata.breakpoints.count == 1)
+        print("🎉 ✨ MAX_CACHE_BREAKPOINTS CEILING HONORED!")
+    }
+
     @Test("ROI headers include injected and ratio fields")
     func metadataHeaders() {
         let metadata = CacheMetadata(

@@ -5,6 +5,7 @@ import Foundation
 import FoundationNetworking
 #endif
 import Logging
+import NIOCore
 
 /// HTTP client that forwards Autocache-transformed Anthropic Messages requests.
 public struct AnthropicProxyClient: @unchecked Sendable {
@@ -37,47 +38,72 @@ public struct AnthropicProxyClient: @unchecked Sendable {
         }
     }
 
+    /// 🌟 Buffered forward — non-streaming Messages responses.
     public func forwardMessages(
         _ request: AnthropicRequest,
         headers: [String: String]
     ) async throws -> UpstreamResponse {
-        let url = anthropicURL.appendingPathComponent("v1/messages")
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = "POST"
-        urlRequest.timeoutInterval = 300
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if headers["anthropic-version"] == nil && headers["Anthropic-Version"] == nil {
-            urlRequest.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        }
-
-        for (key, value) in headers where !shouldSkipHeader(key) {
-            urlRequest.setValue(value, forHTTPHeaderField: key)
-        }
-
-        do {
-            urlRequest.httpBody = try JSONEncoder().encode(request)
-        } catch {
-            throw AndromedaError.encodingFailed(error.localizedDescription)
-        }
-
-        logger.debug("Forwarding Anthropic request model=\(request.model) streaming=\(request.isStreaming)")
+        let urlRequest = try makeMessagesRequest(request, headers: headers)
+        logger.debug("Forwarding Anthropic request model=\(request.model) streaming=false")
 
         let (data, response) = try await session.data(for: urlRequest)
         guard let http = response as? HTTPURLResponse else {
             throw AndromedaError.upstreamFailure(status: 502, message: "Invalid upstream response")
         }
 
-        var responseHeaders: [String: String] = [:]
-        for (key, value) in http.allHeaderFields {
-            if let name = key as? String, let stringValue = value as? String {
-                responseHeaders[name] = stringValue
-            }
-        }
-
         return UpstreamResponse(
             statusCode: http.statusCode,
-            headers: responseHeaders,
+            headers: headerMap(from: http),
             body: data
+        )
+    }
+
+    /// 🌊 SSE stream forward — yields ByteBuffers as Anthropic emits events (no full-body buffer).
+    public func forwardMessagesStreaming(
+        _ request: AnthropicRequest,
+        headers: [String: String]
+    ) async throws -> UpstreamStreamResponse {
+        let urlRequest = try makeMessagesRequest(request, headers: headers)
+        logger.debug("Forwarding Anthropic SSE stream model=\(request.model)")
+
+        let (bytes, response) = try await session.bytes(for: urlRequest)
+        guard let http = response as? HTTPURLResponse else {
+            throw AndromedaError.upstreamFailure(status: 502, message: "Invalid upstream response")
+        }
+
+        let statusCode = http.statusCode
+        let responseHeaders = headerMap(from: http)
+        let stream = AsyncThrowingStream<ByteBuffer, Error> { continuation in
+            let task = Task {
+                do {
+                    var chunk = [UInt8]()
+                    chunk.reserveCapacity(8192)
+                    for try await byte in bytes {
+                        chunk.append(byte)
+                        if chunk.count >= 8192 {
+                            var buffer = ByteBufferAllocator().buffer(capacity: chunk.count)
+                            buffer.writeBytes(chunk)
+                            continuation.yield(buffer)
+                            chunk.removeAll(keepingCapacity: true)
+                        }
+                    }
+                    if !chunk.isEmpty {
+                        var buffer = ByteBufferAllocator().buffer(capacity: chunk.count)
+                        buffer.writeBytes(chunk)
+                        continuation.yield(buffer)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+
+        return UpstreamStreamResponse(
+            statusCode: statusCode,
+            headers: responseHeaders,
+            body: stream
         )
     }
 
@@ -97,13 +123,44 @@ public struct AnthropicProxyClient: @unchecked Sendable {
         guard let http = response as? HTTPURLResponse else {
             throw AndromedaError.upstreamFailure(status: 502, message: "Invalid upstream response")
         }
+        return UpstreamResponse(statusCode: http.statusCode, headers: headerMap(from: http), body: data)
+    }
+
+    // MARK: - Private alchemy
+
+    private func makeMessagesRequest(
+        _ request: AnthropicRequest,
+        headers: [String: String]
+    ) throws -> URLRequest {
+        let url = anthropicURL.appendingPathComponent("v1/messages")
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.timeoutInterval = 300
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if headers["anthropic-version"] == nil && headers["Anthropic-Version"] == nil {
+            urlRequest.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        }
+
+        for (key, value) in headers where !shouldSkipHeader(key) {
+            urlRequest.setValue(value, forHTTPHeaderField: key)
+        }
+
+        do {
+            urlRequest.httpBody = try JSONEncoder().encode(request)
+        } catch {
+            throw AndromedaError.encodingFailed(error.localizedDescription)
+        }
+        return urlRequest
+    }
+
+    private func headerMap(from http: HTTPURLResponse) -> [String: String] {
         var responseHeaders: [String: String] = [:]
         for (key, value) in http.allHeaderFields {
             if let name = key as? String, let stringValue = value as? String {
                 responseHeaders[name] = stringValue
             }
         }
-        return UpstreamResponse(statusCode: http.statusCode, headers: responseHeaders, body: data)
+        return responseHeaders
     }
 
     private func shouldSkipHeader(_ key: String) -> Bool {
@@ -119,4 +176,11 @@ public struct UpstreamResponse: Sendable {
     public var statusCode: Int
     public var headers: [String: String]
     public var body: Data
+}
+
+/// 🌊 Streaming upstream — SSE chunks as ByteBuffers (not one buffered body).
+public struct UpstreamStreamResponse: Sendable {
+    public var statusCode: Int
+    public var headers: [String: String]
+    public var body: AsyncThrowingStream<ByteBuffer, Error>
 }
