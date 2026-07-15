@@ -195,18 +195,28 @@ NON-GOALS
 
 ## 6. Suggested Swift module → Andromeda capability surface
 
+**Capability hiding (locked 2026-07-15):** clients and satellite agents call stable capability IDs only. Andromeda Observe→Evolve→Execute→Internalize selects providers behind the curtain — same pattern as inference. Never expose Linear/Multica routing, model registries, n8n, or store plumbing in client tool menus.
+
+| Client-facing capability (Swift) | Hides behind the curtain |
+|----------------------------------|--------------------------|
+| `memory.recall` / `memory.store` / `memory.journal` / `memory.document` | SwiftData, CloudKit, Obsidian materialize, Qdrant/Ladybug, claude-mem |
+| `infer.write` (or similar) | Cerebras, model registry, health, OpenRouter fallbacks, MCP server logic, n8n |
+| `project.state` CRUD (`list` / `get` / `create` / `update`) | Linear + Multica + kanban + Slack fanout |
+
 | Anima module | Andromeda capability ID (sketch) | Side effects |
 |--------------|----------------------------------|--------------|
-| `AnimaHotStore` (SwiftData/Realm) | `memory.episodic.recall/append` | SwiftData/Realm local |
-| `Knowledge/` PageIndex | `memory.semantic.search` | Read vault; optional index rebuild |
+| `AnimaHotStore` (SwiftData/Realm) | `memory.store` / `memory.recall` (also `memory.episodic.*`) | SwiftData/Realm local |
+| `Knowledge/` PageIndex | `memory.document` / `memory.semantic.search` | Read vault; optional index rebuild |
 | `VisionEngine` | `memory.photographic.search` | CLIP/MLX local |
 | `MerkleTree` | `memory.integrity.verify` | Proofs; fail closed |
-| `Meditation` | `memory.meditation.run` | Journal write |
+| `Meditation` | `memory.journal` / `memory.meditation.run` | Journal write |
 | `Soul` | `memory.soul.context` | Mood/relationship context only |
 | `HeartbeatEngine` | `memory.awareness.pulse` | May notify or return `HEARTBEAT_OK` |
 | `Anima` dream | `memory.dream.run` | Nightly batch; visible job in console |
+| (Andromeda PM fabric) | `project.state.list/get/create/update` | Linear∪Multica∪Slack — **never** exposed as those brands to clients |
+| (Andromeda inference) | `infer.write` | Provider registry + health + fallbacks — **never** Cerebras/OpenRouter IDs on the client menu |
 
-Every capability: observe-event first → execute → internalize with provenance hash.
+Every capability: observe-event first → execute → internalize with provenance hash. n8n may orchestrate behind capabilities; never treat n8n as the client SoT.
 
 ---
 
