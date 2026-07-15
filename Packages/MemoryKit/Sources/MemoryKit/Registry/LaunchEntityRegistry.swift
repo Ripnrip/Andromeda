@@ -52,17 +52,24 @@ public struct LaunchEntityRegistry: Sendable {
     /// Machine role we are observing from (affects hub-only → n/a on satellites).
     public let observingHostRole: HostRole
     private let launchctl: any LaunchctlObserving
+    private let telemetry: any LaunchEntityTelemetrySinking
     private var seeded: [LaunchEntity]
 
-    /// 🌟 The Grand Ignition — catalog seeds + optional mock launchctl.
+    /// 🌟 Last telemetry pulse from `refresh()` — nil until the first refresh.
+    public private(set) var lastTelemetry: LaunchEntityRefreshTelemetry?
+
+    /// 🌟 The Grand Ignition — catalog seeds + optional mock launchctl + telemetry sink.
     public init(
         observingHostRole: HostRole = .hub,
         launchctl: any LaunchctlObserving = NullLaunchctlObserver(),
+        telemetry: any LaunchEntityTelemetrySinking = NullLaunchEntityTelemetrySink(),
         entities: [LaunchEntity]? = nil
     ) {
         self.observingHostRole = observingHostRole
         self.launchctl = launchctl
+        self.telemetry = telemetry
         self.seeded = entities ?? Self.catalogSeeds()
+        self.lastTelemetry = nil
     }
 
     // MARK: Catalog
@@ -211,7 +218,7 @@ public struct LaunchEntityRegistry: Sendable {
     // MARK: Observe
 
     /**
-     * 👁️ Refresh statuses from the injected launchctl observer.
+     * 👁️ Refresh statuses from the injected launchctl observer (no telemetry).
      *
      * Rules:
      * - Ops-only templates stay stopped (never pretend running).
@@ -227,10 +234,29 @@ public struct LaunchEntityRegistry: Sendable {
         }
     }
 
-    /// 🌟 Immutable refresh returning a new registry (friendlier for Sendable call sites).
+    /**
+     * 🌐 Day-1 Observe refresh — statuses + telemetry pulse.
+     *
+     * Emits counts by status and flags the isolated Mini lane when present.
+     * Prefer this over `refreshStatuses` at console / health boundaries.
+     */
+    @discardableResult
+    public mutating func refresh() -> LaunchEntityRefreshTelemetry {
+        refreshStatuses()
+        let pulse = LaunchEntityRefreshTelemetry.summarize(
+            entities: seeded,
+            observingHostRole: observingHostRole
+        )
+        lastTelemetry = pulse
+        telemetry.emit(pulse)
+        print("🎉 ✨ LAUNCH ENTITY REFRESH MASTERPIECE COMPLETE! \(pulse.displaySummary)")
+        return pulse
+    }
+
+    /// 🌟 Immutable refresh + telemetry (friendlier for Sendable call sites).
     public func observingRefreshed() -> LaunchEntityRegistry {
         var copy = self
-        copy.refreshStatuses()
+        _ = copy.refresh()
         return copy
     }
 
