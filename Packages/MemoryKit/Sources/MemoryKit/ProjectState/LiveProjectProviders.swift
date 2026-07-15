@@ -92,17 +92,20 @@ public struct ProjectStateBridgeConfiguration: Sendable, Equatable {
         ]
     }
 
-    /// 💎 Parse KEY=VALUE lines from the first existing dotenv path (no shell expansion; never logs values).
+    /// 💎 Merge KEY=VALUE lines across dotenv paths (no shell expansion; never logs values).
+    /// Earlier paths win on key collisions; later files fill missing keys (Codex P2: don't stop at first hit).
     public static func loadDotenvValues(
         fileManager: FileManager = .default,
         searchPaths: [String]
     ) -> [String: String] {
+        var merged: [String: String] = [:]
+        var loadedFiles: [String] = []
         for path in searchPaths {
             guard fileManager.fileExists(atPath: path),
                   let data = fileManager.contents(atPath: path),
                   let text = String(data: data, encoding: .utf8)
             else { continue }
-            var values: [String: String] = [:]
+            var fileValues: [String: String] = [:]
             for rawLine in text.split(whereSeparator: \.isNewline) {
                 let line = rawLine.trimmingCharacters(in: .whitespaces)
                 guard !line.isEmpty, !line.hasPrefix("#"), let eq = line.firstIndex(of: "=") else { continue }
@@ -114,14 +117,18 @@ public struct ProjectStateBridgeConfiguration: Sendable, Equatable {
                     value = String(value.dropFirst().dropLast())
                 }
                 guard !key.isEmpty else { continue }
-                values[key] = value
+                fileValues[key] = value
             }
-            if !values.isEmpty {
-                print("💎 ✨ Dotenv wisdom loaded from \(URL(fileURLWithPath: path).lastPathComponent) (\(values.count) keys, values cloaked)")
-                return values
+            guard !fileValues.isEmpty else { continue }
+            loadedFiles.append(URL(fileURLWithPath: path).lastPathComponent)
+            for (key, value) in fileValues where merged[key] == nil {
+                merged[key] = value
             }
         }
-        return [:]
+        if !merged.isEmpty {
+            print("💎 ✨ Dotenv wisdom merged from \(loadedFiles.joined(separator: "+")) (\(merged.count) keys, values cloaked)")
+        }
+        return merged
     }
 
     /// 💎 Read Multica CLI token without logging it — operator convenience on Studio.
