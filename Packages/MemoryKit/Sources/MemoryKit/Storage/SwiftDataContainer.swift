@@ -12,7 +12,7 @@ import Foundation
 import SwiftData
 
 /// 🌩️ Storage errors modeled for our memory theater
-public enum AnimaStorageError: Error, LocalizedError, Sendable {
+public enum AnimaStorageError: Error, LocalizedError, Sendable, Equatable {
     case recordNotFound
     case duplicateContentHash
     case fetchFailed(String)
