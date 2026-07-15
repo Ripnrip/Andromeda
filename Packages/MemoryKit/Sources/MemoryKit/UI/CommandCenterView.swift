@@ -282,23 +282,152 @@ public struct CommandCenterView: View {
 }
 
 #if DEBUG
-#Preview("CommandCenter · healthy / private") {
-    CommandCenterView(
-        model: CommandCenterModel(
+// MARK: - Preview Catalog (light / dark × Dynamic Type × state)
+
+/// 🌟 Shared preview stage dressing for the CommandCenter catalog
+@MainActor
+enum CommandCenterPreviewCatalog {
+    static func healthy() -> CommandCenterModel {
+        CommandCenterModel(
             healthStatus: .healthy,
             syncStatus: .idle,
             activeVisibility: .private
         )
+    }
+
+    static func degraded() -> CommandCenterModel {
+        CommandCenterModel(
+            healthStatus: .unhealthy("Qdrant"),
+            syncStatus: .failed(.cloudKitError("offline constellation")),
+            activeVisibility: .friends
+        )
+    }
+
+    static func syncing() -> CommandCenterModel {
+        CommandCenterModel(
+            healthStatus: .healthy,
+            syncStatus: .syncing,
+            activeVisibility: .internal
+        )
+    }
+
+    /// 🌙 Barren stage — unknown health, idle sync, empty intent scroll
+    static func emptyIntents() -> CommandCenterModel {
+        CommandCenterModel(
+            healthStatus: .unknown,
+            syncStatus: .idle,
+            activeVisibility: .private,
+            recordedIntents: []
+        )
+    }
+
+    @ViewBuilder
+    static func staged(
+        _ model: CommandCenterModel,
+        scheme: ColorScheme,
+        typeSize: DynamicTypeSize
+    ) -> some View {
+        CommandCenterView(model: model)
+            .environment(\.colorScheme, scheme)
+            .environment(\.dynamicTypeSize, typeSize)
+            .padding()
+            .background(scheme == .dark ? Color.black : Color.white)
+    }
+}
+
+#Preview("CC · healthy · light · medium") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.healthy(), scheme: .light, typeSize: .medium
     )
 }
 
-#Preview("CommandCenter · syncing / friends") {
-    CommandCenterView(
-        model: CommandCenterModel(
-            healthStatus: .unhealthy("Qdrant"),
-            syncStatus: .syncing,
-            activeVisibility: .friends
-        )
+#Preview("CC · healthy · dark · medium") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.healthy(), scheme: .dark, typeSize: .medium
+    )
+}
+
+#Preview("CC · healthy · light · a11y2") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.healthy(), scheme: .light, typeSize: .accessibility2
+    )
+}
+
+#Preview("CC · healthy · dark · a11y2") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.healthy(), scheme: .dark, typeSize: .accessibility2
+    )
+}
+
+#Preview("CC · degraded · light · medium") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.degraded(), scheme: .light, typeSize: .medium
+    )
+}
+
+#Preview("CC · degraded · dark · medium") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.degraded(), scheme: .dark, typeSize: .medium
+    )
+}
+
+#Preview("CC · degraded · light · a11y2") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.degraded(), scheme: .light, typeSize: .accessibility2
+    )
+}
+
+#Preview("CC · degraded · dark · a11y2") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.degraded(), scheme: .dark, typeSize: .accessibility2
+    )
+}
+
+#Preview("CC · syncing · light · medium") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.syncing(), scheme: .light, typeSize: .medium
+    )
+}
+
+#Preview("CC · syncing · dark · medium") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.syncing(), scheme: .dark, typeSize: .medium
+    )
+}
+
+#Preview("CC · syncing · light · a11y2") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.syncing(), scheme: .light, typeSize: .accessibility2
+    )
+}
+
+#Preview("CC · syncing · dark · a11y2") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.syncing(), scheme: .dark, typeSize: .accessibility2
+    )
+}
+
+#Preview("CC · emptyIntents · light · medium") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.emptyIntents(), scheme: .light, typeSize: .medium
+    )
+}
+
+#Preview("CC · emptyIntents · dark · medium") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.emptyIntents(), scheme: .dark, typeSize: .medium
+    )
+}
+
+#Preview("CC · emptyIntents · light · a11y2") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.emptyIntents(), scheme: .light, typeSize: .accessibility2
+    )
+}
+
+#Preview("CC · emptyIntents · dark · a11y2") {
+    CommandCenterPreviewCatalog.staged(
+        CommandCenterPreviewCatalog.emptyIntents(), scheme: .dark, typeSize: .accessibility2
     )
 }
 #endif

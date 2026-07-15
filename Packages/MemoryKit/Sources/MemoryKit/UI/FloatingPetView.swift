@@ -356,22 +356,100 @@ private struct PetPulseModifier: ViewModifier {
 }
 
 #if DEBUG
-#Preview("Pet — Idle") {
-    FloatingPetView(model: FloatingPetModel(ambientState: .idle))
+// MARK: - Preview Catalog (ambient × reduceMotion × light/dark × Dynamic Type)
+
+/// 🌟 Shared preview stage dressing for the FloatingPet catalog
+@MainActor
+enum FloatingPetPreviewCatalog {
+    static func model(
+        _ state: FloatingPetAmbientState,
+        reduceMotion: Bool
+    ) -> FloatingPetModel {
+        let detail: String?
+        switch state {
+        case .idle: detail = nil
+        case .syncing: detail = "cloud sync"
+        case .dreaming: detail = "materializing"
+        case .degraded: detail = "letta_api"
+        }
+        return FloatingPetModel(
+            ambientState: state,
+            reduceMotion: reduceMotion,
+            statusDetail: detail
+        )
+    }
+
+    @ViewBuilder
+    static func staged(
+        _ state: FloatingPetAmbientState,
+        reduceMotion: Bool,
+        scheme: ColorScheme,
+        typeSize: DynamicTypeSize
+    ) -> some View {
+        FloatingPetView(
+            model: model(state, reduceMotion: reduceMotion),
+            honorSystemReduceMotion: false
+        )
+        .environment(\.colorScheme, scheme)
+        .environment(\.dynamicTypeSize, typeSize)
+        .padding(24)
+        .background(scheme == .dark ? Color.black : Color.white)
+    }
 }
 
-#Preview("Pet — Syncing") {
-    FloatingPetView(model: FloatingPetModel(ambientState: .syncing))
+#Preview("Pet · idle · motion · light · medium") {
+    FloatingPetPreviewCatalog.staged(.idle, reduceMotion: false, scheme: .light, typeSize: .medium)
 }
 
-#Preview("Pet — Dreaming") {
-    FloatingPetView(model: FloatingPetModel(ambientState: .dreaming))
+#Preview("Pet · idle · reduceMotion · light · medium") {
+    FloatingPetPreviewCatalog.staged(.idle, reduceMotion: true, scheme: .light, typeSize: .medium)
 }
 
-#Preview("Pet — Degraded + Reduce Motion") {
-    FloatingPetView(
-        model: FloatingPetModel(ambientState: .degraded, reduceMotion: true, statusDetail: "letta_api"),
-        honorSystemReduceMotion: false
-    )
+#Preview("Pet · idle · motion · dark · medium") {
+    FloatingPetPreviewCatalog.staged(.idle, reduceMotion: false, scheme: .dark, typeSize: .medium)
+}
+
+#Preview("Pet · idle · reduceMotion · dark · a11y2") {
+    FloatingPetPreviewCatalog.staged(.idle, reduceMotion: true, scheme: .dark, typeSize: .accessibility2)
+}
+
+#Preview("Pet · syncing · motion · light · medium") {
+    FloatingPetPreviewCatalog.staged(.syncing, reduceMotion: false, scheme: .light, typeSize: .medium)
+}
+
+#Preview("Pet · syncing · reduceMotion · dark · medium") {
+    FloatingPetPreviewCatalog.staged(.syncing, reduceMotion: true, scheme: .dark, typeSize: .medium)
+}
+
+#Preview("Pet · syncing · motion · light · a11y2") {
+    FloatingPetPreviewCatalog.staged(.syncing, reduceMotion: false, scheme: .light, typeSize: .accessibility2)
+}
+
+#Preview("Pet · dreaming · motion · light · medium") {
+    FloatingPetPreviewCatalog.staged(.dreaming, reduceMotion: false, scheme: .light, typeSize: .medium)
+}
+
+#Preview("Pet · dreaming · reduceMotion · dark · medium") {
+    FloatingPetPreviewCatalog.staged(.dreaming, reduceMotion: true, scheme: .dark, typeSize: .medium)
+}
+
+#Preview("Pet · dreaming · motion · dark · a11y2") {
+    FloatingPetPreviewCatalog.staged(.dreaming, reduceMotion: false, scheme: .dark, typeSize: .accessibility2)
+}
+
+#Preview("Pet · degraded · motion · light · medium") {
+    FloatingPetPreviewCatalog.staged(.degraded, reduceMotion: false, scheme: .light, typeSize: .medium)
+}
+
+#Preview("Pet · degraded · reduceMotion · light · medium") {
+    FloatingPetPreviewCatalog.staged(.degraded, reduceMotion: true, scheme: .light, typeSize: .medium)
+}
+
+#Preview("Pet · degraded · motion · dark · a11y2") {
+    FloatingPetPreviewCatalog.staged(.degraded, reduceMotion: false, scheme: .dark, typeSize: .accessibility2)
+}
+
+#Preview("Pet · degraded · reduceMotion · dark · a11y2") {
+    FloatingPetPreviewCatalog.staged(.degraded, reduceMotion: true, scheme: .dark, typeSize: .accessibility2)
 }
 #endif
