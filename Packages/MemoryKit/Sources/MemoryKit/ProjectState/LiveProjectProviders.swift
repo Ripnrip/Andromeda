@@ -39,36 +39,89 @@ public struct ProjectStateBridgeConfiguration: Sendable, Equatable {
         self.linearProjectID = linearProjectID
     }
 
-    /// 🔮 Load from process environment + optional `~/.multica/config.json` token (Studio operator path).
+    /// 🔮 Load from process environment, optional dotenv files, + `~/.multica/config.json` (Studio operator path).
+    /// Precedence: process env wins; then first dotenv hit among documented paths (never logs secret values).
     public static func loadFromEnvironment(
         fileManager: FileManager = .default,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        dotenvSearchPaths: [String]? = nil
     ) -> ProjectStateBridgeConfiguration {
+        let fileVars = Self.loadDotenvValues(
+            fileManager: fileManager,
+            searchPaths: dotenvSearchPaths ?? Self.defaultDotenvSearchPaths()
+        )
+        func resolved(_ key: String) -> String? {
+            if let value = environment[key], !value.isEmpty { return value }
+            if let value = fileVars[key], !value.isEmpty { return value }
+            return nil
+        }
+
         var config = ProjectStateBridgeConfiguration()
-        if let base = environment["MULTICA_SERVER_URL"], let url = URL(string: base) {
+        if let base = resolved("MULTICA_SERVER_URL"), let url = URL(string: base) {
             config.multicaBaseURL = url
         }
-        if let ws = environment["MULTICA_WORKSPACE_ID"], !ws.isEmpty {
+        if let ws = resolved("MULTICA_WORKSPACE_ID") {
             config.multicaWorkspaceID = ws
         }
-        if let project = environment["MULTICA_PROJECT_ID"], !project.isEmpty {
+        if let project = resolved("MULTICA_PROJECT_ID") {
             config.multicaProjectID = project
         }
-        if let token = environment["MULTICA_TOKEN"], !token.isEmpty {
+        if let token = resolved("MULTICA_TOKEN") {
             config.multicaToken = token
         } else {
             config.multicaToken = Self.readMulticaTokenFromConfig(fileManager: fileManager)
         }
-        if let key = environment["LINEAR_API_KEY"], !key.isEmpty {
+        if let key = resolved("LINEAR_API_KEY") {
             config.linearAPIKey = key
         }
-        if let team = environment["LINEAR_TEAM_ID"], !team.isEmpty {
+        if let team = resolved("LINEAR_TEAM_ID") {
             config.linearTeamID = team
         }
-        if let project = environment["LINEAR_PROJECT_ID"], !project.isEmpty {
+        if let project = resolved("LINEAR_PROJECT_ID") {
             config.linearProjectID = project
         }
         return config
+    }
+
+    /// 🗺️ Documented operator dotenv locations — repo `.env` then `~/.multibrain/.env`.
+    public static func defaultDotenvSearchPaths() -> [String] {
+        let home = NSHomeDirectory()
+        return [
+            (home as NSString).appendingPathComponent("Developer/multibrain/.env"),
+            (home as NSString).appendingPathComponent(".multibrain/.env"),
+        ]
+    }
+
+    /// 💎 Parse KEY=VALUE lines from the first existing dotenv path (no shell expansion; never logs values).
+    public static func loadDotenvValues(
+        fileManager: FileManager = .default,
+        searchPaths: [String]
+    ) -> [String: String] {
+        for path in searchPaths {
+            guard fileManager.fileExists(atPath: path),
+                  let data = fileManager.contents(atPath: path),
+                  let text = String(data: data, encoding: .utf8)
+            else { continue }
+            var values: [String: String] = [:]
+            for rawLine in text.split(whereSeparator: \.isNewline) {
+                let line = rawLine.trimmingCharacters(in: .whitespaces)
+                guard !line.isEmpty, !line.hasPrefix("#"), let eq = line.firstIndex(of: "=") else { continue }
+                let key = String(line[..<eq]).trimmingCharacters(in: .whitespaces)
+                var value = String(line[line.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
+                if (value.hasPrefix("\"") && value.hasSuffix("\""))
+                    || (value.hasPrefix("'") && value.hasSuffix("'"))
+                {
+                    value = String(value.dropFirst().dropLast())
+                }
+                guard !key.isEmpty else { continue }
+                values[key] = value
+            }
+            if !values.isEmpty {
+                print("💎 ✨ Dotenv wisdom loaded from \(URL(fileURLWithPath: path).lastPathComponent) (\(values.count) keys, values cloaked)")
+                return values
+            }
+        }
+        return [:]
     }
 
     /// 💎 Read Multica CLI token without logging it — operator convenience on Studio.
