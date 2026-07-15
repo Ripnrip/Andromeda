@@ -1,7 +1,50 @@
 # Anima Memory / Andromeda — Project Links
 
 Short link map for the Anima memory + Andromeda control-plane workstream.
-Updated: 2026-07-15 (Anima stopgap consolidation). No secrets in this file.
+Updated: 2026-07-15 (routing permutation guide). No secrets in this file.
+
+## Routing guide (what goes where)
+
+**Stack roles (do not invent a fourth tracker):**
+
+| Layer | Role |
+|-------|------|
+| **Linear** (`BIN-*`) | Issue workflow, status, assignee, labels, agent proof comments, PR links |
+| **Multica Habitat** (`HAB-*`) | Studio/hive project board, agent assignment in Habitat UI, portfolio view |
+| **Slack `#projects`** (`C0BHYQQDETA`) | Human-visible kickoffs, milestones, reminders — not a ticket database |
+
+### Routing order (default)
+
+1. **Slack mention of a real / actionable issue** → create **Linear first** (status, assignee, labels, repo/PR links).
+2. Then create/link a **Multica** issue that references the Linear ID (`BIN-*`).
+3. Agent pickup: read **Linear + Multica + repo links** before starting work.
+4. **Project-level portfolio / Habitat board** → Multica is primary (still cross-link Linear for engineering).
+5. **Human-only / physical / App Store / macOS GUI** that agents cannot finish E2E → **Linear only** (optional Slack reminder); Multica optional note only.
+
+Never triple-duplicate the same write-up across all three. Cross-link IDs.
+
+### Permutation table
+
+| Situation | Slack | Linear | Multica | Why | Agent pickup? |
+|-----------|-------|--------|---------|-----|---------------|
+| **Andromeda overall project** (fleet: Habitat VM, hosts, satellites) | Milestone / kickoff only | ✅ Manage + follow | ✅ Manage + follow | Portfolio spans hive; both boards stay aligned | Yes — both IDs + docs |
+| **Issue mentioned in Slack** (user / friend / agent) | Origin thread; don't treat as SoT | ✅ **First** | ✅ Then, linked to `BIN-*` | Agents need status/labels/proof on Linear; Habitat needs assignable HAB | Yes — Linear then Multica |
+| **macOS host OS update / App Store / GUI-only** | Optional human reminder | ✅ Likely **Linear only** | ❌ Usually skip (optional note) | Agent cannot finish E2E for the human | Partial — remind human |
+| **MemoryKit / Anima proof or code PR** | When milestone ships | ✅ + link PR | ✅ + link PR / HAB | Proof ladder lives on Linear; Habitat tracks delivery | Yes |
+| **Invisible LaunchAgent / MCP sprawl / infra fix agents *can* do** | Start + done in `#projects` | ✅ | ✅ | Agent-executable fleet work needs both boards | Yes |
+| **Spend kill / secret rotation** | **Only if human action needed** — never paste secrets | ✅ Security / spend issue | ✅ If fleet-wide; else optional | Contain blast radius; no secret leakage in Slack | Yes (redact) |
+| **Book / satellite-only ops** | Optional | ✅ | ✅ Tag `host=satellite` (or Book) | Hive-visible but scoped to satellite | Yes — respect host tag |
+| **Mac Mini isolated lane** | ❌ No hive default | ✅ | ❌ Or Multica tagged `isolated` only | Mini stays off hive Multica default | Linear only (or isolated HAB) |
+| **Pure docs / changelog "twinkie"** | Rarely | ✅ Optional / skip | ❌ Skip unless project milestone | Docs noise ≠ Habitat board clutter | Usually no |
+| **"Thinking out loud" Slack chatter** | Stay in thread | ❌ Don't auto-create | ❌ Don't auto-create | Not an issue until someone marks actionable | No until promoted |
+| **n8n workflow / Habitat orchestration** | Milestone optional | ✅ For engineering tasks | ✅ **Primary** | Orchestration is Habitat-native; eng still on Linear | Yes — Multica first |
+| **Friend share / external visibility** | Careful public phrasing | ⚠️ Visibility careful | ❌ **Never** private internals | No hive internals outside; cloak Linear if needed | External: no Multica |
+
+### Quick examples (encode these)
+
+1. **Andromeda overall** → Multica **+** Linear (both); Slack for kickoffs/milestones.
+2. **Slack raises a bug** → Linear first → Multica linked to `BIN-*` → agent picks up with full context.
+3. **Studio needs a macOS update** → Linear only (human does the clicky bits); Slack reminder OK.
 
 ## Linear
 
