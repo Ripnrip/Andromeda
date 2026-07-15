@@ -1,0 +1,9 @@
+# Xcode / Swift PM
+.build/
+Packages/MemoryKit/.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# OS
+.DS_Store
