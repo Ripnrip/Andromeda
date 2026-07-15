@@ -55,7 +55,8 @@ Never triple-duplicate the same write-up across all three. Cross-link IDs.
 - **Project:** [Anima Memory / Andromeda](https://linear.app/binary-bros/project/anima-memory-andromeda-24f49e6f052c)
 - **Project ID:** `df11aac0-8284-48ac-b2b8-b85838123938`
 - **Team:** Binary-bros (`BIN`)
-- **Issues:** BIN-21 … BIN-27 (canonical tracker); **BIN-29** MCP sprawl registry/dedupe
+- **Issues:** BIN-21 … BIN-27 (canonical tracker); **BIN-29** MCP registry+telemetry
+- **Wave — Andromeda Visible Alpha (2026-07-15):** BIN-29…BIN-35 (all In Progress) — previews+snapshots+telemetry day-1
 
 ## Multica (Studio-local)
 
@@ -77,8 +78,15 @@ Never triple-duplicate the same write-up across all three. Cross-link IDs.
 | HAB-38 | CloudKit cold sync | BIN-22 |
 | HAB-39 | NEXT: Skills / MCP / CLI registries | (follow-on) |
 | HAB-40 | NEXT: n8n wiring | (follow-on BIN-27) |
-| HAB-41 | NEXT: multibrain-bar integration | (follow-on) |
-| HAB-43 | MCP sprawl: registry + dedupe invisible `npm exec` | **BIN-29** |
+| HAB-41 | NEXT: multibrain-bar integration | (follow-on → BIN-30) |
+| HAB-42 | Invisible launchd/socat/serve → LaunchEntities | (adjacent BIN-33) |
+| HAB-43 | Wave: MCP registry + telemetry | **BIN-29** |
+| HAB-44 | Wave: Bar MemoryKit live + SnapshotTesting | **BIN-30** |
+| HAB-45 | Wave: MemoryKit UI snapshot catalog | **BIN-31** |
+| HAB-46 | Wave: Observability spine OTLP/local | **BIN-32** |
+| HAB-47 | Wave: LaunchEntity roster UI + snapshots | **BIN-33** |
+| HAB-48 | Wave: project.state capability curtain | **BIN-34** |
+| HAB-49 | Wave: Spend kill OpenRouter nightly | **BIN-35** |
 
 ### Multica resources
 
@@ -90,7 +98,7 @@ Never triple-duplicate the same write-up across all three. Cross-link IDs.
 
 - **Workspace:** agent-habitat.slack.com
 - **Channel:** `#projects` (`C0BHYQQDETA`) — primary coordination (no dedicated Multica channel required)
-- **Kickoff/progress:** already posted in `#projects`; Multica-link update posted 2026-07-15
+- **Kickoff/progress:** Andromeda Visible Alpha kickoff posted 2026-07-15 (`C0BHYQQDETA`); prior Multica-link update same day
 
 ### Multica ↔ Slack connection path
 
