@@ -299,6 +299,41 @@ struct ProjectStateSurfaceTests {
         print("🎉 ✨ DOTENV LINEAR KEY LOAD PASS (value cloaked, len=\(config.linearAPIKey?.count ?? 0))")
     }
 
+    /// 🧪 Codex P2 — later dotenv fills missing keys when the first file exists but lacks LINEAR_API_KEY.
+    @Test("🔀 Dotenv merge: later file supplies LINEAR_API_KEY when earlier file has other keys only")
+    func testDotenvMergesLaterFilesForMissingKeys() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ps-dotenv-merge-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let earlier = dir.appendingPathComponent("repo.env")
+        let later = dir.appendingPathComponent("user.env")
+        // Earlier path has Multica-ish keys only — must NOT block Linear from the later file.
+        try "MULTICA_WORKSPACE_ID=ws-from-earlier\n".write(to: earlier, atomically: true, encoding: .utf8)
+        try "LINEAR_API_KEY=lin_merge_synthetic_not_real\nLINEAR_TEAM_ID=team-from-later\n".write(
+            to: later,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let config = ProjectStateBridgeConfiguration.loadFromEnvironment(
+            environment: [:],
+            dotenvSearchPaths: [earlier.path, later.path]
+        )
+        #expect(config.multicaWorkspaceID == "ws-from-earlier")
+        #expect(config.linearAPIKey == "lin_merge_synthetic_not_real")
+        #expect(config.linearTeamID == "team-from-later")
+        // Earlier path wins on collisions
+        try "LINEAR_API_KEY=lin_from_earlier\n".write(to: earlier, atomically: true, encoding: .utf8)
+        let collision = ProjectStateBridgeConfiguration.loadFromEnvironment(
+            environment: [:],
+            dotenvSearchPaths: [earlier.path, later.path]
+        )
+        #expect(collision.linearAPIKey == "lin_from_earlier")
+        print("🎉 ✨ DOTENV MERGE LATER-FILE PASS")
+    }
+
     @Test("🌐 Factory wires LiveLinearProjectProvider when dotenv supplies LINEAR_API_KEY")
     func testFactoryWiresLinearFromDotenv() {
         let dir = FileManager.default.temporaryDirectory
