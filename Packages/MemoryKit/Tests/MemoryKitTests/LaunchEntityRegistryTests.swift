@@ -35,7 +35,7 @@ struct LaunchEntityRegistryTests {
         ]
 
         #expect(labels == expected)
-        #expect(registry.all().count == 10) // 9 multibrain + Mini tunnel
+        #expect(registry.all().count == 12) // 9 multibrain + Mini tunnel + 2 agent-habitat VM lane
     }
 
     @Test("🌙 Nightly is cron @ 02:30 hub dream batch")
@@ -85,9 +85,34 @@ struct LaunchEntityRegistryTests {
         #expect(mini.hostRole == .isolated)
         #expect(mini.kind == .tunnel)
         #expect(mini.label == "com.local.mac-mini-vnc-tunnel")
-        #expect(registry.isolatedEntities().map(\.slug) == ["tunnel.mac-mini-vnc"])
+        #expect(registry.isolatedEntities().map(\.slug) == [
+            "tunnel.mac-mini-vnc",
+            "svc.multica.host_forwarder",
+            "watchdog.tailscale.serve_reassert",
+        ])
         #expect(registry.hiveEntities().allSatisfy { $0.hostRole != .isolated })
         #expect(registry.hiveEntities().contains { $0.slug == "tunnel.mac-mini-vnc" } == false)
+    }
+
+    @Test("🛰️ agent-habitat VM lane is surfaced but isolated (HAB-42)")
+    func testVMLaneIsolated() throws {
+        let registry = LaunchEntityRegistry()
+        let forwarder = try #require(registry.entity(slug: "svc.multica.host_forwarder"))
+        let reassert = try #require(registry.entity(slug: "watchdog.tailscale.serve_reassert"))
+
+        // 🎭 Surfaced so the hidden plumbing is a named roster member — never a ghost.
+        #expect(forwarder.hostRole == .isolated)
+        #expect(forwarder.kind == .tunnel)
+        #expect(forwarder.schedule == .keepAlive)
+        #expect(forwarder.label == "com.local.multica-host-forwarder")
+
+        #expect(reassert.hostRole == .isolated)
+        #expect(reassert.kind == .watchdog)
+        #expect(reassert.schedule == .interval(seconds: 300))
+
+        // 🐝 VM lane stays off the hive mind until a remote observer exists (HAB-42).
+        #expect(registry.hiveEntities().contains { $0.slug == "svc.multica.host_forwarder" } == false)
+        #expect(registry.hiveEntities().contains { $0.slug == "watchdog.tailscale.serve_reassert" } == false)
     }
 
     // MARK: - Observe (mock launchctl)
