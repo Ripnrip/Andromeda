@@ -11,3 +11,12 @@ Clients and satellite agents see `memory.*`, `infer.write`, `project.state.*` on
 ## Project tracking
 
 **Operator/meta-agent only.** Track via Linear ∪ Multica ∪ Slack `#projects`. Cross-link `BIN-*` ↔ `HAB-*`. See `docs/ANIMA-PROJECT-LINKS.md` (§ Routing guide — operator routing vs client capabilities). App clients use `project.state.*`.
+
+## Claude agent habits
+
+1. Read `ANDROMEDA-CHARTER.md` for gateway/product charter when touching Hummingbird / Autocache.
+2. Prefer Swift-native patterns and strict concurrency.
+3. Update docs in the same change when behavior, schema, or ops expectations change.
+4. Run targeted tests before broad tests.
+5. Avoid Bash automation files or hidden launch/watchdog behavior.
+6. Surface background operations through visible status plus telemetry.
