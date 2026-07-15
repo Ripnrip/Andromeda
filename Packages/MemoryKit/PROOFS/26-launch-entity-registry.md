@@ -8,7 +8,7 @@
 
 ## What was proven
 
-1. **Catalog seeds** — nine `com.multibrain.*` entities (nightly, health, letta, letta-bridge, letta-shim, index-server, claude-mem-worker, dreamcatcher, retro) plus Mac Mini VNC tunnel and the two **agent-habitat VM-lane** jobs (`svc.multica.host_forwarder`, `watchdog.tailscale.serve_reassert`), all isolated / non-hive (HAB-42 — surfaced so hidden plumbing is a named roster member, not a ghost).
+1. **Catalog seeds** — nine `com.multibrain.*` entities (nightly, health, letta, letta-bridge, letta-shim, index-server, claude-mem-worker, dreamcatcher, retro) plus Mac Mini VNC tunnel as isolated / non-hive.
 2. **Entity shape** — each row carries stable `slug` + `kind` + `plistPath` + `schedule` + `status` (`running` / `stopped` / `n/a`) + `hostRole` (`hub` | `satellite` | `isolated`).
 3. **Visible watchdogs** — dreamcatcher (1800s) and claude-mem-worker (60s) are first-class roster entries, not silent daemons.
 4. **Ops-only retro** — `job.weekly_retro` points at `ops/com.multibrain.retro.plist`, `schedule == .opsTemplateOnly`, never fakes running.
@@ -38,7 +38,7 @@ Swift: Apple Swift 6.2 (`swiftlang-6.2.0.19.9`), target `arm64-apple-macosx14.0`
 
 | Result | Count |
 |--------|------:|
-| PASS   | 12 |
+| PASS   | 11 |
 | FAIL   | 0 |
 
 Suite: `🚀 LaunchEntity Registry Suite` — **passed** (~0.064s runtime after build).
@@ -50,7 +50,6 @@ Suite: `🚀 LaunchEntity Registry Suite` — **passed** (~0.064s runtime after 
 | `🛡️ Dreamcatcher + claude-mem-worker are visible watchdogs` | no silent watchdogs |
 | `📜 Retro is ops-only template (not installed)` | ops path + opsTemplateOnly |
 | `🧊 Mac Mini tunnel is isolated / non-hive` | isolated lane excluded from hive |
-| `🛰️ agent-habitat VM lane is surfaced but isolated (HAB-42)` | VM forwarder + serve-reassert are named, isolated, non-hive |
 | `👁️ Mock launchctl maps running / stopped without kickstart` | observe-only |
 | `🛰️ Satellite honesty — hub services report n/a` | Letta/Ladybug n/a off-hub |
 | `🧊 Isolated observer does not invent hive membership` | Mini stays isolated |
@@ -70,7 +69,7 @@ Suite: `🚀 LaunchEntity Registry Suite` — **passed** (~0.064s runtime after 
 
 - Live `launchctl print` adapter not wired (Null/Mock only) — Andromeda console boundary next.
 - Kickstart / bootstrap / unload intentionally absent (visibility before control).
-- Adjacent agents (`com.qdrant.server`, host Multica daemon/stack, host Hermes tunnel) not in seed list yet — surface-area §G lists them; hive SoT seed is `com.multibrain.*` + Mini isolated lane. The two **agent-habitat VM** jobs (Multica host-forwarder + tailscale serve-reassert) ARE now seeded as isolated (HAB-42), but read `stopped` from the hub until a remote launchctl observer exists.
+- Adjacent agents (`com.qdrant.server`, Multica, Hermes tunnel) not in seed list yet — surface-area §G lists them; hive SoT seed is `com.multibrain.*` + Mini isolated lane.
 
 ## Fixes applied during this proof
 

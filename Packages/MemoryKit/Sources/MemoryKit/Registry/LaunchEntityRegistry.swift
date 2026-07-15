@@ -173,28 +173,6 @@ public struct LaunchEntityRegistry: Sendable {
                 hostRole: .isolated,
                 purpose: "Mac Mini VNC tunnel — isolated / non-hive"
             ),
-            // 🛰️ agent-habitat VM lane (HAB-42). These run on the Tart VM, not the Studio
-            // hub — surfaced now so the fleet's hidden plumbing is a named roster member,
-            // not a ghost. Live status needs a REMOTE launchctl observer (SSH/tailnet),
-            // which is the remaining HAB-42 work; until then they read stopped from the hub.
-            LaunchEntity(
-                slug: "svc.multica.host_forwarder",
-                label: "com.local.multica-host-forwarder",
-                kind: .tunnel,
-                plistPath: live("com.local.multica-host-forwarder"),
-                schedule: .keepAlive,
-                hostRole: .isolated,
-                purpose: "VM socat 127.0.0.1:3636 → host Multica :3636 (no duplicate instance)"
-            ),
-            LaunchEntity(
-                slug: "watchdog.tailscale.serve_reassert",
-                label: "com.tailscale.serve.hermes",
-                kind: .watchdog,
-                plistPath: "/Library/LaunchDaemons/com.tailscale.serve.hermes.plist",
-                schedule: .interval(seconds: 300),
-                hostRole: .isolated,
-                purpose: "VM reconciler — re-asserts all tailscale serve paths every 5m"
-            ),
         ]
     }
 
