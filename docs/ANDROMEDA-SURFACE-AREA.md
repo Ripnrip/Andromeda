@@ -143,8 +143,8 @@ Phases: **0** = visible now (file/API/plist) · **1** = Anima MemoryKit · **2**
 | `skill.herdr` | Skill | `~/.claude/skills/herdr` | skill | `SkillEntity.Herdr` | none | 0 |
 | `skill.hermes-gateway` | Skill | `~/.claude/skills/hermes-gateway` | skill | `SkillEntity.HermesGateway` | none | 0 |
 | `skill.codex-bridge` | Skill | `~/.claude/skills/codex-bridge` | skill | `SkillEntity.CodexBridge` | none | 0 |
-| `catalog.skills` | Skill | `~/.claude/skills` (~113) + `~/.agents/skills` (~112) | scattered | `SkillRegistry` | poll inventory | 2 |
-| `catalog.mcp` | MCP | Cursor `mcp.json` (16) + plugins (19 server folders) | scattered | `MCPServerRegistry` | poll | 2 |
+| `catalog.skills` | Skill | Claude/agents **113/112** entries; plus Hermes local **118**, habitat **33**, Pi ~**104**, Codex **27**, Gemini **30**, Cursor plugin cache **415** `SKILL.md` — see [MCP-SPRAWL-PROBLEM.md](./MCP-SPRAWL-PROBLEM.md) | scattered | `SkillRegistry` | poll inventory | 2 |
+| `catalog.mcp` | MCP | Cursor **16** + **11** plugin MCP namespaces; Claude ~**11** unique; Codex **15**; habitat Hermes **6+1**; live Studio **60** `npm exec` (filesystem/memory/sequential ×**15**) — [MCP-SPRAWL-PROBLEM.md](./MCP-SPRAWL-PROBLEM.md) + screenshot | scattered / duplicated processes | `MCPServerRegistry` | poll + dedupe | 2 |
 | `mcp.memory` | MCP | `user-memory` (graphify entities) | MCP | `MCP.GraphMemory` | webhook tools | 0 |
 | `mcp.claude-mem` | MCP | `plugin-claude-mem-mcp-search` | MCP | `MCP.ClaudeMemSearch` | poll/query | 0 |
 | `mcp.mempalace` | MCP | `plugin-mempalace-mempalace` | MCP | `MCP.Mempalace` | poll | 0→later |
@@ -207,9 +207,13 @@ Book/Mini satellite: nightly + health (+ optional claude-mem worker). Hub checks
 
 ### F. Skills + MCP + CLI
 
+> **THE MCP problem:** invisible duplicate `npm exec` servers (no registry, memory tax). Full evidence + host inventory: **[MCP-SPRAWL-PROBLEM.md](./MCP-SPRAWL-PROBLEM.md)** — screenshot `docs/assets/mcp-sprawl-activity-monitor-2026-07-15.png`. LaunchAgents/cron are a parallel class (§G); this section’s MCP row is about process/config sprawl.
+
 - **Must-register skills:** checkpoint, knowledge-sync, close, graphify (+ herdr/hermes/codex bridges).
-- **~113 Claude skills / ~112 agent skills** → `SkillRegistry` inventory entity (don’t flatten all into Andromeda capabilities day one).
-- **MCP:** memory, claude-mem-search, mempalace are memory-path critical; Cursor also hosts firecrawl, filesystem, vercel, slack, linear, etc. → `MCPServerRegistry`.
+- **Skill counts (2026-07-15 inventory, not guesses):** `~/.claude/skills` **113** entries / **107** `SKILL.md` (follow links); `~/.agents/skills` **112** / **106**; Cursor skills **20**; Cursor plugin cache **415** `SKILL.md`; Codex `~/.codex/skills` **27** entries; Hermes local **118** entries; habitat Hermes **33** entries (**398** `SKILL.md` under `~/.hermes`); Pi **19+85** skill dirs (~**104** `SKILL.md`); Gemini **20** skill symlinks + **10** extension skills. → `SkillRegistry` (don’t flatten all into capabilities day one).
+- **MCP configured:** Cursor `mcp.json` **16** + **11** plugin MCP namespaces; Claude Code ~**11** unique across `~/.claude.json` / `.mcp.json` / Desktop; Codex **15** `[mcp_servers.*]`; Gemini **0** registered; Pi **0**; Hermes local **0** map (`inherit_mcp_toolsets`); habitat **6** `mcp_servers` + **1** URL server.
+- **MCP live (Studio):** **60** `npm exec` parents — filesystem / memory / sequential-thinking **×15 each** — plus pageindex / claude-mem / qdrant / firecrawl / playwright / chrome-devtools / supabase / magicui / browsermcp children. Activity Monitor showed ~**71 MB** per `npm exec` row. → **`MCPServerRegistry`** must own visibility + **dedupe** (one roster, no silent duplicates).
+- **Memory-path critical MCPs:** memory, claude-mem-search, mempalace (plus qdrant on Claude/Codex).
 - **CLI tooling:** all `bin/*.py|*.sh` (21 scripts) become `CLITool` entities with path + last-exit + schedule binding.
 
 ### G. LaunchAgents / cron / watchdogs
