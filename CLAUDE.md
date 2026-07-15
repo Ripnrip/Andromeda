@@ -1,13 +1,22 @@
-# Claude Agent Guide
+# Andromeda
 
-Claude-based agents working on Andromeda should:
+## Workspace home
 
-1. Read `ANDROMEDA-CHARTER.md` first.
-2. Inspect relevant ADRs and runbooks before implementation once they exist.
-3. Search session memory and project docs before rediscovering prior decisions.
-4. Use Swift-native implementation patterns and strict concurrency.
-5. Update documentation in the same change when behavior, schema, configuration, or operational expectations change.
-6. Run targeted tests before broad tests.
-7. Avoid reading unrelated files merely to accumulate context.
-8. Never add Bash automation files or hidden launch/watchdog behavior.
-9. Surface every important background operation through visible UI/status plus telemetry.
+Until MemoryKit is battle-tested against live multibrain stores, day-to-day fleet + proofs stay in `~/Developer/multibrain`. This repo is the Swift product/control-plane home (dual-home OK). Don't force-move the Cursor workspace here yet.
+
+## Capability hiding
+
+Clients and satellite agents see `memory.*`, `infer.write`, `project.state.*` only — never Linear/Multica/n8n/provider brands. Andromeda owns selection behind the curtain.
+
+## Project tracking
+
+**Operator/meta-agent only.** Track via Linear ∪ Multica ∪ Slack `#projects`. Cross-link `BIN-*` ↔ `HAB-*`. See `docs/ANIMA-PROJECT-LINKS.md` (§ Routing guide — operator routing vs client capabilities). App clients use `project.state.*`.
+
+## Claude agent habits
+
+1. Read `ANDROMEDA-CHARTER.md` for gateway/product charter when touching Hummingbird / Autocache.
+2. Prefer Swift-native patterns and strict concurrency.
+3. Update docs in the same change when behavior, schema, or ops expectations change.
+4. Run targeted tests before broad tests.
+5. Avoid Bash automation files or hidden launch/watchdog behavior.
+6. Surface background operations through visible status plus telemetry.

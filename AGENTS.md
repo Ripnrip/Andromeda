@@ -1,11 +1,23 @@
-# Agent Operating Guide
+## Workspace / repo home
+
+Until MemoryKit is battle-tested against live multibrain stores, day-to-day fleet + proofs stay in `~/Developer/multibrain`; this repo is the Swift product/control-plane home (dual-home OK). Do not force-move the Cursor workspace here yet.
+
+## Capability hiding
+
+Clients and satellite agents see stable IDs only (`memory.*`, `infer.write`, `project.state.*`) — never Linear/Multica, providers, or n8n. Andromeda owns provider selection behind the curtain.
+
+## Project tracking
+
+**Operator/meta-agent only** (not client tool menus): Linear (`BIN-*`) ∪ Multica Habitat (`HAB-*`) ∪ Slack `#projects` (`C0BHYQQDETA`). Cross-link, don't triple-duplicate. Canonical map + **routing permutation guide**: `docs/ANIMA-PROJECT-LINKS.md` (§ Routing guide). App clients use `project.state.*` CRUD instead.
+
+Examples: Andromeda overall → Multica+Linear; Slack issue → Linear first then Multica; macOS OS update → Linear only.
 
 ## Session Start
 
 - State the active model version at the start of each session.
 - Check available MCP resources/tools before assuming external context exists.
 - Inspect `git status --short` and recent commits before editing.
-- Read `ANDROMEDA-CHARTER.md`, then only the docs and files needed for the task.
+- Read `ANDROMEDA-CHARTER.md` (gateway / product charter) and only the docs needed for the task.
 
 ## Repository Rules
 
@@ -17,7 +29,7 @@
 
 ## Build and Test Commands
 
-Use these once implementation exists:
+Root Hummingbird / Autocache gateway:
 
 ```console
 swift build
@@ -25,13 +37,11 @@ swift test
 swift build -c release
 ```
 
-## Documentation Duties
+Dual-home MemoryKit package:
 
-- Update `CHANGELOG.md` for user-visible, operational, schema, configuration, or API behavior changes.
-- Add new changelog entries at the top.
-- Use the correct current date for journal/changelog entries.
-- Include a rotating fun tone hat, a witty commit-message-of-the-day proposal, a reflection note, and one whimsical Easter egg line.
-- Keep `README.md`, `ROADMAP.md`, and `ANDROMEDA-CHARTER.md` synchronized.
+```console
+cd Packages/MemoryKit && swift test
+```
 
 ## Engineering Rules
 
@@ -40,10 +50,3 @@ swift build -c release
 - Keep retries bounded, cancellation respected, operations idempotent where replay is possible, and failures observable.
 - Never silently change schemas or configuration formats; add ADRs and migrations.
 - Never generate destructive code such as dropping databases or wiping remote data without triple explicit confirmation and backups in a `legacy/` area.
-
-## Definition of Done
-
-- Code compiles without avoidable warnings.
-- Tests or checks are run and reported accurately.
-- Telemetry, privacy, security, rollback, and docs are considered.
-- Changelog and roadmap are updated when behavior or maturity changes.
