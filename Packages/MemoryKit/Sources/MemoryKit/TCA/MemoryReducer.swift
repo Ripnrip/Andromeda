@@ -21,20 +21,22 @@ public enum SyncStatus: Equatable, Sendable {
     case failed(SyncError)
 }
 
-/// 🌟 The HealthStatus - Connection status of downstream services
+/// 🌟 HealthStatus - Per-service probe for Letta / Ladybug / Qdrant (healthy / unhealthy).
+/// Fleet headline lanterns live as `FleetHealthStatus` (green/yellow/red) in Telemetry —
+/// two stages, two scripts, one spotlight. 🏮
 public enum HealthStatus: Equatable, Sendable {
     case unknown
     case healthy
     case unhealthy(String)
 }
 
-/// 🌟 The VisibilityLevel - Access controls and cloaking levels
-public enum VisibilityLevel: String, CaseIterable, Equatable, Sendable, Codable {
-    case `public` = "public"
-    case friends = "friends"
-    case `private` = "private"
-    case `internal` = "internal"
-}
+/// 🌟 Alias preferred in newer call sites — same pulse, clearer billing on the marquee.
+public typealias ConnectionHealthStatus = HealthStatus
+
+/// 🌟 VisibilityLevel - Cloak dial for the reducer UI surface.
+/// Aliased to `VisibilityClass` so TCA state and Security gates share one taxonomy
+/// (public / friends / private / internal) — no twin moons in the sky. 🌙
+public typealias VisibilityLevel = VisibilityClass
 
 /// 🌟 The MaterializationStatus - Progress of Obsidian markdown projection
 public enum MaterializationStatus: Equatable, Sendable {
@@ -44,24 +46,39 @@ public enum MaterializationStatus: Equatable, Sendable {
     case failed(String)  // Error details
 }
 
+/// 🌟 An error occurring during materialization — fail closed, never whisper success. 🌩️
+public struct MaterializationError: Error, LocalizedError, Equatable, Sendable {
+    public let message: String
+    public var errorDescription: String? { message }
+    public init(_ message: String) { self.message = message }
+}
+
 // MARK: - Reducer Definition
 
 /// 🎭 The MemoryReducer - The Composable Architecture (TCA) core for Anima
 @Reducer
 public struct MemoryReducer: Sendable {
-    
+
+    /// 🎫 Cancel IDs so in-flight sync / materialization / health effects don't pile up like unread scrolls
+    private enum CancelID: Hashable, Sendable {
+        case sync
+        case materialization
+        case health
+        case capture
+    }
+
     // 🌟 The State of our Celestial Memory Canvas
     @ObservableState
     public struct State: Equatable, Sendable {
         public var syncStatus: SyncStatus
-        public var connectionHealth: [String: HealthStatus]
+        public var connectionHealth: [String: ConnectionHealthStatus]
         public var recentCaptures: [AnimaEpisodicRecordSnapshot]
         public var activeVisibility: VisibilityLevel
         public var materializationStatus: MaterializationStatus
-        
+
         public init(
             syncStatus: SyncStatus = .idle,
-            connectionHealth: [String: HealthStatus] = [:],
+            connectionHealth: [String: ConnectionHealthStatus] = [:],
             recentCaptures: [AnimaEpisodicRecordSnapshot] = [],
             activeVisibility: VisibilityLevel = .private,
             materializationStatus: MaterializationStatus = .idle
@@ -73,13 +90,6 @@ public struct MemoryReducer: Sendable {
             self.materializationStatus = materializationStatus
         }
     }
-    
-/// 🌟 An error occurring during materialization
-public struct MaterializationError: Error, LocalizedError, Equatable, Sendable {
-    public let message: String
-    public var errorDescription: String? { message }
-    public init(_ message: String) { self.message = message }
-}
 
     // 🌟 The Actions crossing our stage
     public enum Action: Equatable, Sendable {
@@ -89,28 +99,28 @@ public struct MaterializationError: Error, LocalizedError, Equatable, Sendable {
         case triggerSync
         case triggerMaterialization
         case checkConnectionHealth
-        
+
         // Background Effects Callbacks
         case syncResponse(Result<Date, SyncError>)
         case materializationProgress(Double)
         case materializationResponse(Result<String, MaterializationError>)
-        case connectionHealthResponse(service: String, status: HealthStatus)
+        case connectionHealthResponse(service: String, status: ConnectionHealthStatus)
         case databaseDidUpdate([AnimaEpisodicRecordSnapshot])
     }
-    
+
     // 🌟 Dependencies of our Alchemy
     @Dependency(\.syncClient) var syncClient
     @Dependency(\.materializerClient) var materializerClient
     @Dependency(\.healthCheckClient) var healthCheckClient
     @Dependency(\.databaseClient) var databaseClient
-    
+
     public init() {}
-    
+
     // 🌟 The Reducer Body - Orchestrating State and Effects
     public var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
-                
+
             case .captureMemory(let snapshot):
                 // 📥 Ingest a new capture snapshot into our write-ahead journal
                 print("🌐 ✨ CAPTURE INGESTION AWAKENS! project: \(snapshot.project)")
@@ -119,13 +129,14 @@ public struct MaterializationError: Error, LocalizedError, Equatable, Sendable {
                 } catch: { creativeChallenge, send in
                     print("🌩️ Temporary setback on capture: \(creativeChallenge.localizedDescription)")
                 }
-                
+                .cancellable(id: CancelID.capture, cancelInFlight: true)
+
             case .changeVisibility(let level):
                 // 💅 Adjust our active visibility filters
                 state.activeVisibility = level
                 print("💅 Active visibility level shifted to: \(level.rawValue)")
                 return .none
-                
+
             case .triggerSync:
                 // ☁️ Initiate the celestial synchronization engine
                 guard state.syncStatus != .syncing else {
@@ -141,7 +152,8 @@ public struct MaterializationError: Error, LocalizedError, Equatable, Sendable {
                     let syncError = (error as? SyncError) ?? .cloudKitError(error.localizedDescription)
                     await send(.syncResponse(.failure(syncError)))
                 }
-                
+                .cancellable(id: CancelID.sync, cancelInFlight: true)
+
             case .syncResponse(let result):
                 // 💎 Process sync engine responses
                 switch result {
@@ -153,7 +165,7 @@ public struct MaterializationError: Error, LocalizedError, Equatable, Sendable {
                     print("💥 😭 SYNCHRONIZATION TEMPORARILY HALTED! Error: \(error.localizedDescription)")
                 }
                 return .none
-                
+
             case .triggerMaterialization:
                 // 📝 Trigger Obsidian Markdown Projection
                 state.materializationStatus = .materializing(progress: 0.0)
@@ -171,7 +183,8 @@ public struct MaterializationError: Error, LocalizedError, Equatable, Sendable {
                         }
                     }
                 }
-                
+                .cancellable(id: CancelID.materialization, cancelInFlight: true)
+
             case .materializationProgress(let progress):
                 // 🎪 Update running materialization cycle progress
                 if case .materializing = state.materializationStatus {
@@ -179,7 +192,7 @@ public struct MaterializationError: Error, LocalizedError, Equatable, Sendable {
                     print("🎪 📦 Materialization progress: \(Int(progress * 100))% entering the cosmic ring!")
                 }
                 return .none
-                
+
             case .materializationResponse(let result):
                 // 🏆 Materialization cycle completed
                 switch result {
@@ -191,36 +204,36 @@ public struct MaterializationError: Error, LocalizedError, Equatable, Sendable {
                     print("💥 😭 MATERIALIZATION TEMPORARILY HALTED! Error: \(error)")
                 }
                 return .none
-                
+
             case .checkConnectionHealth:
-                // 📡 Verify Letta, Ladybug, and Qdrant connections in parallel
+                // 📡 Verify Letta, Ladybug, and Qdrant connections in parallel,
+                // then emit responses in stable alphabetical order (no sleep-timing flakiness).
                 print("🌐 ✨ HEALTH MONITORING AWAKENS!")
                 return .run { [healthCheckClient] send in
-                    await withTaskGroup(of: (String, HealthStatus).self) { group in
-                        group.addTask {
-                            let status = await healthCheckClient.checkHealth("Letta")
-                            return ("Letta", status)
+                    let services = ["Ladybug", "Letta", "Qdrant"]
+                    var harvest: [(String, ConnectionHealthStatus)] = []
+                    await withTaskGroup(of: (String, ConnectionHealthStatus).self) { group in
+                        for service in services {
+                            group.addTask {
+                                let status = await healthCheckClient.checkHealth(service)
+                                return (service, status)
+                            }
                         }
-                        group.addTask {
-                            let status = await healthCheckClient.checkHealth("Ladybug")
-                            return ("Ladybug", status)
-                        }
-                        group.addTask {
-                            let status = await healthCheckClient.checkHealth("Qdrant")
-                            return ("Qdrant", status)
-                        }
-                        
-                        for await (service, status) in group {
-                            await send(.connectionHealthResponse(service: service, status: status))
+                        for await result in group {
+                            harvest.append(result)
                         }
                     }
+                    for (service, status) in harvest.sorted(by: { $0.0 < $1.0 }) {
+                        await send(.connectionHealthResponse(service: service, status: status))
+                    }
                 }
-                
+                .cancellable(id: CancelID.health, cancelInFlight: true)
+
             case .connectionHealthResponse(let service, let status):
                 // 💎 Commit service health logs into state
                 state.connectionHealth[service] = status
                 return .none
-                
+
             case .databaseDidUpdate(let snapshots):
                 // 📥 React to background database observer updates
                 state.recentCaptures = snapshots
@@ -253,8 +266,8 @@ public struct MaterializerClient: Sendable {
 }
 
 public struct HealthCheckClient: Sendable {
-    public var checkHealth: @Sendable (String) async -> HealthStatus
-    public init(checkHealth: @escaping @Sendable (String) async -> HealthStatus) {
+    public var checkHealth: @Sendable (String) async -> ConnectionHealthStatus
+    public init(checkHealth: @escaping @Sendable (String) async -> ConnectionHealthStatus) {
         self.checkHealth = checkHealth
     }
 }
