@@ -19,7 +19,7 @@ import OSLog
 /// 🌐 The MockURLProtocol - Intercepting network request portals
 class MockURLProtocol: URLProtocol {
     private static let lock = NSLock()
-    private static var handlers: [Int: @Sendable (URLRequest) throws -> (HTTPURLResponse, Data?)] = [:]
+    private nonisolated(unsafe) static var handlers: [Int: @Sendable (URLRequest) throws -> (HTTPURLResponse, Data?)] = [:]
     
     static func register(port: Int, handler: @escaping @Sendable (URLRequest) throws -> (HTTPURLResponse, Data?)) {
         lock.lock()
