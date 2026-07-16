@@ -1,5 +1,6 @@
 # Xcode / Swift PM
 .build/
+.swiftpm/
 Packages/MemoryKit/.build/
 DerivedData/
 *.xcuserstate
@@ -7,3 +8,16 @@ xcuserdata/
 
 # OS
 .DS_Store
+
+# Secrets / local operator config (never commit)
+.env
+.env.*
+!.env.example
+Config/local/
+Data/
+Telemetry/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.trace
+Secrets/
