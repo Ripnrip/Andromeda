@@ -131,6 +131,20 @@ public struct ProjectStateBridgeConfiguration: Sendable, Equatable {
         return merged
     }
 
+    /// 🧪 Whether process env or dotenv yields a non-empty `LINEAR_API_KEY` (live proofs — never logs the key).
+    public static func linearKeyPresentFromEnvironment(
+        fileManager: FileManager = .default,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        dotenvSearchPaths: [String]? = nil
+    ) -> Bool {
+        let config = loadFromEnvironment(
+            fileManager: fileManager,
+            environment: environment,
+            dotenvSearchPaths: dotenvSearchPaths
+        )
+        return !(config.linearAPIKey ?? "").isEmpty
+    }
+
     /// 💎 Read Multica CLI token without logging it — operator convenience on Studio.
     private static func readMulticaTokenFromConfig(fileManager: FileManager) -> String? {
         let path = (NSHomeDirectory() as NSString).appendingPathComponent(".multica/config.json")
