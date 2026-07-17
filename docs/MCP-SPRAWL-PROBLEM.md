@@ -3,6 +3,7 @@
 > **Inventory date:** 2026-07-15 (Studio host)  
 > **Status:** THE problem Andromeda is solving for MCP alone  
 > **Companion:** [ANDROMEDA-SURFACE-AREA.md](./ANDROMEDA-SURFACE-AREA.md) §F → target entity `MCPServerRegistry`  
+> **Ops + hard before/after (BIN-41):** [MCP-SPRAWL-OPS.md](./MCP-SPRAWL-OPS.md) · [MCP-SPRAWL-BEFORE-AFTER.md](./MCP-SPRAWL-BEFORE-AFTER.md) — Studio **55 → 37** `npm exec` parents (2026-07-17)  
 > **Parallel problem class (out of scope here):** LaunchAgents / cron / watchdogs — see surface-area §G + `LaunchEntity`
 
 ---
