@@ -182,6 +182,8 @@ public struct MCPServerRegistry: Sendable {
             ("remotion-documentation", "@remotion/mcp"),
             ("magicuidesign-mcp", "@magicuidesign/mcp"),
             ("enhanced-quake-coding-arena", "enhanced-quake-coding-arena"),
+            ("multica", "multica-habitat-mcp"),
+            ("linear", "linear-mcp"),
         ]
 
         var seeds: [MCPServerEntity] = cursorPackages.map { key, package in
@@ -199,6 +201,7 @@ public struct MCPServerRegistry: Sendable {
         let claudePackages = [
             "filesystem", "memory", "sequentialthinking", "browsermcp",
             "pageindex-local", "qdrant", "openaiDeveloperDocs",
+            "multica", "linear",
         ]
         seeds += claudePackages.map { key in
             let package = seedPackageName(for: key)
@@ -216,6 +219,7 @@ public struct MCPServerRegistry: Sendable {
         let codexPackages = [
             "chrome-devtools", "firecrawl", "playwright", "filesystem", "memory",
             "sequentialthinking", "qdrant", "browsermcp", "pageindex-local",
+            "multica", "linear",
         ]
         seeds += codexPackages.map { key in
             let package = seedPackageName(for: key)
@@ -259,6 +263,8 @@ public struct MCPServerRegistry: Sendable {
         case "playwright": return "@playwright/mcp"
         case "qdrant": return "qdrant-mcp-server"
         case "pageindex-local": return "pageindex-mcp-server"
+        case "multica": return "multica-habitat-mcp"
+        case "linear": return "linear-mcp"
         default: return key
         }
     }
