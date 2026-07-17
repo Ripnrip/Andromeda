@@ -24,18 +24,20 @@
 cd Packages/MemoryKit
 swift test --filter ProjectStateSurfaceTests
 MULTICA_LIVE=1 swift test --filter LiveMulticaProjectStateTests
+LINEAR_LIVE=1 swift test --filter LiveLinearProjectStateTests
 ```
 
 ## Test output summary
 
 | Suite | Result | Count |
 |-------|--------|------:|
-| `🎭 Project State Capability Rituals` | PASS | 11 |
+| `🎭 Project State Capability Rituals` | PASS | 11+ |
 | `🌐 Live Multica project.state` (`MULTICA_LIVE=1`) | PASS | 2 |
+| `🌐 Live Linear project.state` (`LINEAR_LIVE=1` + dotenv) | PASS | 1+ |
 | Snapshots (filter overlap) | PASS | 4 |
-| **Live+unit ProjectState** | **PASS** | **13** |
+| **Live+unit ProjectState** | **PASS** | **13+** |
 
-Live Studio: merged **27** Habitat issues into brand-neutral `project.state` items; create landed as HAB-61 (cancelled after smoke).
+Live Studio: merged Habitat + Linear issues into brand-neutral `project.state` items. Multica create smoke HAB-61 cancelled after proof; Linear/Multica residual probes **BIN-44…BIN-49** / **HAB-67…HAB-69** cancelled with note `smoke probe from LINEAR_LIVE=1 proof — cancel`.
 
 ## Evidence artifacts
 
@@ -50,9 +52,9 @@ Live Studio: merged **27** Habitat issues into brand-neutral `project.state` ite
 ## Residuals / human follow-ups
 
 - `LINEAR_API_KEY` loads from process env **or** `~/Developer/multibrain/.env` / `~/.multibrain/.env` (process env wins; values never logged).
+- Live suite requires explicit `LINEAR_LIVE=1` (dotenv alone does not enable create/list live tests).
 - Optional: set `LINEAR_TEAM_ID` / `LINEAR_PROJECT_ID` in the same dotenv if defaults need override.
-- Cancel leftover probe issues HAB-54…HAB-61 if any remain open (smoke probes).
-- Dual-home sync into Andromeda `Packages/MemoryKit` after Linear dotenv fix lands.
+- Dual-home sync into Andromeda `Packages/MemoryKit` until readiness #9 is ✅ (flip stays GATED).
 
 ## Linear dotenv verification (2026-07-15)
 
@@ -60,5 +62,5 @@ Live Studio: merged **27** Habitat issues into brand-neutral `project.state` ite
 |-------|--------|
 | Dotenv unit parse (synthetic key) | PASS |
 | Factory wires LiveLinear when key present | PASS |
-| Live GraphQL list (`LiveLinearProjectStateTests`) | PASS — 30 brand-neutral items |
-| Soft-skip when key absent | still honest (NullLinear) |
+| Live GraphQL list (`LINEAR_LIVE=1` + `LiveLinearProjectStateTests`) | PASS — brand-neutral items |
+| Soft-skip when `LINEAR_LIVE` unset / key absent | still honest (suite disabled / NullLinear) |
