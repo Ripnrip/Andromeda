@@ -61,6 +61,7 @@ Andromeda is a gateway, graph-native memory fabric, orchestration engine, and ma
 | `AndromedaObservability` | OSLog, OpenTelemetry, OpenInference, Phoenix, local JSONL export. |
 | `AndromedaScheduling` | Durable jobs, retry queues, leases, backoff, dead letters, idempotency. |
 | `AndromedaConsole` | SwiftUI command/menu-bar/console visibility and approvals. |
+| `AndromedaHUD` | Modern floating control pill — drag, menu-bar snap, Ask AI / `memory.*`, SnapshotTesting. |
 | `AndromedaApple` | Realm, CloudKit, Keychain, Combine, OSLog, and optional Apple Container adapters. |
 
 ## Definition of Done

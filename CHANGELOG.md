@@ -2,6 +2,30 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-07-18 — Andromeda HUD modern SwiftUI foundation
+
+**Tone hat:** Glass cutter 🪟
+**Commit message of the day:** `feat: add AndromedaHUD modern floating control surface`
+**Steps taken:** Landed BIN-55 foundation — `@Observable` pill model, Ice-style snap math, Ask AI capability router, latency budgets, AppKit borderless panel, and SnapshotTesting scaffolding.
+
+### Added
+- New `AndromedaHUD` library target with portable snap/search/budget logic and macOS SwiftUI + `NSPanel` chrome.
+- Expandable Ask AI field routing to `memory.recall` / `memory.store` / `memory.journal` / `infer.write` (capability curtain).
+- Unit tests for snap, search, model, and sub-frame performance budgets; macOS-gated Point-Free snapshot catalog path.
+- Docs: `docs/ANDROMEDA-HUD.md`, updated `docs/UI.md`, Gate H progress, charter module map.
+
+### Changed
+- Root `Package.swift` exports `AndromedaHUD` and depends on `swift-snapshot-testing` for HUD visual proofs.
+
+### Security
+- HUD chrome and search tips never surface Linear/Multica/provider brands; clients see stable capability IDs only.
+
+### Reflection
+- The floating bar finally put on a tailored glass suit instead of borrowing last decade's toolbar leftovers. ✨
+
+### Easter egg
+- If you drag the pill into the menu bar just right, it clicks into place like Ice sealing a rink. 🏒
+
 ## 2026-07-15 — Hummingbird Autocache Gateway
 
 **Tone hat:** Thrifty engineer 🪙

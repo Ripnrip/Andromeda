@@ -1,59 +1,53 @@
-# UI Surface — Menu-bar Module + Floating Pet
+# UI Surface — Menu-bar Module + Floating Pet + Modern HUD
 
-Two SwiftUI surfaces over one shared client. **Both** are shipped (locked decision): the CommandCenter module is the deep utility panel; the Pet is the ambient, delightful face. Neither adds backend — they read artifacts the pipeline already produces.
+Three SwiftUI surfaces over shared capability clients. **CommandCenter** is the deep utility panel; the **Pet** is the ambient delightful face; the **Andromeda HUD** is the modern floating control pill (BIN-55). None of them invent backend — they read artifacts / call stable capability IDs the pipeline already exposes.
 
 ## Shared client: `MultiBrainClient` (Swift)
 
-One source of truth both surfaces depend on. Zero business logic in the views.
+One source of truth utility surfaces depend on. Zero business logic in the views.
 
 - **Reads:** `~/.multibrain/health.json` (via `DispatchSource` file-watch → live status), today's Daily Brief note, `graphify-out/graph.html` path, `last-success` marker.
 - **Talks to:** Letta REST API (chat + `generate_*`), graphify/LadybugDB MCP (query).
 - **Publishes** (`@Observable`): `status: .idle | .working | .degraded(reason) | .newBrief`, `brief: DailyBrief?`, `recentLearnings: [SessionNote]`, `sources: [SourceStatus]`.
 
-## Surface A — CommandCenter module (utility, ships first)
+## Surface A — CommandCenter module (utility)
 
-Extend the existing menu-bar app at `~/Documents/Developer/CommandCenter` using its InfraModule pattern. A `MultiBrainModule` menu section:
+Extend the existing menu-bar app at `~/Documents/Developer/CommandCenter` using its InfraModule pattern. MemoryKit ships a proof-quality `CommandCenterView` (`@Observable`, badges, stub intents).
 
-```
-🧠 Multi-Brain            🟢
-────────────────────────────
-Health: green · last run 02:34
-Sources: claude ✓ codex ✓ hermes ✓ multica ✓ vm ✗
-────────────────────────────
-Today's Brief
-  Yesterday: 6 sessions, 3 projects…
-  Insights Ahead: 4 open threads
-────────────────────────────
-▸ Open graph      ▸ Open vault
-▸ Chat Librarian  ▸ Consolidate now
-▸ Run healthcheck ▸ Dashboards ▾
-```
+## Surface B — Floating Pet (delight)
 
-- Status dot mirrors `health.json`; red shows the failing check inline.
-- "Chat Librarian" opens a small Letta chat panel.
-- "Consolidate now" triggers `run-nightly.sh` (with a spinner bound to `.working`).
+A standalone companion: `MenuBarExtra` + optional always-on-top borderless window. MemoryKit ships `FloatingPetView` with idle / syncing / dreaming / degraded ambient states and reduce-motion static fallback.
 
-## Surface B — Floating Pet (delight, ships second)
+## Surface C — Andromeda HUD (modern floating control)
 
-A standalone app: `MenuBarExtra` + an optional always-on-top borderless companion window.
+**Module:** `AndromedaHUD` — see [ANDROMEDA-HUD.md](ANDROMEDA-HUD.md).
 
-- **Animated states** (the "dynamic and responsive" ask):
-  - `idle` 😌 — calm idle loop, green tint.
-  - `working` 🤔 — "thinking" animation while consolidation runs.
-  - `degraded` 😱 — agitated + red; tap shows the failing check.
-  - `newBrief` ✨ — a gentle badge/bounce when the morning brief lands.
-- **Interactions:** click → popover with the brief + quick actions (same as the module, shared views); drag to reposition; right-click for settings.
-- **Personality:** reacts to fabric events — perks up when many learnings land, naps on a quiet day, alarmed on degradation. Think Codex's pet, but wired to *your* brain's pulse.
+Modern macOS floating Head-Up Display (BIN-55 epic):
+
+| Piece | Issue | Status |
+| --- | --- | --- |
+| Borderless draggable material pill (`NSPanel`) | BIN-60 | Foundation |
+| Ice-style menu-bar snap | BIN-56 | Geometry + settle |
+| Expandable Ask AI / `memory.*` search | BIN-57 | Router + UI |
+| `@Observable` polish + SnapshotTesting | BIN-58 | Model + macOS snapshots |
+| Sub-16ms / sub-50ms budgets | BIN-59 | Stopwatch proofs |
+
+- **Collapsed:** drag handle · health glyph · **Andromeda** brand · Ask AI.
+- **Expanded:** Screendrop-inspired field → `memory.recall` / `memory.store` / `memory.journal` / `infer.write`.
+- **Capability curtain:** never Linear / Multica / provider brands in chrome.
+- **Visibility:** explicit present/dismiss via `AndromedaHUDWindowController` — not a hidden LaunchAgent.
 
 ## Tech
 
-- Swift 6 / SwiftUI, macOS. `MenuBarExtra` (menu-bar), a borderless `NSWindow`/`WindowGroup` with `.level(.floating)` for the Pet.
+- Swift 6 / SwiftUI, macOS. `MenuBarExtra` (menu-bar), borderless `NSPanel` / `WindowGroup` with `.level(.floating)` for Pet + HUD.
+- HUD portable logic (snap, search, budgets, `@Observable` model) compiles and tests on Linux; AppKit chrome is `#if canImport(AppKit)`.
 - File-watch on `health.json` for push-free live updates; poll Letta lightly for chat/status.
-- No secrets in the app — it only reads local artifacts + hits localhost Letta/MCP.
-- Reuse the existing Swift toolchain (see the user's `swift-skill`); build for the Mac it runs on.
+- No secrets in the app — it only reads local artifacts + hits localhost Letta/MCP / Andromeda gateway.
+- Reuse the existing Swift toolchain; build for the Mac it runs on.
 
 ## Sequencing
 
 1. `MultiBrainClient` + `health.json` file-watch (the shared spine).
 2. CommandCenter `MultiBrainModule` (utility, fastest value).
 3. Pet app (delight), reusing the client + shared popover views.
+4. **Andromeda HUD** modern floating pill (BIN-55) — foundation landed; wire live `memory.*` next.

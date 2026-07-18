@@ -57,6 +57,7 @@ Never triple-duplicate the same write-up across all three. Cross-link IDs.
 - **Team:** Binary-bros (`BIN`)
 - **Issues:** BIN-21 … BIN-27 (canonical tracker); **BIN-29** MCP registry+telemetry
 - **Wave — Andromeda Visible Alpha (2026-07-15):** BIN-29…BIN-35 (all In Progress) — previews+snapshots+telemetry day-1
+- **Epic — Andromeda HUD (2026-07-18):** [BIN-55](https://linear.app/binary-bros/issue/BIN-55) umbrella; BIN-56 snap · BIN-57 Ask AI · BIN-58 SwiftUI+snapshots · BIN-59 budgets · BIN-60 pill window
 
 ## Multica (Studio-local)
 

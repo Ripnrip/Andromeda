@@ -103,10 +103,15 @@ This roadmap is outcome-driven. Gates advance when exit criteria are met, not wh
 
 **Deliverables**
 - Health dashboard, provider catalog, backlog controls, trace links, graph explorer, config diagnostics, accessible SwiftUI UI.
+- Modern floating Andromeda HUD (`AndromedaHUD`): draggable material pill, menu-bar snap, Ask AI / `memory.*` search, SnapshotTesting, latency budgets (BIN-55…BIN-60).
+
+**Progress**
+- `AndromedaHUD` foundation: `@Observable` model, Ice-style snap engine, capability-safe search router, performance budgets, AppKit `NSPanel` host, SwiftUI pill chrome, Linux-portable unit tests + macOS snapshot catalog scaffolding.
 
 **Exit criteria**
 - Common incidents are diagnosable without manual log spelunking.
 - Critical controls support keyboard and assistive technologies.
+- HUD present/dismiss remains visible (no hidden LaunchAgent host).
 
 ## Gate I — Migration and Legacy Retirement
 
