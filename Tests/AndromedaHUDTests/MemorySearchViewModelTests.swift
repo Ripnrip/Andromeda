@@ -38,8 +38,10 @@ struct MemorySearchViewModelTests {
         vm.updateQueryFromField("abc")
         #expect(vm.isSearching == true)
 
-        // Poll until debounce fires + submit settles (avoid flake under parallel suite load).
-        let deadline = ContinuousClock.now + .milliseconds(800)
+        // Poll until debounce fires + submit settles. Budget is generous because the loop
+        // breaks as soon as work settles; the extra ceiling only absorbs main-actor
+        // saturation under parallel suite load (prevents a false flake, no cost when green).
+        let deadline = ContinuousClock.now + .milliseconds(3000)
         while ContinuousClock.now < deadline {
             if case .syncing = model.lastOutcome {
                 try? await Task.sleep(nanoseconds: 20_000_000)

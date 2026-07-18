@@ -10,8 +10,10 @@ let package = Package(
         .library(name: "AndromedaCore", targets: ["AndromedaCore"]),
         .library(name: "AndromedaAutoCache", targets: ["AndromedaAutoCache"]),
         .library(name: "AndromedaGateway", targets: ["AndromedaGateway"]),
+        .library(name: "AndromedaHomeCore", targets: ["AndromedaHomeCore"]),
         .library(name: "AndromedaHUDCore", targets: ["AndromedaHUDCore"]),
         .executable(name: "andromeda", targets: ["AndromedaCLI"]),
+        .executable(name: "AndromedaHome", targets: ["AndromedaHome"]),
         .executable(name: "AndromedaHUD", targets: ["AndromedaHUD"]),
     ],
     dependencies: [
@@ -59,6 +61,26 @@ let package = Package(
             ]
         ),
         .target(
+            name: "AndromedaHomeCore",
+            dependencies: [
+                .product(name: "MemoryKit", package: "MemoryKit"),
+            ],
+            path: "Sources/AndromedaHomeCore",
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .executableTarget(
+            name: "AndromedaHome",
+            dependencies: [
+                "AndromedaHomeCore",
+            ],
+            path: "Sources/AndromedaHome",
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .target(
             name: "AndromedaHUDCore",
             dependencies: [
                 .product(name: "MemoryKit", package: "MemoryKit"),
@@ -86,6 +108,21 @@ let package = Package(
                 .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
             ],
             path: "Tests/AndromedaHUDTests",
+            exclude: [
+                "__Snapshots__",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .testTarget(
+            name: "AndromedaHomeTests",
+            dependencies: [
+                "AndromedaHomeCore",
+                .product(name: "MemoryKit", package: "MemoryKit"),
+                .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            ],
+            path: "Tests/AndromedaHomeTests",
             exclude: [
                 "__Snapshots__",
             ],
