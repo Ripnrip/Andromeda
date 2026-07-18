@@ -210,13 +210,13 @@ public struct CommandCenterView: View {
         HStack(spacing: 8) {
             Image(systemName: "brain.head.profile")
                 .foregroundStyle(.cyan)
-            Text("Anima · MemoryKit")
+            Text("Andromeda · Memory")
                 .font(.headline)
             Spacer()
-            Text("stub")
+            Text("home")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
-                .accessibilityLabel("Proof stub panel")
+                .accessibilityLabel("Andromeda memory home panel")
         }
         .accessibilityIdentifier("commandCenter.header")
     }

@@ -10,7 +10,9 @@ let package = Package(
         .library(name: "AndromedaCore", targets: ["AndromedaCore"]),
         .library(name: "AndromedaAutoCache", targets: ["AndromedaAutoCache"]),
         .library(name: "AndromedaGateway", targets: ["AndromedaGateway"]),
+        .library(name: "AndromedaHUDCore", targets: ["AndromedaHUDCore"]),
         .executable(name: "andromeda", targets: ["AndromedaCLI"]),
+        .executable(name: "AndromedaHUD", targets: ["AndromedaHUD"]),
     ],
     dependencies: [
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.25.0"),
@@ -18,6 +20,8 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", from: "1.6.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
         .package(url: "https://github.com/apple/swift-http-types.git", from: "1.3.0"),
+        .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.17.0"),
+        .package(path: "Packages/MemoryKit"),
     ],
     targets: [
         .target(
@@ -52,6 +56,41 @@ let package = Package(
                 "AndromedaGateway",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
+            ]
+        ),
+        .target(
+            name: "AndromedaHUDCore",
+            dependencies: [
+                .product(name: "MemoryKit", package: "MemoryKit"),
+            ],
+            path: "Sources/AndromedaHUDCore",
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .executableTarget(
+            name: "AndromedaHUD",
+            dependencies: [
+                "AndromedaHUDCore",
+            ],
+            path: "Sources/AndromedaHUD",
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .testTarget(
+            name: "AndromedaHUDTests",
+            dependencies: [
+                "AndromedaHUDCore",
+                .product(name: "MemoryKit", package: "MemoryKit"),
+                .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            ],
+            path: "Tests/AndromedaHUDTests",
+            exclude: [
+                "__Snapshots__",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
             ]
         ),
         .testTarget(

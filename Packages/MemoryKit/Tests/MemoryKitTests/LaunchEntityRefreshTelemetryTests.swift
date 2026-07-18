@@ -30,7 +30,7 @@ struct LaunchEntityRefreshTelemetryTests {
         let pulse = registry.refresh()
 
         #expect(sink.events.count == 1)
-        #expect(pulse.total == 10)
+        #expect(pulse.total == 16) // 9 multibrain + 6 HAB-42 + Mini
         #expect(pulse.running == 2)
         #expect(pulse.stopped >= 1)
         #expect(pulse.isolatedMiniFlagged == true)
@@ -50,7 +50,8 @@ struct LaunchEntityRefreshTelemetryTests {
         )
         let pulse = registry.refresh()
 
-        #expect(pulse.notApplicable >= 4) // letta, bridge, shim, index-server
+        // letta, bridge, shim, index-server + multica.daemon/stack + habitat.boot
+        #expect(pulse.notApplicable >= 7)
         #expect(pulse.isolatedMiniFlagged == true)
         #expect(sink.lastEvent?.notApplicable == pulse.notApplicable)
     }

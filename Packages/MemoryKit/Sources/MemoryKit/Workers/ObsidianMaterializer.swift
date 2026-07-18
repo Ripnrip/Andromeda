@@ -228,7 +228,7 @@ public actor ObsidianMaterializer {
         - \(Self.escapeBullet(record.narrative))
 
         ## Problem → Solution
-        - Captured via Anima hot store; projected by ObsidianMaterializer.
+        - Captured via Andromeda hot store; projected by ObsidianMaterializer.
 
         ## Files Touched
         - _(none listed in episodic capture)_
@@ -237,7 +237,7 @@ public actor ObsidianMaterializer {
         - [[Sessions MOC]]
 
         ---
-        _Materialized by Anima ObsidianMaterializer from content_hash `\(record.contentHash)`._
+        _Materialized by Andromeda ObsidianMaterializer from content_hash `\(record.contentHash)`._
         """
 
         return frontmatter + "\n" + body + "\n"
