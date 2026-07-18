@@ -2,6 +2,20 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-07-18 — Andromeda HUD Pop-inspired motion
+
+**Tone hat:** Paper physicist 📄
+**Commit message of the day:** `feat: add Pop-inspired spring and decay motion to AndromedaHUD`
+**Steps taken:** Ported Pop’s spring/decay interaction model into portable Swift (`HUDPopMotion`) — no ObjC Pop dependency — and wired it into HUD expand + drag-release snap.
+
+### Added
+- `HUDPopMotion` spring/decay tokens and `HUDSnapEngine.settleWithDecay`.
+- Drag velocity sampling in `AndromedaHUDWindowController` for decay coast on mouse-up.
+- SwiftUI spring expand/collapse (reduce-motion safe) + Pop motion unit tests.
+
+### Changed
+- HUD drag end now coasts with exponential decay before Ice-style menu-bar snap.
+
 ## 2026-07-18 — Andromeda HUD modern SwiftUI foundation
 
 **Tone hat:** Glass cutter 🪟

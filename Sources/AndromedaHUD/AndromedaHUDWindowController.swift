@@ -6,7 +6,8 @@ import SwiftUI
  Borderless, transparent `NSWindow` host for the floating HUD pill (BIN-60).
 
  Owns AppKit interop: non-activating panel, floating level, custom drag via
- the SwiftUI drag handle region, and Ice-style menu-bar snap on mouse-up.
+ the SwiftUI drag handle region, Pop-style velocity decay on release, and
+ Ice-style menu-bar snap.
  */
 @MainActor
 public final class AndromedaHUDWindowController: NSObject {
@@ -19,6 +20,9 @@ public final class AndromedaHUDWindowController: NSObject {
     nonisolated(unsafe) private var mouseDraggedMonitor: Any?
     nonisolated(unsafe) private var mouseUpMonitor: Any?
     nonisolated(unsafe) private var dragStartOrigin: NSPoint?
+    /// Rolling sample for Pop-style decay velocity (pts/s, AppKit y-up).
+    nonisolated(unsafe) private var lastDragSample: (time: TimeInterval, origin: NSPoint)?
+    nonisolated(unsafe) private var dragVelocity = CGVector(dx: 0, dy: 0)
 
     /// Builds a non-activating floating panel hosting `AndromedaHUDView`.
     public init(model: AndromedaHUDModel = AndromedaHUDModel()) {
@@ -72,7 +76,7 @@ public final class AndromedaHUDWindowController: NSObject {
     }
 
     /// Resize the panel to match collapsed / expanded chrome.
-    public func applyModelFrame() {
+    public func applyModelFrame(animated: Bool = false) {
         let size = NSSize(width: model.chromeSize.x, height: model.chromeSize.y)
         var frame = window.frame
         // Keep top-left stable when expanding downward.
@@ -87,7 +91,18 @@ public final class AndromedaHUDWindowController: NSObject {
         } else {
             frame.origin = NSPoint(x: model.origin.x, y: model.origin.y)
         }
-        window.setFrame(frame, display: true)
+
+        if animated, !model.reduceMotion {
+            let spring = HUDPopMotion.snap
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = spring.response
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                context.allowsImplicitAnimation = true
+                window.animator().setFrame(frame, display: true)
+            }
+        } else {
+            window.setFrame(frame, display: true)
+        }
         hostingView.frame = NSRect(origin: .zero, size: size)
     }
 
@@ -115,6 +130,8 @@ public final class AndromedaHUDWindowController: NSObject {
             MainActor.assumeIsolated {
                 if self.isEventInDragHandle(event) {
                     self.dragStartOrigin = self.window.frame.origin
+                    self.lastDragSample = (ProcessInfo.processInfo.systemUptime, self.window.frame.origin)
+                    self.dragVelocity = .zero
                 }
             }
             return event
@@ -128,6 +145,7 @@ public final class AndromedaHUDWindowController: NSObject {
                 // AppKit deltaY is flipped relative to increasing frame.origin.y.
                 frame.origin.y -= event.deltaY
                 self.window.setFrame(frame, display: true)
+                self.sampleDragVelocity(at: frame.origin)
             }
             return event
         }
@@ -141,11 +159,32 @@ public final class AndromedaHUDWindowController: NSObject {
                     visibleFrame: HUDRect(x: 0, y: 0, width: 1440, height: 900)
                 )
                 let proposed = HUDPoint(x: self.window.frame.origin.x, y: self.window.frame.origin.y)
-                self.model.endDrag(proposedOrigin: proposed, screen: metrics)
-                self.applyModelFrame()
+                let velocity = HUDPoint(x: self.dragVelocity.dx, y: self.dragVelocity.dy)
+                self.model.endDrag(proposedOrigin: proposed, screen: metrics, velocity: velocity)
+                self.applyModelFrame(animated: true)
+                self.lastDragSample = nil
+                self.dragVelocity = .zero
             }
             return event
         }
+    }
+
+    /// Estimate pts/s from successive drag samples for Pop decay.
+    private func sampleDragVelocity(at origin: NSPoint) {
+        let now = ProcessInfo.processInfo.systemUptime
+        if let previous = lastDragSample {
+            let dt = now - previous.time
+            if dt > 0.001, dt < 0.12 {
+                let vx = (origin.x - previous.origin.x) / dt
+                let vy = (origin.y - previous.origin.y) / dt
+                // Light EMA so a single jittery sample does not dominate decay.
+                dragVelocity = CGVector(
+                    dx: dragVelocity.dx * 0.35 + vx * 0.65,
+                    dy: dragVelocity.dy * 0.35 + vy * 0.65
+                )
+            }
+        }
+        lastDragSample = (now, origin)
     }
 
     /// Hit-test the SwiftUI drag handle accessibility region approximately.
