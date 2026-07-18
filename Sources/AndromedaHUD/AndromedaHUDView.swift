@@ -7,6 +7,7 @@ import SwiftUI
 
  Collapsed: status glyph + brand + Ask AI affordance in a material pill.
  Expanded: Screendrop-inspired search field routing `memory.*` / `infer.write`.
+ Motion: Pop-inspired springs via `HUDPopMotion` (no ObjC Pop dependency).
  */
 @MainActor
 public struct AndromedaHUDView: View {
@@ -28,7 +29,7 @@ public struct AndromedaHUDView: View {
             pillBar
             if model.expansion.isExpanded {
                 expandedPanel
-                    .transition(reduceMotionEffective ? .opacity : .move(edge: .top).combined(with: .opacity))
+                    .transition(expandTransition)
             }
         }
         .padding(10)
@@ -43,6 +44,10 @@ public struct AndromedaHUDView: View {
                 .strokeBorder(.white.opacity(0.12), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+        .animation(expandAnimation, value: model.expansion)
+        .animation(expandAnimation, value: model.chromeSize.x)
+        .scaleEffect(model.expansion.isExpanded ? 1.0 : 0.985, anchor: .top)
+        .animation(expandAnimation, value: model.expansion.isExpanded)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(model.accessibilityLabel)
         .accessibilityIdentifier("andromedaHUD.root")
@@ -55,6 +60,25 @@ public struct AndromedaHUDView: View {
             guard honorSystemReduceMotion else { return }
             if newValue { model.reduceMotion = true }
         }
+    }
+
+    /// Pop-inspired spring for expand/collapse; linear fade under reduce-motion.
+    private var expandAnimation: Animation {
+        if reduceMotionEffective {
+            return .easeInOut(duration: 0.12)
+        }
+        let spring = HUDPopMotion.expand
+        return .spring(response: spring.response, dampingFraction: spring.dampingFraction)
+    }
+
+    private var expandTransition: AnyTransition {
+        if reduceMotionEffective {
+            return .opacity
+        }
+        return .asymmetric(
+            insertion: .move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.96)),
+            removal: .move(edge: .top).combined(with: .opacity)
+        )
     }
 
     // MARK: - Collapsed bar
@@ -99,7 +123,9 @@ public struct AndromedaHUDView: View {
 
     private var askAIButton: some View {
         Button {
-            model.toggleExpansion()
+            withAnimation(expandAnimation) {
+                model.toggleExpansion()
+            }
         } label: {
             Label(
                 model.expansion.isExpanded ? "Close" : "Ask AI",
@@ -108,6 +134,7 @@ public struct AndromedaHUDView: View {
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
+            .symbolEffect(.bounce, value: model.expansion)
         }
         .buttonStyle(.borderedProminent)
         .tint(.cyan.opacity(0.85))

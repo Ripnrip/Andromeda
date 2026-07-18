@@ -145,23 +145,31 @@ public final class AndromedaHUDModel {
         }
     }
 
-    /// Apply a drag end: settle origin + snap mode (BIN-56 / BIN-60).
+    /// Apply a drag end: Pop-style decay coast, then settle + snap (BIN-56 / BIN-60).
+    ///
+    /// - Parameter velocity: pts/s in AppKit global coordinates (y-up). Zero skips coast.
     public func endDrag(
         proposedOrigin: HUDPoint,
-        screen: HUDScreenMetrics
+        screen: HUDScreenMetrics,
+        velocity: HUDPoint = HUDPoint(x: 0, y: 0)
     ) {
         let sample = HUDStopwatch.measure(
             operation: "hud.snap",
             budgetMilliseconds: HUDPerformanceBudget.snapSettleMilliseconds
         ) {
-            let settled = HUDSnapEngine.settle(
+            let settled = HUDSnapEngine.settleWithDecay(
                 proposedOrigin: proposedOrigin,
+                velocity: velocity,
                 size: chromeSize,
                 screen: screen
             )
             origin = settled.origin
             snapMode = settled.mode
-            lastMessage = snapMode.accessibilityLabel
+            let coasted = abs(settled.coasted.x - proposedOrigin.x) > 0.5
+                || abs(settled.coasted.y - proposedOrigin.y) > 0.5
+            lastMessage = coasted
+                ? "\(snapMode.accessibilityLabel) · decay coast"
+                : snapMode.accessibilityLabel
         }
         lastTiming = sample
     }

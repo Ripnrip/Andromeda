@@ -110,16 +110,16 @@ public enum HUDSnapEngine: Sendable {
 
     /// Resolve snap mode from a proposed origin + screen metrics.
     ///
-    /// When the pill's top edge is within `snapDistance` of the menu-bar dock line,
-    /// returns `.menuBar`; otherwise `.floating`.
+    /// Docks when the pill's top edge is within `snapDistance` **below** the menu-bar
+    /// line, or has overshot **above** it (Pop-style fling-to-dock). A pure absolute
+    /// distance check would treat overshoot as floating after decay coast.
     public static func resolveMode(
         proposedOrigin: HUDPoint,
         size: HUDPoint,
         screen: HUDScreenMetrics
     ) -> HUDSnapMode {
         let topY = proposedOrigin.y + size.y
-        let distanceToDock = abs(topY - screen.menuBarDockY)
-        if distanceToDock <= screen.snapDistance {
+        if topY >= screen.menuBarDockY - screen.snapDistance {
             return .menuBar
         }
         return .floating

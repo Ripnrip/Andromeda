@@ -69,6 +69,18 @@ struct AndromedaHUDModelTests {
         #expect(model.lastTiming?.operation == "hud.snap")
     }
 
+    @Test("End drag with velocity records decay coast in footer")
+    func testEndDragWithVelocityCoasts() {
+        let model = AndromedaHUDModel(snapMode: .floating, origin: HUDPoint(x: 100, y: 300))
+        model.endDrag(
+            proposedOrigin: HUDPoint(x: 100, y: 300),
+            screen: screen,
+            velocity: HUDPoint(x: 700, y: 0)
+        )
+        #expect(model.origin.x > 100)
+        #expect(model.lastMessage?.contains("decay coast") == true)
+    }
+
     @Test("Dock to menu bar centers horizontally")
     func testDockToMenuBar() {
         let model = AndromedaHUDModel(snapMode: .floating)
