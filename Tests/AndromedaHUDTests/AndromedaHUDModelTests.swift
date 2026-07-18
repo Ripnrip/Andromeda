@@ -17,6 +17,13 @@ struct AndromedaHUDModelTests {
         #expect(model.health == .unknown)
         #expect(model.submissions.isEmpty)
         #expect(model.chromeSize == HUDSnapEngine.collapsedSize)
+        #expect(model.showsAccessory == false)
+    }
+
+    @Test("Accessory flag expands chrome to console size")
+    func testAccessoryChromeSize() {
+        let model = AndromedaHUDModel(expansion: .expanded, showsAccessory: true)
+        #expect(model.chromeSize == HUDSnapEngine.expandedWithAccessorySize)
     }
 
     @Test("Expand and collapse update chrome size + timing sample")
