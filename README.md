@@ -75,6 +75,8 @@ Point Anthropic clients at `http://127.0.0.1:8080` instead of `https://api.anthr
 - [Gateway architecture](Documentation/Architecture/GATEWAY-ARCHITECTURE.md)
 - [Autocache Swift port](Documentation/Architecture/AUTOCACHE-SWIFT.md)
 - [Gateway Swift stubs](Documentation/Architecture/GATEWAY-IMPLEMENTATION-STUBS.md)
+- [Andromeda HUD](docs/ANDROMEDA-HUD.md)
+- [UI surfaces](docs/UI.md)
 - [Main Brain](Documentation/Brain/ANDROMEDA-MAIN-BRAIN.md)
 
 ## Safety Reminder

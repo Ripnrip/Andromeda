@@ -10,6 +10,7 @@ let package = Package(
         .library(name: "AndromedaCore", targets: ["AndromedaCore"]),
         .library(name: "AndromedaAutoCache", targets: ["AndromedaAutoCache"]),
         .library(name: "AndromedaGateway", targets: ["AndromedaGateway"]),
+        .library(name: "AndromedaHUD", targets: ["AndromedaHUD"]),
         .executable(name: "andromeda", targets: ["AndromedaCLI"]),
     ],
     dependencies: [
@@ -18,6 +19,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", from: "1.6.0"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
         .package(url: "https://github.com/apple/swift-http-types.git", from: "1.3.0"),
+        .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.0"),
     ],
     targets: [
         .target(
@@ -45,6 +47,10 @@ let package = Package(
                 .product(name: "HTTPTypes", package: "swift-http-types"),
             ]
         ),
+        .target(
+            name: "AndromedaHUD",
+            dependencies: []
+        ),
         .executableTarget(
             name: "AndromedaCLI",
             dependencies: [
@@ -67,6 +73,16 @@ let package = Package(
                 "AndromedaGateway",
                 "AndromedaAutoCache",
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
+            ]
+        ),
+        .testTarget(
+            name: "AndromedaHUDTests",
+            dependencies: [
+                "AndromedaHUD",
+                .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            ],
+            exclude: [
+                "__Snapshots__",
             ]
         ),
     ]
