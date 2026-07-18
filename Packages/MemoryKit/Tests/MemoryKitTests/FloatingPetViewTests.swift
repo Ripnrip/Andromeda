@@ -45,7 +45,7 @@ struct FloatingPetViewTests {
         #expect(model.reduceMotion == false)
         #expect(model.shouldAnimate == true)
         #expect(model.presentation.isAnimated == true)
-        #expect(model.accessibilityLabel == "Anima pet idle")
+        #expect(model.accessibilityLabel == "Andromeda pet idle")
     }
 
     @Test("🌊 Reduce-motion path forces static presentation")
@@ -61,7 +61,7 @@ struct FloatingPetViewTests {
 
         model.transition(to: .degraded, detail: "letta_api")
         #expect(model.presentation.isAnimated == false)
-        #expect(model.accessibilityLabel == "Anima pet degraded: letta_api")
+        #expect(model.accessibilityLabel == "Andromeda pet degraded: letta_api")
     }
 
     @Test("🌟 Transition ritual updates ambient mood on MainActor")

@@ -149,9 +149,29 @@ public protocol ProcessRunning: Sendable {
     ) async throws -> ProcessRunResult
 }
 
+/// 💥 Hard failures from the local process runner (timeout / spawn).
+public enum LocalProcessRunnerError: Error, LocalizedError, Sendable, Equatable {
+    case timedOut(seconds: TimeInterval)
+
+    public var errorDescription: String? {
+        switch self {
+        case .timedOut(let seconds):
+            return "Process timed out after \(String(format: "%.1f", seconds))s"
+        }
+    }
+}
+
 /// 🌟 LocalProcessRunner — real `Process` invocation for production ripgrep.
+///
+/// Drains stdout/stderr **concurrently** while waiting — never `waitUntilExit` before
+/// reading (that deadlocks when rg emits more than the pipe buffer, e.g. query `"test"`).
 public struct LocalProcessRunner: ProcessRunning {
-    public init() {}
+    /// Kill + fail if the child exceeds this wall time (HUD / recall must stay snappy).
+    public var timeoutSeconds: TimeInterval
+
+    public init(timeoutSeconds: TimeInterval = 2.0) {
+        self.timeoutSeconds = timeoutSeconds
+    }
 
     // 🌐 Spawn a local executable and capture its chorus of stdout/stderr
     public func run(
@@ -159,37 +179,94 @@ public struct LocalProcessRunner: ProcessRunning {
         arguments: [String],
         workingDirectory: URL?
     ) async throws -> ProcessRunResult {
-        try await withCheckedThrowingContinuation { continuation in
+        let timeout = timeoutSeconds
+        return try await withCheckedThrowingContinuation { continuation in
+            let gate = ResumeGate(continuation: continuation)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: executable)
+            process.arguments = arguments
+            if let workingDirectory {
+                process.currentDirectoryURL = workingDirectory
+            }
+
+            let stdoutPipe = Pipe()
+            let stderrPipe = Pipe()
+            process.standardOutput = stdoutPipe
+            process.standardError = stderrPipe
+
             DispatchQueue.global(qos: .userInitiated).async {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: executable)
-                process.arguments = arguments
-                if let workingDirectory {
-                    process.currentDirectoryURL = workingDirectory
-                }
-
-                let stdoutPipe = Pipe()
-                let stderrPipe = Pipe()
-                process.standardOutput = stdoutPipe
-                process.standardError = stderrPipe
-
                 do {
                     try process.run()
+
+                    // Concurrent drains — avoid classic pipe-buffer deadlock.
+                    let pair = DispatchGroup()
+                    let boxes = PipeDataBoxes()
+
+                    pair.enter()
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        boxes.stdout = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                        pair.leave()
+                    }
+                    pair.enter()
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        boxes.stderr = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+                        pair.leave()
+                    }
+
+                    pair.wait()
                     process.waitUntilExit()
-                    let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                    let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+
                     let result = ProcessRunResult(
                         exitCode: process.terminationStatus,
-                        stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-                        stderr: String(data: stderrData, encoding: .utf8) ?? ""
+                        stdout: String(data: boxes.stdout, encoding: .utf8) ?? "",
+                        stderr: String(data: boxes.stderr, encoding: .utf8) ?? ""
                     )
-                    continuation.resume(returning: result)
+                    gate.resume(returning: result)
                 } catch {
-                    continuation.resume(throwing: error)
+                    gate.resume(throwing: error)
                 }
+            }
+
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + timeout) {
+                if process.isRunning {
+                    process.terminate()
+                }
+                gate.resume(throwing: LocalProcessRunnerError.timedOut(seconds: timeout))
             }
         }
     }
+}
+
+/// One-shot resume so timeout + completion never double-resume the continuation.
+private final class ResumeGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<ProcessRunResult, Error>?
+
+    init(continuation: CheckedContinuation<ProcessRunResult, Error>) {
+        self.continuation = continuation
+    }
+
+    func resume(returning value: ProcessRunResult) {
+        lock.lock()
+        let cont = continuation
+        continuation = nil
+        lock.unlock()
+        cont?.resume(returning: value)
+    }
+
+    func resume(throwing error: Error) {
+        lock.lock()
+        let cont = continuation
+        continuation = nil
+        lock.unlock()
+        cont?.resume(throwing: error)
+    }
+}
+
+/// Thread-safe pipe capture boxes (filled on concurrent drain queues).
+private final class PipeDataBoxes: @unchecked Sendable {
+    var stdout = Data()
+    var stderr = Data()
 }
 
 /// 🌟 RetrievalServiceError — rare hard failures (hot store only); vault issues degrade instead.
@@ -447,12 +524,14 @@ public actor RetrievalService {
         }
 
         // rg --json -i -n --glob '*.md' <needle> <vault>
+        // Keep per-file match cap modest — common needles like "test" otherwise flood pipes.
         let arguments = [
             "--json",
             "-i",
             "-n",
             "--glob", "*.md",
-            "--max-count", "50",
+            "--max-count", "8",
+            "--max-filesize", "512K",
             needle,
             vaultURL.path
         ]

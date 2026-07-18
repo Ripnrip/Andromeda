@@ -25,13 +25,13 @@ public enum FloatingPetAmbientState: String, CaseIterable, Equatable, Sendable, 
     public var accessibilityLabel: String {
         switch self {
         case .idle:
-            return "Anima pet idle"
+            return "Andromeda pet idle"
         case .syncing:
-            return "Anima pet syncing"
+            return "Andromeda pet syncing"
         case .dreaming:
-            return "Anima pet dreaming"
+            return "Andromeda pet dreaming"
         case .degraded:
-            return "Anima pet degraded"
+            return "Andromeda pet degraded"
         }
     }
 

@@ -18,7 +18,7 @@ import XCTest
 @MainActor
 final class ProjectStatePanelSnapshotTests: XCTestCase {
 
-    private let canvas = CGSize(width: 360, height: 420)
+    private let canvas = CGSize(width: 360, height: 480)
 
     func testProjectStatePanelLight() {
         assertPanelSnapshot(
@@ -35,11 +35,11 @@ final class ProjectStatePanelSnapshotTests: XCTestCase {
     }
 
     func testProjectStatePanelEmpty() {
-        let model = ProjectStatePanelModel(projects: [], lastMessage: "Loaded 0 project(s)")
+        let model = ProjectStatePanelModel(projects: [], lastMessage: "project.state.list · 0 project(s)")
         assertPanelSnapshot(
             named: "empty",
             root: AnyView(
-                ProjectStatePanel(model: model)
+                ProjectStatePanel(model: model, onRefresh: {}, onCreate: {})
                     .preferredColorScheme(.light)
                     .padding()
                     .frame(width: canvas.width, height: canvas.height, alignment: .topLeading)
@@ -51,13 +51,13 @@ final class ProjectStatePanelSnapshotTests: XCTestCase {
     func testProjectStatePanelLoading() {
         let model = ProjectStatePanelModel(
             projects: [],
-            lastMessage: "Refreshing…",
+            lastMessage: "project.state.list…",
             isLoading: true
         )
         assertPanelSnapshot(
             named: "loading",
             root: AnyView(
-                ProjectStatePanel(model: model)
+                ProjectStatePanel(model: model, onRefresh: {}, onCreate: {})
                     .preferredColorScheme(.light)
                     .padding()
                     .frame(width: canvas.width, height: canvas.height, alignment: .topLeading)
@@ -70,7 +70,7 @@ final class ProjectStatePanelSnapshotTests: XCTestCase {
 
     private func fixtureRoot(colorScheme: ColorScheme) -> AnyView {
         AnyView(
-            ProjectStatePanel(model: .snapshotFixture())
+            ProjectStatePanel(model: .snapshotFixture(), onRefresh: {}, onCreate: {})
                 .preferredColorScheme(colorScheme)
                 .padding()
                 .frame(width: canvas.width, height: canvas.height, alignment: .topLeading)

@@ -89,11 +89,19 @@ public struct LaunchObservation: Sendable, Equatable {
     public let isLoaded: Bool
     public let isRunning: Bool
     public let pid: Int?
+    /// 🧾 `LastExitStatus` from `launchctl list` when present (nil = unknown / unloaded parse).
+    public let lastExitStatus: Int?
 
-    public init(isLoaded: Bool, isRunning: Bool, pid: Int? = nil) {
+    public init(
+        isLoaded: Bool,
+        isRunning: Bool,
+        pid: Int? = nil,
+        lastExitStatus: Int? = nil
+    ) {
         self.isLoaded = isLoaded
         self.isRunning = isRunning
         self.pid = pid
+        self.lastExitStatus = lastExitStatus
     }
 
     /// ✨ Map raw launchctl facts into a console status (caller applies host-role n/a).
@@ -102,6 +110,60 @@ public struct LaunchObservation: Sendable, Equatable {
         if isLoaded { return .stopped }
         return .stopped
     }
+
+    /// 💥 Non-zero last exit — cron/watchdog yellow signal even when idle.
+    public var exitedNonZero: Bool {
+        guard let lastExitStatus else { return false }
+        return lastExitStatus != 0
+    }
+
+    /**
+     * 🧾 Parse NeXTSTEP-ish stdout from `launchctl list <label>`.
+     *
+     * Loaded agents always yield an observation (`isLoaded == true`).
+     * Running = PID present. Unloaded labels never reach this parser
+     * (caller returns nil when launchctl exits non-zero).
+     */
+    public static func parse(launchctlListOutput text: String) -> LaunchObservation {
+        let pid = extractInt(key: "PID", from: text)
+        let lastExit = extractInt(key: "LastExitStatus", from: text)
+        return LaunchObservation(
+            isLoaded: true,
+            isRunning: pid != nil,
+            pid: pid,
+            lastExitStatus: lastExit
+        )
+    }
+
+    /// 🧮 Pull an integer value for a NeXTSTEP dict key, e.g. `"PID" = 1234;`.
+    public static func extractInt(key: String, from text: String) -> Int? {
+        let pattern = "\"\(key)\"\\s*=\\s*(-?\\d+)\\s*;"
+        guard
+            let regex = try? NSRegularExpression(pattern: pattern),
+            let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+            match.numberOfRanges >= 2,
+            let range = Range(match.range(at: 1), in: text)
+        else {
+            return nil
+        }
+        return Int(text[range])
+    }
+}
+
+// MARK: - Attention (why yellow / red)
+
+/// 🌟 Operator-facing attention beyond bare running/stopped — cron idle is OK.
+public enum LaunchEntityAttention: String, Sendable, Codable, CaseIterable, Equatable {
+    /// 💚 Healthy running service, or healthy idle cron (exit 0 / no health fail).
+    case ok
+    /// 🌙 Expected idle posture (loaded cron/watchdog between runs).
+    case idle
+    /// ⚠️ Soft fail — non-zero exit or yellow health join.
+    case degraded
+    /// 🔴 Hard fail — KeepAlive down, correlated health check failing, or live probe red.
+    case critical
+    /// 🛰️ Honest skip off-hub.
+    case notApplicable = "n/a"
 }
 
 // MARK: - Entity

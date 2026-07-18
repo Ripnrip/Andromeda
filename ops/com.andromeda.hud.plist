@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Optional UI agent — runs AndromedaHUD at login (menu-bar accessory).
+  RunAtLoad only — NO KeepAlive (quitting via status menu must stay quit).
+  Local-only: no OPENROUTER_*, ANTHROPIC_*, or paid API keys in EnvironmentVariables.
+
+  IMPORTANT: Exec the binary directly under launchd. Do NOT use `/usr/bin/open -a`
+  — LaunchServices `open` can inherit Aqua/agent-shell env (paid API keys).
+
+  Does NOT touch Python nightly/cron.
+
+  Install:
+    mkdir -p ~/.multibrain/logs
+    cp ops/com.andromeda.hud.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.andromeda.hud.plist
+    launchctl kickstart -k gui/$(id -u)/com.andromeda.hud
+  Unload:
+    launchctl bootout gui/$(id -u)/com.andromeda.hud
+
+  Prerequisite: ./scripts/install-and-sign.sh hud
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.andromeda.hud</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/admin/Applications/AndromedaHUD.app/Contents/MacOS/AndromedaHUD</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/admin</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<false/>
+	<key>LimitLoadToSessionType</key>
+	<string>Aqua</string>
+	<key>StandardOutPath</key>
+	<string>/Users/admin/.multibrain/logs/andromeda-hud.launchd.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/admin/.multibrain/logs/andromeda-hud.launchd.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>/Users/admin</string>
+		<key>PATH</key>
+		<string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
+	</dict>
+</dict>
+</plist>
