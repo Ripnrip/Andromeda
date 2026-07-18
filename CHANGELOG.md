@@ -2,6 +2,21 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-07-18 — MemoryKit panels → modern SwiftUI + HUD accessory
+
+**Tone hat:** SwiftUI tailor 🧵
+**Commit message of the day:** `feat: modernize MemoryKit SwiftUI panels for AndromedaHUD`
+**Steps taken:** Applied swiftui-expert-skill patterns across MemoryKit UI and added a tabbed console accessory for the HUD.
+
+### Added
+- `MemoryKitChrome` / `MemoryKitMotion` shared tokens; `MemoryKitConsoleView` tab shell.
+- `AndromedaHUDView` generic accessory slot + `showsAccessory` chrome size.
+- Console unit tests; docs for HUD ↔ MemoryKit composition.
+
+### Changed
+- Modernized CommandCenter, FloatingPet, LaunchEntityRoster, MCPRegistry, ProjectStatePanel:
+  material chrome, ContentUnavailableView, extracted subviews, `.animation(_:value:)`, springs.
+
 ## 2026-07-18 — Andromeda HUD Pop-inspired motion
 
 **Tone hat:** Paper physicist 📄

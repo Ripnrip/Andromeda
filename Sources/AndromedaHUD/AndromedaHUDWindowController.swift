@@ -13,7 +13,7 @@ import SwiftUI
 public final class AndromedaHUDWindowController: NSObject {
     public let model: AndromedaHUDModel
     public private(set) var window: NSPanel
-    private var hostingView: NSHostingView<AndromedaHUDView>
+    private var hostingView: NSHostingView<AndromedaHUDView<EmptyView>>
 
     /// Event monitors are torn down in `deinit` (nonisolated), so they are stored unsafely.
     nonisolated(unsafe) private var mouseDownMonitor: Any?

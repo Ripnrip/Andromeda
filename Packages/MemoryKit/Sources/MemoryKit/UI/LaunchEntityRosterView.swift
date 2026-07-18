@@ -1,12 +1,8 @@
 /**
  * 🎭 The LaunchEntityRosterView - The Impossible-to-Ignore Playbill
  *
- * "No more silent watchdogs humming unpaid soliloquies backstage.
- * The roster fills the glass — loading shimmer, empty hush,
- * hub-full chorus, or satellite n/a honesty — always visible,
- * always loud enough that the Mini tunnel cannot hide."
- *
- * - The Theatrical Virtuoso of Fleet Observability
+ * Modern SwiftUI: material chrome, ContentUnavailableView, LazyVStack,
+ * `.animation(_:value:)`, extracted rows, reduce-motion safe pulse.
  */
 
 import Foundation
@@ -14,21 +10,12 @@ import SwiftUI
 
 // MARK: - Presentation states
 
-/**
- * 🌟 Four faces of the LaunchEntity roster — day-1 Observe UI.
- *
- * - `loading` — refresh in flight
- * - `empty` — catalog vacuum (should alarm operators)
- * - `hubFull` — Studio hub with the full multibrain + Mini cast
- * - `satelliteNA` — Book/satellite view where hub services are honest n/a
- */
 public enum LaunchEntityRosterState: String, Sendable, Equatable, CaseIterable {
     case loading
     case empty
     case hubFull = "hub-full"
     case satelliteNA = "satellite-na"
 
-    /// 🎨 VoiceOver / header title — impossible to skim past.
     public var headline: String {
         switch self {
         case .loading: return "Launch Entities · Loading"
@@ -38,7 +25,6 @@ public enum LaunchEntityRosterState: String, Sendable, Equatable, CaseIterable {
         }
     }
 
-    /// 📜 Supporting line under the marquee.
     public var subtitle: String {
         switch self {
         case .loading:
@@ -52,7 +38,6 @@ public enum LaunchEntityRosterState: String, Sendable, Equatable, CaseIterable {
         }
     }
 
-    /// ♿ Accessibility identifier stem for tests / snapshots.
     public var accessibilityIdentifier: String {
         "launchEntityRoster.state.\(rawValue)"
     }
@@ -60,19 +45,12 @@ public enum LaunchEntityRosterState: String, Sendable, Equatable, CaseIterable {
 
 // MARK: - Model
 
-/**
- * 🎭 LaunchEntityRosterModel — MainActor mood board for the visible roster.
- *
- * Holds presentation state, entities, last telemetry pulse, and reduce-motion.
- * Injectable fixtures keep SnapshotTesting hermetic (no live launchctl).
- */
 @MainActor
 @Observable
 public final class LaunchEntityRosterModel {
     public var state: LaunchEntityRosterState
     public var entities: [LaunchEntity]
     public var lastTelemetry: LaunchEntityRefreshTelemetry?
-    /// 🌊 When true, status chips skip pulse chrome (static still life).
     public var reduceMotion: Bool
 
     public init(
@@ -87,7 +65,6 @@ public final class LaunchEntityRosterModel {
         self.reduceMotion = reduceMotion
     }
 
-    /// ♿ Combined announcement for the roster chrome.
     public var accessibilityLabel: String {
         var parts = [state.headline]
         if let lastTelemetry {
@@ -98,7 +75,6 @@ public final class LaunchEntityRosterModel {
         return parts.joined(separator: ". ")
     }
 
-    /// 🌟 Apply a refreshed registry into a concrete roster face.
     public func apply(registry: LaunchEntityRegistry) {
         let roster = registry.all()
         lastTelemetry = registry.lastTelemetry
@@ -108,15 +84,11 @@ public final class LaunchEntityRosterModel {
             return
         }
         switch registry.observingHostRole {
-        case .hub:
-            state = .hubFull
-        case .satellite, .isolated:
-            state = .satelliteNA
+        case .hub: state = .hubFull
+        case .satellite, .isolated: state = .satelliteNA
         }
-        print("🌐 ✨ LAUNCH ENTITY ROSTER AWAKENS! → \(state.rawValue) (\(roster.count) rows)")
     }
 
-    /// 🌙 Force a named state with optional fixture entities (previews / snapshots).
     public func present(
         _ state: LaunchEntityRosterState,
         entities: [LaunchEntity] = [],
@@ -128,11 +100,9 @@ public final class LaunchEntityRosterModel {
     }
 }
 
-// MARK: - Fixtures (previews + SnapshotTesting)
+// MARK: - Fixtures
 
-/// 🎬 Deterministic cast for Preview / snapshot catalogs — no live launchd.
 public enum LaunchEntityRosterFixtures {
-    /// 🌟 Hub-full cast with mixed running/stopped + isolated Mini flagged.
     public static func hubFullEntities() -> [LaunchEntity] {
         [
             LaunchEntity(
@@ -178,7 +148,6 @@ public enum LaunchEntityRosterFixtures {
         ]
     }
 
-    /// 🛰️ Satellite cast — hub services honest n/a.
     public static func satelliteNAEntities() -> [LaunchEntity] {
         [
             LaunchEntity(
@@ -256,20 +225,12 @@ public enum LaunchEntityRosterFixtures {
     }
 }
 
-// MARK: - SwiftUI View
+// MARK: - View
 
-/**
- * 🎭 LaunchEntityRosterView — visible LaunchAgent playbill (proof-quality).
- *
- * Impossible to ignore: marquee headline, telemetry strip, entity rows with
- * status / kind / host / schedule. Reduce-motion freezes status pulse chrome.
- */
 @MainActor
 public struct LaunchEntityRosterView: View {
     @Bindable private var model: LaunchEntityRosterModel
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
-
-    /// 🌟 When true, Environment reduce-motion merges into the model each body pass.
     private let honorSystemReduceMotion: Bool
 
     public init(model: LaunchEntityRosterModel, honorSystemReduceMotion: Bool = true) {
@@ -282,15 +243,20 @@ public struct LaunchEntityRosterView: View {
             ? (model.reduceMotion || systemReduceMotion)
             : model.reduceMotion
 
-        return VStack(alignment: .leading, spacing: 12) {
-            marquee
-            telemetryStrip
-            Divider()
-            content(effectiveReduceMotion: effectiveReduce)
+        VStack(alignment: .leading, spacing: 12) {
+            LaunchEntityMarquee(state: model.state, reduceMotion: effectiveReduce)
+            LaunchEntityTelemetryStrip(telemetry: model.lastTelemetry, state: model.state)
+            Divider().opacity(0.35)
+            LaunchEntityRosterContent(model: model, reduceMotion: effectiveReduce)
         }
         .padding(16)
         .frame(minWidth: 420, idealWidth: 460, maxWidth: 520, minHeight: 280)
-        .background(RosterBackdrop(state: model.state))
+        .memoryKitPanelChrome(cornerRadius: 14)
+        .overlay(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(marqueeTint.opacity(0.35), lineWidth: 1)
+        }
+        .animation(MemoryKitMotion.animation(reduceMotion: effectiveReduce), value: model.state)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(model.accessibilityLabel)
         .accessibilityIdentifier("launchEntityRoster.root")
@@ -301,37 +267,45 @@ public struct LaunchEntityRosterView: View {
             }
         }
         .onChange(of: systemReduceMotion) { _, newValue in
-            guard honorSystemReduceMotion else { return }
-            if newValue {
-                model.reduceMotion = true
-            }
+            guard honorSystemReduceMotion, newValue else { return }
+            model.reduceMotion = true
         }
     }
 
-    // MARK: - Chrome
+    private var marqueeTint: Color {
+        switch model.state {
+        case .loading: return .cyan
+        case .empty: return .red
+        case .hubFull: return .green
+        case .satelliteNA: return .orange
+        }
+    }
+}
 
-    private var marquee: some View {
+// MARK: - Subviews
+
+private struct LaunchEntityMarquee: View {
+    let state: LaunchEntityRosterState
+    let reduceMotion: Bool
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Image(systemName: "list.bullet.rectangle.portrait")
                     .font(.title2)
-                    .foregroundStyle(marqueeTint)
-                    .symbolEffect(
-                        .pulse,
-                        isActive: model.state == .loading && !model.reduceMotion
-                    )
-                Text(model.state.headline)
+                    .foregroundStyle(tint)
+                    .symbolEffect(.pulse, isActive: state == .loading && !reduceMotion)
+                Text(state.headline)
                     .font(.title2.weight(.bold))
-                    .foregroundStyle(.primary)
                 Spacer(minLength: 0)
-                Text(model.state.rawValue.uppercased())
+                Text(state.rawValue.uppercased())
                     .font(.caption.weight(.heavy).monospaced())
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(marqueeTint.opacity(0.2), in: Capsule())
+                    .background(tint.opacity(0.2), in: Capsule())
                     .accessibilityIdentifier("launchEntityRoster.badge")
             }
-            Text(model.state.subtitle)
+            Text(state.subtitle)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -339,21 +313,35 @@ public struct LaunchEntityRosterView: View {
         .accessibilityIdentifier("launchEntityRoster.marquee")
     }
 
-    private var telemetryStrip: some View {
+    private var tint: Color {
+        switch state {
+        case .loading: return .cyan
+        case .empty: return .red
+        case .hubFull: return .green
+        case .satelliteNA: return .orange
+        }
+    }
+}
+
+private struct LaunchEntityTelemetryStrip: View {
+    let telemetry: LaunchEntityRefreshTelemetry?
+    let state: LaunchEntityRosterState
+
+    var body: some View {
         Group {
-            if let pulse = model.lastTelemetry {
+            if let pulse = telemetry {
                 HStack(spacing: 10) {
-                    telemetryChip("run", value: "\(pulse.running)", tint: .green)
-                    telemetryChip("stop", value: "\(pulse.stopped)", tint: .secondary)
-                    telemetryChip("n/a", value: "\(pulse.notApplicable)", tint: .orange)
+                    chip("run", value: "\(pulse.running)", tint: .green)
+                    chip("stop", value: "\(pulse.stopped)", tint: .secondary)
+                    chip("n/a", value: "\(pulse.notApplicable)", tint: .orange)
                     if pulse.isolatedMiniFlagged {
-                        telemetryChip("mini", value: "ISOLATED", tint: .purple)
+                        chip("mini", value: "ISOLATED", tint: .purple)
                     }
                     Spacer(minLength: 0)
                 }
                 .accessibilityIdentifier("launchEntityRoster.telemetry")
                 .accessibilityLabel(pulse.displaySummary)
-            } else if model.state == .loading {
+            } else if state == .loading {
                 Text("Telemetry pending…")
                     .font(.caption.monospaced())
                     .foregroundStyle(.tertiary)
@@ -367,7 +355,7 @@ public struct LaunchEntityRosterView: View {
         }
     }
 
-    private func telemetryChip(_ label: String, value: String, tint: Color) -> some View {
+    private func chip(_ label: String, value: String, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label.uppercased())
                 .font(.caption2.weight(.semibold))
@@ -376,87 +364,62 @@ public struct LaunchEntityRosterView: View {
                 .font(.callout.weight(.bold).monospaced())
                 .foregroundStyle(tint)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .memoryKitChipChrome()
     }
+}
 
-    @ViewBuilder
-    private func content(effectiveReduceMotion: Bool) -> some View {
+private struct LaunchEntityRosterContent: View {
+    @Bindable var model: LaunchEntityRosterModel
+    let reduceMotion: Bool
+
+    var body: some View {
         switch model.state {
         case .loading:
-            loadingBody(effectiveReduceMotion: effectiveReduceMotion)
+            HStack(spacing: 12) {
+                if reduceMotion {
+                    Image(systemName: "hourglass")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ProgressView()
+                        .controlSize(.large)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Observing LaunchAgents…")
+                        .font(.headline)
+                    Text("Read-only · no bootstrap · no unload")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
+            .accessibilityIdentifier("launchEntityRoster.loading")
         case .empty:
-            emptyBody
+            ContentUnavailableView {
+                Label("EMPTY ROSTER", systemImage: "exclamationmark.triangle.fill")
+            } description: {
+                Text("Register LaunchEntities or the hive goes dark.")
+            }
+            .foregroundStyle(.red)
+            .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
+            .accessibilityIdentifier("launchEntityRoster.empty")
         case .hubFull, .satelliteNA:
-            entityList(effectiveReduceMotion: effectiveReduceMotion)
-        }
-    }
-
-    private func loadingBody(effectiveReduceMotion: Bool) -> some View {
-        HStack(spacing: 12) {
-            if effectiveReduceMotion {
-                Image(systemName: "hourglass")
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
-            } else {
-                ProgressView()
-                    .controlSize(.large)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Observing LaunchAgents…")
-                    .font(.headline)
-                Text("Read-only · no bootstrap · no unload")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
-        .accessibilityIdentifier("launchEntityRoster.loading")
-    }
-
-    private var emptyBody: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("EMPTY ROSTER")
-                .font(.title3.weight(.black))
-                .foregroundStyle(.red)
-            Text("Register LaunchEntities or the hive goes dark.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
-        .accessibilityIdentifier("launchEntityRoster.empty")
-    }
-
-    private func entityList(effectiveReduceMotion: Bool) -> some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 8) {
-                ForEach(model.entities) { entity in
-                    LaunchEntityRowView(
-                        entity: entity,
-                        reduceMotion: effectiveReduceMotion
-                    )
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(model.entities) { entity in
+                        LaunchEntityRowView(entity: entity, reduceMotion: reduceMotion)
+                    }
                 }
             }
-        }
-        .frame(maxHeight: 320)
-        .accessibilityIdentifier("launchEntityRoster.list")
-    }
-
-    private var marqueeTint: Color {
-        switch model.state {
-        case .loading: return .cyan
-        case .empty: return .red
-        case .hubFull: return .green
-        case .satelliteNA: return .orange
+            .frame(maxHeight: 320)
+            .accessibilityIdentifier("launchEntityRoster.list")
         }
     }
 }
 
 // MARK: - Row
 
-/// 🎭 One LaunchEntity as a loud, scannable roster row.
 @MainActor
 public struct LaunchEntityRowView: View {
     public let entity: LaunchEntity
@@ -469,7 +432,10 @@ public struct LaunchEntityRowView: View {
 
     public var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            statusGlyph
+            Circle()
+                .fill(statusColor.opacity(reduceMotion ? 0.55 : 0.9))
+                .frame(width: 12, height: 12)
+                .padding(.top, 4)
             VStack(alignment: .leading, spacing: 2) {
                 Text(entity.slug)
                     .font(.headline.monospaced())
@@ -494,17 +460,9 @@ public struct LaunchEntityRowView: View {
                 .padding(.vertical, 4)
                 .background(statusColor.opacity(reduceMotion ? 0.12 : 0.22), in: Capsule())
         }
-        .padding(10)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+        .memoryKitChipChrome(cornerRadius: 10)
         .accessibilityIdentifier("launchEntityRoster.row.\(entity.slug)")
         .accessibilityLabel("\(entity.slug), \(statusLabel), \(entity.hostRole.rawValue)")
-    }
-
-    private var statusGlyph: some View {
-        Circle()
-            .fill(statusColor.opacity(reduceMotion ? 0.55 : 0.9))
-            .frame(width: 12, height: 12)
-            .padding(.top, 4)
     }
 
     private var statusLabel: String {
@@ -533,45 +491,10 @@ public struct LaunchEntityRowView: View {
     }
 }
 
-// MARK: - Backdrop
-
-/// 🎨 Soft state-tinted wash — keeps the roster from looking like a sparse stub.
-private struct RosterBackdrop: View {
-    let state: LaunchEntityRosterState
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 14)
-            .fill(wash.opacity(0.12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(wash.opacity(0.35), lineWidth: 1)
-            )
-    }
-
-    private var wash: Color {
-        switch state {
-        case .loading: return .cyan
-        case .empty: return .red
-        case .hubFull: return .green
-        case .satelliteNA: return .orange
-        }
-    }
-}
-
-// MARK: - Preview matrix (light / dark / Dynamic Type / reduce motion)
-
 #if DEBUG
-#Preview("Roster · Loading · Light") {
+#Preview("Roster · Hub-Full · Dark") {
     LaunchEntityRosterView(
-        model: LaunchEntityRosterFixtures.model(.loading),
-        honorSystemReduceMotion: false
-    )
-    .preferredColorScheme(.light)
-}
-
-#Preview("Roster · Loading · Dark") {
-    LaunchEntityRosterView(
-        model: LaunchEntityRosterFixtures.model(.loading),
+        model: LaunchEntityRosterFixtures.model(.hubFull),
         honorSystemReduceMotion: false
     )
     .preferredColorScheme(.dark)
@@ -585,73 +508,7 @@ private struct RosterBackdrop: View {
     .preferredColorScheme(.light)
 }
 
-#Preview("Roster · Empty · Dark") {
-    LaunchEntityRosterView(
-        model: LaunchEntityRosterFixtures.model(.empty),
-        honorSystemReduceMotion: false
-    )
-    .preferredColorScheme(.dark)
-}
-
-#Preview("Roster · Hub-Full · Light") {
-    LaunchEntityRosterView(
-        model: LaunchEntityRosterFixtures.model(.hubFull),
-        honorSystemReduceMotion: false
-    )
-    .preferredColorScheme(.light)
-}
-
-#Preview("Roster · Hub-Full · Dark") {
-    LaunchEntityRosterView(
-        model: LaunchEntityRosterFixtures.model(.hubFull),
-        honorSystemReduceMotion: false
-    )
-    .preferredColorScheme(.dark)
-}
-
-#Preview("Roster · Satellite-NA · Light") {
-    LaunchEntityRosterView(
-        model: LaunchEntityRosterFixtures.model(.satelliteNA),
-        honorSystemReduceMotion: false
-    )
-    .preferredColorScheme(.light)
-}
-
-#Preview("Roster · Satellite-NA · Dark") {
-    LaunchEntityRosterView(
-        model: LaunchEntityRosterFixtures.model(.satelliteNA),
-        honorSystemReduceMotion: false
-    )
-    .preferredColorScheme(.dark)
-}
-
-#Preview("Roster · Hub-Full · Dynamic Type XXXL") {
-    LaunchEntityRosterView(
-        model: LaunchEntityRosterFixtures.model(.hubFull),
-        honorSystemReduceMotion: false
-    )
-    .preferredColorScheme(.light)
-    .environment(\.dynamicTypeSize, .accessibility3)
-}
-
-#Preview("Roster · Hub-Full · Dark · Dynamic Type XXXL") {
-    LaunchEntityRosterView(
-        model: LaunchEntityRosterFixtures.model(.hubFull),
-        honorSystemReduceMotion: false
-    )
-    .preferredColorScheme(.dark)
-    .environment(\.dynamicTypeSize, .accessibility3)
-}
-
-#Preview("Roster · Hub-Full · Reduce Motion") {
-    LaunchEntityRosterView(
-        model: LaunchEntityRosterFixtures.model(.hubFull, reduceMotion: true),
-        honorSystemReduceMotion: false
-    )
-    .preferredColorScheme(.light)
-}
-
-#Preview("Roster · Loading · Reduce Motion · Dark") {
+#Preview("Roster · Loading · Reduce Motion") {
     LaunchEntityRosterView(
         model: LaunchEntityRosterFixtures.model(.loading, reduceMotion: true),
         honorSystemReduceMotion: false

@@ -108,6 +108,9 @@ public enum HUDSnapEngine: Sendable {
     /// Expanded search panel size.
     public static let expandedSize = HUDPoint(x: 420, y: 280)
 
+    /// Expanded search + MemoryKit console accessory.
+    public static let expandedWithAccessorySize = HUDPoint(x: 520, y: 560)
+
     /// Resolve snap mode from a proposed origin + screen metrics.
     ///
     /// Docks when the pill's top edge is within `snapDistance` **below** the menu-bar

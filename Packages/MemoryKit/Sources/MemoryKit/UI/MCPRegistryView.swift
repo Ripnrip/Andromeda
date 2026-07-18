@@ -1,21 +1,16 @@
 /**
  * 🎭 The MCPRegistryView - Read-Only Sprawl Roster
  *
- * "A quiet list of MCP citizens with duplicate badges —
- * empty stage when the house is dark, sprawl chorus when
- * filesystem sings fifteen times. No kill buttons. No tracker brands."
- *
- * - The Theatrical Console Virtuoso of Andromeda Observe
+ * Modern SwiftUI: ContentUnavailableView, LazyVStack + ScrollView (stable IDs),
+ * material chrome, extracted rows — observe-only, no tracker brands.
  */
 
 import Foundation
 import SwiftUI
 
-// MARK: - Presentation model (testable without SnapshotTesting)
+// MARK: - Presentation
 
-/// 🌟 Pure presentation helpers for the MCP roster — empty / sprawl / badges.
 public enum MCPRegistryPresentation: Sendable {
-    /// 🎨 Headline for the roster panel.
     public static func title(entityCount: Int, sprawlGroupCount: Int) -> String {
         if entityCount == 0 {
             return "MCP Registry — empty"
@@ -26,10 +21,8 @@ public enum MCPRegistryPresentation: Sendable {
         return "MCP Registry — \(entityCount)"
     }
 
-    /// 🌊 Empty-state copy (no Linear/Multica names).
     public static let emptyMessage = "No MCP servers observed. Run infra.mcp.scan."
 
-    /// 🎨 Row subtitle: source · pid · memory.
     public static func subtitle(for entity: MCPServerEntity) -> String {
         var parts: [String] = [entity.source.displayName]
         if let pid = entity.pid {
@@ -47,7 +40,6 @@ public enum MCPRegistryPresentation: Sendable {
 
 // MARK: - Model
 
-/// 🎭 Main-actor roster model for the read-only MCP list.
 @MainActor
 @Observable
 public final class MCPRegistryModel {
@@ -66,15 +58,9 @@ public final class MCPRegistryModel {
         self.sprawlGroupCount = sprawlGroupCount
     }
 
-    /// 📜 Apply a scan result (capability `infra.mcp.scan` outcome).
     public func apply(scan: MCPRegistryScanResult) {
-        // Prefer live rows with duplicate badges; also surface annotated config seeds that sprawl.
         let live = scan.entities.filter(\.isLive)
-        if live.isEmpty {
-            entities = scan.entities
-        } else {
-            entities = live
-        }
+        entities = live.isEmpty ? scan.entities : live
         processCount = scan.processCount
         sprawlGroupCount = scan.sprawlGroups.count
         lastMessage = MCPRegistryPresentation.title(
@@ -83,7 +69,6 @@ public final class MCPRegistryModel {
         )
     }
 
-    /// 🌙 Clear to empty state.
     public func clear() {
         entities = []
         processCount = 0
@@ -103,13 +88,9 @@ public final class MCPRegistryModel {
 
 // MARK: - View
 
-/**
- * 🎭 MCPRegistryView — read-only list + duplicate badge.
- *
- * Never exposes Linear / Multica. Capabilities remain `infra.mcp.*`.
- */
 public struct MCPRegistryView: View {
     @Bindable public var model: MCPRegistryModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(model: MCPRegistryModel) {
         self.model = model
@@ -117,53 +98,72 @@ public struct MCPRegistryView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(model.title)
-                .font(.headline)
-                .accessibilityIdentifier("mcp.registry.title")
+            MemoryKitPanelHeader(
+                title: model.title,
+                systemImage: "server.rack",
+                caption: "infra.mcp.scan",
+                tint: .orange,
+                accessibilityIdentifier: "mcp.registry.title"
+            )
 
             if model.isEmpty {
-                Text(MCPRegistryPresentation.emptyMessage)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("mcp.registry.empty")
+                ContentUnavailableView {
+                    Label("No MCP servers", systemImage: "antenna.radiowaves.left.and.right.slash")
+                } description: {
+                    Text(MCPRegistryPresentation.emptyMessage)
+                }
+                .accessibilityIdentifier("mcp.registry.empty")
             } else {
-                List(model.entities) { entity in
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(entity.packageName)
-                                .font(.body.monospaced())
-                                .lineLimit(1)
-                            Text(MCPRegistryPresentation.subtitle(for: entity))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 8)
-                        if let badge = entity.duplicateBadgeLabel {
-                            Text(badge)
-                                .font(.caption.bold())
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.orange.opacity(0.25))
-                                .clipShape(Capsule())
-                                .accessibilityLabel("Duplicate \(badge)")
-                                .accessibilityIdentifier("mcp.registry.badge.\(entity.duplicateGroup)")
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 8) {
+                        ForEach(model.entities) { entity in
+                            MCPRegistryRow(entity: entity)
                         }
                     }
-                    .accessibilityIdentifier("mcp.registry.row.\(entity.id)")
                 }
-                .listStyle(.plain)
             }
         }
         .padding()
         .frame(minWidth: 360, minHeight: 240)
+        .memoryKitPanelChrome()
+        .animation(MemoryKitMotion.animation(reduceMotion: reduceMotion), value: model.entities.count)
     }
 }
 
-// MARK: - Fixtures (tests + previews — never kills processes)
+// MARK: - Row
 
-/// 🧪 Shared fixture factory for previews + tests (observe-only sprawl).
+private struct MCPRegistryRow: View {
+    let entity: MCPServerEntity
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entity.packageName)
+                    .font(.body.monospaced())
+                    .lineLimit(1)
+                Text(MCPRegistryPresentation.subtitle(for: entity))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            if let badge = entity.duplicateBadgeLabel {
+                Text(badge)
+                    .font(.caption.weight(.bold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.25), in: Capsule())
+                    .accessibilityLabel("Duplicate \(badge)")
+                    .accessibilityIdentifier("mcp.registry.badge.\(entity.duplicateGroup)")
+            }
+        }
+        .memoryKitChipChrome()
+        .accessibilityIdentifier("mcp.registry.row.\(entity.id)")
+    }
+}
+
+// MARK: - Fixtures
+
 public enum MCPRegistryFixtures {
-    /// 🌊 Fake process list mirroring Studio sprawl (filesystem/memory/sequential ×15).
     public static func sprawlProcessList() -> [MCPProcessSnapshot] {
         var snaps: [MCPProcessSnapshot] = []
         for i in 1...15 {
@@ -190,23 +190,14 @@ public enum MCPRegistryFixtures {
             )
         }
         snaps.append(
-            MCPProcessSnapshot(
-                pid: 4001,
-                command: "npm exec firecrawl-mcp",
-                memoryMB: 71
-            )
+            MCPProcessSnapshot(pid: 4001, command: "npm exec firecrawl-mcp", memoryMB: 71)
         )
         snaps.append(
-            MCPProcessSnapshot(
-                pid: 4002,
-                command: "npm exec firecrawl-mcp",
-                memoryMB: 71
-            )
+            MCPProcessSnapshot(pid: 4002, command: "npm exec firecrawl-mcp", memoryMB: 71)
         )
         return snaps
     }
 
-    /// 🌙 Quiet single-server fixture (no duplicates).
     public static func uniqueProcessList() -> [MCPProcessSnapshot] {
         [
             MCPProcessSnapshot(
@@ -220,14 +211,12 @@ public enum MCPRegistryFixtures {
 
 #if DEBUG
 extension MCPRegistryModel {
-    /// 🌙 Empty house — no MCP processes on stage.
     public static var previewEmpty: MCPRegistryModel {
         let model = MCPRegistryModel()
         model.clear()
         return model
     }
 
-    /// 🌊 Studio-style sprawl — filesystem ×15 (+ memory / sequential twins).
     public static var previewSprawl: MCPRegistryModel {
         let snaps = MCPRegistryFixtures.sprawlProcessList()
         let hook = RecordingMCPTelemetrySpanHook()
@@ -243,34 +232,13 @@ extension MCPRegistryModel {
     }
 }
 
-#Preview("MCP Registry — Empty (Light)") {
-    MCPRegistryView(model: .previewEmpty)
-        .preferredColorScheme(.light)
-}
-
-#Preview("MCP Registry — Empty (Dark)") {
+#Preview("MCP Registry — Empty") {
     MCPRegistryView(model: .previewEmpty)
         .preferredColorScheme(.dark)
 }
 
-#Preview("MCP Registry — Sprawl (Light)") {
-    MCPRegistryView(model: .previewSprawl)
-        .preferredColorScheme(.light)
-}
-
-#Preview("MCP Registry — Sprawl (Dark)") {
+#Preview("MCP Registry — Sprawl") {
     MCPRegistryView(model: .previewSprawl)
         .preferredColorScheme(.dark)
-}
-
-#Preview("MCP Registry — Sprawl (Large Dynamic Type)") {
-    MCPRegistryView(model: .previewSprawl)
-        .environment(\.dynamicTypeSize, .accessibility2)
-}
-
-#Preview("MCP Registry — Empty (a11y identifiers present)") {
-    // Reduce-motion is honored implicitly (view has no motion); keep a11y IDs in empty state.
-    MCPRegistryView(model: .previewEmpty)
-        .preferredColorScheme(.light)
 }
 #endif

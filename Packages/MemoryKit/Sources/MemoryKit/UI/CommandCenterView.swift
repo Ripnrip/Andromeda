@@ -1,12 +1,8 @@
 /**
  * 🎭 The CommandCenterView - The Utility Popover Proscenium
  *
- * "Three badges glow like footlights on the hive's status stage—
- * health, sync, and the cloak of visibility—
- * while stub levers record the seeker's intent
- * until the LaunchAgents learn to dance on cue."
- *
- * - The Spellbinding Museum Director of Phase-4 Utility
+ * Modern SwiftUI (swiftui-expert-skill): `@Observable` / `@Bindable`,
+ * `.animation(_:value:)`, extracted subviews, material chrome, spring motion.
  */
 
 import Foundation
@@ -14,14 +10,12 @@ import SwiftUI
 
 // MARK: - Action Intents (stubs — no LaunchAgent calls yet)
 
-/// 🌟 The CommandCenterActionIntent - Recorded wishes from the utility panel
-/// Proof-quality stub: buttons append intents; they do **not** kickstart plists.
+/// Recorded wishes from the utility panel (proof stub — no plist kickstart).
 public enum CommandCenterActionIntent: String, CaseIterable, Equatable, Sendable, Codable {
     case openVault
     case sync
     case consolidate
 
-    /// 🎨 Human-readable button title for the seeker of wisdom
     public var title: String {
         switch self {
         case .openVault: return "Open Vault"
@@ -30,7 +24,6 @@ public enum CommandCenterActionIntent: String, CaseIterable, Equatable, Sendable
         }
     }
 
-    /// ✨ SF Symbol glyph for the action lever
     public var systemImage: String {
         switch self {
         case .openVault: return "folder"
@@ -40,11 +33,10 @@ public enum CommandCenterActionIntent: String, CaseIterable, Equatable, Sendable
     }
 }
 
-// MARK: - Badge Labels (pure, testable presentation helpers)
+// MARK: - Badge Labels
 
-/// 🌟 The CommandCenterBadgeLabels - String alchemy for status chrome
+/// Pure string alchemy for status chrome (testable without SwiftUI).
 public enum CommandCenterBadgeLabels: Sendable {
-    /// 🎨 Health badge copy — TCA `HealthStatus` (per-service / panel pulse)
     public static func health(_ status: HealthStatus) -> String {
         switch status {
         case .unknown: return "Health: unknown"
@@ -53,7 +45,6 @@ public enum CommandCenterBadgeLabels: Sendable {
         }
     }
 
-    /// ☁️ Sync badge copy — idle / syncing / last success / failure
     public static func sync(_ status: SyncStatus) -> String {
         switch status {
         case .idle: return "Sync: idle"
@@ -66,31 +57,21 @@ public enum CommandCenterBadgeLabels: Sendable {
         }
     }
 
-    /// 💅 Visibility cloak badge
     public static func visibility(_ level: VisibilityLevel) -> String {
         "Visibility: \(level.rawValue)"
     }
 }
 
-// MARK: - Observable Model (@MainActor)
+// MARK: - Observable Model
 
-/// 🎭 The CommandCenterModel - Main-actor state for the MemoryKit utility panel
-///
-/// Holds health / sync / visibility badges and records stub action intents.
-/// Real LaunchAgent / vault / CloudKit wiring arrives in a later integration pass.
+/// Main-actor state for the MemoryKit utility panel.
 @MainActor
 @Observable
 public final class CommandCenterModel {
-
-    // 🌟 Cosmic badge state mirrored from MemoryReducer vocabulary
     public var healthStatus: HealthStatus
     public var syncStatus: SyncStatus
     public var activeVisibility: VisibilityLevel
-
-    /// 📜 Intent ledger — append-only stub log (no side effects beyond memory)
     public private(set) var recordedIntents: [CommandCenterActionIntent]
-
-    /// 🌙 Last error whisper for the panel footer (optional)
     public var lastMessage: String?
 
     public init(
@@ -105,69 +86,44 @@ public final class CommandCenterModel {
         self.recordedIntents = recordedIntents
     }
 
-    // MARK: - Badge accessors
+    public var healthBadgeLabel: String { CommandCenterBadgeLabels.health(healthStatus) }
+    public var syncBadgeLabel: String { CommandCenterBadgeLabels.sync(syncStatus) }
+    public var visibilityBadgeLabel: String { CommandCenterBadgeLabels.visibility(activeVisibility) }
 
-    /// 🎨 Health badge label for the popover chrome
-    public var healthBadgeLabel: String {
-        CommandCenterBadgeLabels.health(healthStatus)
-    }
-
-    /// ☁️ Sync badge label for the popover chrome
-    public var syncBadgeLabel: String {
-        CommandCenterBadgeLabels.sync(syncStatus)
-    }
-
-    /// 💅 Visibility badge label for the popover chrome
-    public var visibilityBadgeLabel: String {
-        CommandCenterBadgeLabels.visibility(activeVisibility)
-    }
-
-    // MARK: - Stub actions (record intents only)
-
-    /// 📂 Open Vault — records intent; does **not** open Finder / Obsidian yet
     public func openVault() {
-        print("🌐 ✨ OPEN VAULT INTENT AWAKENS! (stub — no LaunchAgent)")
         record(.openVault)
         lastMessage = "Recorded intent: Open Vault"
     }
 
-    /// ☁️ Sync Now — records intent; does **not** call CloudKitSyncEngine yet
     public func syncNow() {
-        print("🌐 ✨ SYNC INTENT AWAKENS! (stub — no CloudKit call)")
         record(.sync)
         lastMessage = "Recorded intent: Sync"
     }
 
-    /// 🌙 Consolidate — records intent; does **not** invoke run-nightly.sh yet
     public func consolidate() {
-        print("🌐 ✨ CONSOLIDATE INTENT AWAKENS! (stub — no nightly kickstart)")
         record(.consolidate)
         lastMessage = "Recorded intent: Consolidate"
     }
 
-    /// 💅 Shift the active visibility cloak shown on the badge
     public func setVisibility(_ level: VisibilityLevel) {
+        guard activeVisibility != level else { return }
         activeVisibility = level
-        print("💅 CommandCenter visibility cloak shifted to: \(level.rawValue)")
     }
 
-    /// 📡 Apply a health snapshot (e.g. from a future health.json loader)
     public func applyHealth(_ status: HealthStatus) {
+        guard healthStatus != status else { return }
         healthStatus = status
     }
 
-    /// ☁️ Apply a sync status snapshot
     public func applySync(_ status: SyncStatus) {
         syncStatus = status
     }
 
-    /// 🧹 Clear the intent ledger (tests / preview reset)
     public func clearRecordedIntents() {
         recordedIntents.removeAll()
         lastMessage = nil
     }
 
-    // 🌟 Private append to the intent scroll
     private func record(_ intent: CommandCenterActionIntent) {
         recordedIntents.append(intent)
     }
@@ -175,10 +131,11 @@ public final class CommandCenterModel {
 
 // MARK: - SwiftUI Panel
 
-/// 🎭 The CommandCenterView - MemoryKit's macOS popover utility panel (proof stub)
+/// MemoryKit's macOS popover utility panel (modern material chrome).
 @MainActor
 public struct CommandCenterView: View {
     @Bindable public var model: CommandCenterModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(model: CommandCenterModel) {
         self.model = model
@@ -186,54 +143,48 @@ public struct CommandCenterView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            header
-            Divider()
-            badgeRow
-            Divider()
+            MemoryKitPanelHeader(
+                title: "Andromeda · MemoryKit",
+                systemImage: "brain.head.profile",
+                caption: "stub",
+                tint: .cyan,
+                accessibilityIdentifier: "commandCenter.header"
+            )
+            Divider().opacity(0.35)
+            badgeColumn
+            Divider().opacity(0.35)
             actionRow
             if let message = model.lastMessage {
                 Text(message)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("commandCenter.lastMessage")
+                    .transition(.opacity)
             }
         }
         .padding(14)
         .frame(width: 340)
+        .memoryKitPanelChrome()
+        .animation(MemoryKitMotion.animation(reduceMotion: reduceMotion), value: model.healthStatus)
+        .animation(MemoryKitMotion.animation(reduceMotion: reduceMotion), value: model.syncStatus)
+        .animation(MemoryKitMotion.chip, value: model.lastMessage)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("commandCenter.panel")
     }
 
-    // MARK: - Subviews
-
-    private var header: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "brain.head.profile")
-                .foregroundStyle(.cyan)
-            Text("Anima · MemoryKit")
-                .font(.headline)
-            Spacer()
-            Text("stub")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .accessibilityLabel("Proof stub panel")
-        }
-        .accessibilityIdentifier("commandCenter.header")
-    }
-
-    private var badgeRow: some View {
+    private var badgeColumn: some View {
         VStack(alignment: .leading, spacing: 6) {
-            badgeChip(
+            CommandCenterBadgeChip(
                 label: model.healthBadgeLabel,
                 systemImage: "heart.text.square",
                 identifier: "commandCenter.badge.health"
             )
-            badgeChip(
+            CommandCenterBadgeChip(
                 label: model.syncBadgeLabel,
                 systemImage: "icloud",
                 identifier: "commandCenter.badge.sync"
             )
-            badgeChip(
+            CommandCenterBadgeChip(
                 label: model.visibilityBadgeLabel,
                 systemImage: "eye",
                 identifier: "commandCenter.badge.visibility"
@@ -241,36 +192,50 @@ public struct CommandCenterView: View {
         }
     }
 
-    private func badgeChip(label: String, systemImage: String, identifier: String) -> some View {
+    private var actionRow: some View {
+        HStack(spacing: 8) {
+            CommandCenterActionButton(intent: .openVault, action: model.openVault)
+            CommandCenterActionButton(intent: .sync, action: model.syncNow)
+            CommandCenterActionButton(intent: .consolidate, action: model.consolidate)
+        }
+    }
+}
+
+// MARK: - Extracted subviews
+
+private struct CommandCenterBadgeChip: View {
+    let label: String
+    let systemImage: String
+    let identifier: String
+
+    var body: some View {
         HStack(spacing: 8) {
             Image(systemName: systemImage)
                 .foregroundStyle(.secondary)
                 .frame(width: 18)
+                .symbolRenderingMode(.hierarchical)
             Text(label)
                 .font(.callout)
                 .lineLimit(2)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+        .memoryKitChipChrome()
         .accessibilityIdentifier(identifier)
         .accessibilityLabel(label)
     }
+}
 
-    private var actionRow: some View {
-        HStack(spacing: 8) {
-            actionButton(for: .openVault) { model.openVault() }
-            actionButton(for: .sync) { model.syncNow() }
-            actionButton(for: .consolidate) { model.consolidate() }
-        }
-    }
+private struct CommandCenterActionButton: View {
+    let intent: CommandCenterActionIntent
+    let action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private func actionButton(
-        for intent: CommandCenterActionIntent,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
+    var body: some View {
+        Button {
+            withAnimation(MemoryKitMotion.animation(reduceMotion: reduceMotion)) {
+                action()
+            }
+        } label: {
             Label(intent.title, systemImage: intent.systemImage)
                 .font(.caption)
                 .frame(maxWidth: .infinity)
@@ -282,17 +247,10 @@ public struct CommandCenterView: View {
 }
 
 #if DEBUG
-// MARK: - Preview Catalog (light / dark × Dynamic Type × state)
-
-/// 🌟 Shared preview stage dressing for the CommandCenter catalog
 @MainActor
 enum CommandCenterPreviewCatalog {
     static func healthy() -> CommandCenterModel {
-        CommandCenterModel(
-            healthStatus: .healthy,
-            syncStatus: .idle,
-            activeVisibility: .private
-        )
+        CommandCenterModel(healthStatus: .healthy, syncStatus: .idle, activeVisibility: .private)
     }
 
     static func degraded() -> CommandCenterModel {
@@ -304,21 +262,11 @@ enum CommandCenterPreviewCatalog {
     }
 
     static func syncing() -> CommandCenterModel {
-        CommandCenterModel(
-            healthStatus: .healthy,
-            syncStatus: .syncing,
-            activeVisibility: .internal
-        )
+        CommandCenterModel(healthStatus: .healthy, syncStatus: .syncing, activeVisibility: .internal)
     }
 
-    /// 🌙 Barren stage — unknown health, idle sync, empty intent scroll
     static func emptyIntents() -> CommandCenterModel {
-        CommandCenterModel(
-            healthStatus: .unknown,
-            syncStatus: .idle,
-            activeVisibility: .private,
-            recordedIntents: []
-        )
+        CommandCenterModel(healthStatus: .unknown, syncStatus: .idle, activeVisibility: .private)
     }
 
     @ViewBuilder
@@ -328,7 +276,7 @@ enum CommandCenterPreviewCatalog {
         typeSize: DynamicTypeSize
     ) -> some View {
         CommandCenterView(model: model)
-            .environment(\.colorScheme, scheme)
+            .preferredColorScheme(scheme)
             .environment(\.dynamicTypeSize, typeSize)
             .padding()
             .background(scheme == .dark ? Color.black : Color.white)
@@ -341,93 +289,15 @@ enum CommandCenterPreviewCatalog {
     )
 }
 
-#Preview("CC · healthy · dark · medium") {
-    CommandCenterPreviewCatalog.staged(
-        CommandCenterPreviewCatalog.healthy(), scheme: .dark, typeSize: .medium
-    )
-}
-
-#Preview("CC · healthy · light · a11y2") {
-    CommandCenterPreviewCatalog.staged(
-        CommandCenterPreviewCatalog.healthy(), scheme: .light, typeSize: .accessibility2
-    )
-}
-
-#Preview("CC · healthy · dark · a11y2") {
-    CommandCenterPreviewCatalog.staged(
-        CommandCenterPreviewCatalog.healthy(), scheme: .dark, typeSize: .accessibility2
-    )
-}
-
-#Preview("CC · degraded · light · medium") {
-    CommandCenterPreviewCatalog.staged(
-        CommandCenterPreviewCatalog.degraded(), scheme: .light, typeSize: .medium
-    )
-}
-
 #Preview("CC · degraded · dark · medium") {
     CommandCenterPreviewCatalog.staged(
         CommandCenterPreviewCatalog.degraded(), scheme: .dark, typeSize: .medium
     )
 }
 
-#Preview("CC · degraded · light · a11y2") {
-    CommandCenterPreviewCatalog.staged(
-        CommandCenterPreviewCatalog.degraded(), scheme: .light, typeSize: .accessibility2
-    )
-}
-
-#Preview("CC · degraded · dark · a11y2") {
-    CommandCenterPreviewCatalog.staged(
-        CommandCenterPreviewCatalog.degraded(), scheme: .dark, typeSize: .accessibility2
-    )
-}
-
-#Preview("CC · syncing · light · medium") {
-    CommandCenterPreviewCatalog.staged(
-        CommandCenterPreviewCatalog.syncing(), scheme: .light, typeSize: .medium
-    )
-}
-
-#Preview("CC · syncing · dark · medium") {
-    CommandCenterPreviewCatalog.staged(
-        CommandCenterPreviewCatalog.syncing(), scheme: .dark, typeSize: .medium
-    )
-}
-
 #Preview("CC · syncing · light · a11y2") {
     CommandCenterPreviewCatalog.staged(
         CommandCenterPreviewCatalog.syncing(), scheme: .light, typeSize: .accessibility2
-    )
-}
-
-#Preview("CC · syncing · dark · a11y2") {
-    CommandCenterPreviewCatalog.staged(
-        CommandCenterPreviewCatalog.syncing(), scheme: .dark, typeSize: .accessibility2
-    )
-}
-
-#Preview("CC · emptyIntents · light · medium") {
-    CommandCenterPreviewCatalog.staged(
-        CommandCenterPreviewCatalog.emptyIntents(), scheme: .light, typeSize: .medium
-    )
-}
-
-#Preview("CC · emptyIntents · dark · medium") {
-    CommandCenterPreviewCatalog.staged(
-        CommandCenterPreviewCatalog.emptyIntents(), scheme: .dark, typeSize: .medium
-    )
-}
-
-#Preview("CC · emptyIntents · light · a11y2") {
-    CommandCenterPreviewCatalog.staged(
-        CommandCenterPreviewCatalog.emptyIntents(), scheme: .light, typeSize: .accessibility2
-    )
-}
-
-#Preview("CC · emptyIntents · dark · a11y2") {
-    CommandCenterPreviewCatalog.staged(
-        CommandCenterPreviewCatalog.emptyIntents(), scheme: .dark, typeSize: .accessibility2
     )
 }
 #endif

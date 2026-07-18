@@ -1,11 +1,8 @@
 /**
  * 🎭 The ProjectStatePanel - Client Board Without Tracker Neon
  *
- * "A quiet SwiftUI ledger of projects and items—
- * status chips, titles, nothing that spells Linear or Habitat.
- * Light and dark footlights for the Andromeda console."
- *
- * - The Spellbinding Museum Director of Capability UI
+ * Modern SwiftUI: ContentUnavailableView empty state, material chrome,
+ * extracted rows, spring animations, capability IDs only.
  */
 
 import Foundation
@@ -13,7 +10,6 @@ import SwiftUI
 
 // MARK: - Model
 
-/// 🌟 Main-actor presentation model for `project.state` panel proofs.
 @MainActor
 @Observable
 public final class ProjectStatePanelModel {
@@ -34,13 +30,11 @@ public final class ProjectStatePanelModel {
         self.isLoading = isLoading
     }
 
-    /// 🎨 Currently selected project, if any.
     public var selectedProject: ProjectState? {
         guard let selectedProjectID else { return projects.first }
         return projects.first(where: { $0.id == selectedProjectID })
     }
 
-    /// ✨ Human status label — never tracker brand names.
     public static func statusLabel(_ status: ProjectStateStatus) -> String {
         switch status {
         case .backlog: return "Backlog"
@@ -50,7 +44,6 @@ public final class ProjectStatePanelModel {
         }
     }
 
-    /// 📡 Replace roster from a capability surface result.
     public func apply(projects: [ProjectState]) {
         self.projects = projects
         if selectedProjectID == nil || !projects.contains(where: { $0.id == selectedProjectID }) {
@@ -60,28 +53,25 @@ public final class ProjectStatePanelModel {
         lastMessage = "Loaded \(projects.count) project(s)"
     }
 
-    /// 🌐 Refresh via `project.state.list` (capability ID — not Linear/Multica).
     public func refresh(using surface: any ProjectStateSurface) async {
         isLoading = true
         lastMessage = "Refreshing…"
         do {
             let listed = try await surface.listProjects()
             apply(projects: listed)
-            print("🎉 ✨ PROJECT.STATE.LIST PANEL REFRESH COMPLETE!")
         } catch {
             isLoading = false
             lastMessage = "Refresh failed: \(error.localizedDescription)"
-            print("💥 😭 PROJECT.STATE PANEL REFRESH TEMPORARILY HALTED!")
         }
     }
 }
 
 // MARK: - Panel
 
-/// 🎭 Simple SwiftUI panel for client-facing `project.state` — no tracker chrome.
 @MainActor
 public struct ProjectStatePanel: View {
     @Bindable public var model: ProjectStatePanelModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(model: ProjectStatePanelModel) {
         self.model = model
@@ -89,19 +79,15 @@ public struct ProjectStatePanel: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            header
-            Divider()
-            if model.isLoading {
-                ProgressView("Loading projects…")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else if let project = model.selectedProject {
-                projectHeader(project)
-                itemList(project.items)
-            } else {
-                Text("No projects yet")
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("projectState.empty")
-            }
+            MemoryKitPanelHeader(
+                title: "Projects",
+                systemImage: "checklist",
+                caption: "project.state",
+                tint: .teal,
+                accessibilityIdentifier: "projectState.header"
+            )
+            Divider().opacity(0.35)
+            content
             if let message = model.lastMessage {
                 Text(message)
                     .font(.caption2)
@@ -111,26 +97,37 @@ public struct ProjectStatePanel: View {
         }
         .padding(14)
         .frame(width: 360, alignment: .topLeading)
+        .memoryKitPanelChrome()
+        .animation(MemoryKitMotion.animation(reduceMotion: reduceMotion), value: model.isLoading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("projectState.panel")
     }
 
-    private var header: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "checklist")
-                .foregroundStyle(.teal)
-            Text("Projects")
-                .font(.headline)
-            Spacer()
-            Text("project.state")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .accessibilityLabel("Capability project.state")
+    @ViewBuilder
+    private var content: some View {
+        if model.isLoading {
+            ProgressView("Loading projects…")
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else if let project = model.selectedProject {
+            ProjectStateHeaderView(project: project)
+            ProjectStateItemList(items: project.items)
+        } else {
+            ContentUnavailableView {
+                Label("No projects yet", systemImage: "tray")
+            } description: {
+                Text("Call project.state.list to populate this board.")
+            }
+            .accessibilityIdentifier("projectState.empty")
         }
-        .accessibilityIdentifier("projectState.header")
     }
+}
 
-    private func projectHeader(_ project: ProjectState) -> some View {
+// MARK: - Subviews
+
+private struct ProjectStateHeaderView: View {
+    let project: ProjectState
+
+    var body: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(project.title)
@@ -142,39 +139,47 @@ public struct ProjectStatePanel: View {
             Spacer()
             Text("\(project.items.count)")
                 .font(.caption.monospacedDigit())
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.quaternary.opacity(0.5), in: Capsule())
+                .memoryKitChipChrome(cornerRadius: 12)
                 .accessibilityLabel("\(project.items.count) items")
         }
         .accessibilityIdentifier("projectState.projectHeader")
     }
+}
 
-    private func itemList(_ items: [ProjectStateItem]) -> some View {
+private struct ProjectStateItemList: View {
+    let items: [ProjectStateItem]
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(items) { item in
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(statusColor(item.status))
-                        .frame(width: 8, height: 8)
-                    Text(item.title)
-                        .font(.callout)
-                        .lineLimit(2)
-                    Spacer(minLength: 0)
-                    Text(ProjectStatePanelModel.statusLabel(item.status))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
-                .accessibilityIdentifier("projectState.item.\(item.id.rawValue)")
+                ProjectStateItemRow(item: item)
             }
         }
     }
+}
 
-    private func statusColor(_ status: ProjectStateStatus) -> Color {
-        switch status {
+private struct ProjectStateItemRow: View {
+    let item: ProjectStateItem
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 8, height: 8)
+            Text(item.title)
+                .font(.callout)
+                .lineLimit(2)
+            Spacer(minLength: 0)
+            Text(ProjectStatePanelModel.statusLabel(item.status))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .memoryKitChipChrome()
+        .accessibilityIdentifier("projectState.item.\(item.id.rawValue)")
+    }
+
+    private var statusColor: Color {
+        switch item.status {
         case .backlog: return .secondary
         case .active: return .teal
         case .blocked: return .orange
@@ -183,10 +188,9 @@ public struct ProjectStatePanel: View {
     }
 }
 
-// MARK: - Fixtures (previews + snapshots)
+// MARK: - Fixtures
 
 extension ProjectStatePanelModel {
-    /// 🎨 Deterministic fixture for light/dark previews and SnapshotTesting.
     public static func snapshotFixture() -> ProjectStatePanelModel {
         let items = [
             ProjectStateItem(

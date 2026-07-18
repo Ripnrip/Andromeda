@@ -45,9 +45,22 @@ Modern macOS floating Head-Up Display (BIN-55 epic):
 - No secrets in the app — it only reads local artifacts + hits localhost Letta/MCP / Andromeda gateway.
 - Reuse the existing Swift toolchain; build for the Mac it runs on.
 
+## MemoryKit panels (modernized)
+
+All five MemoryKit surfaces share `MemoryKitChrome` / `MemoryKitMotion` and the tabbed
+`MemoryKitConsoleView` shell:
+
+| Panel | Notes |
+| --- | --- |
+| `CommandCenterView` | Material chrome, spring action feedback |
+| `LaunchEntityRosterView` | ContentUnavailable empty, LazyVStack roster |
+| `MCPRegistryView` | Scroll/LazyVStack (stable IDs), sprawl badges |
+| `ProjectStatePanel` | ContentUnavailable empty, capability caption |
+| `FloatingPetView` | Extracted chrome, `@ScaledMetric` glyph |
+
 ## Sequencing
 
 1. `MultiBrainClient` + `health.json` file-watch (the shared spine).
 2. CommandCenter `MultiBrainModule` (utility, fastest value).
 3. Pet app (delight), reusing the client + shared popover views.
-4. **Andromeda HUD** modern floating pill (BIN-55) — foundation landed; wire live `memory.*` next.
+4. **Andromeda HUD** + MemoryKit console accessory — foundation landed; wire live `memory.*` next.
