@@ -56,8 +56,27 @@ swift test --filter AndromedaHUDTests
 
 The HUD is an explicit operator surface — not a LaunchAgent, not a hidden watchdog. Present/dismiss goes through `AndromedaHUDWindowController`.
 
+## MemoryKit console accessory
+
+All MemoryKit SwiftUI panels were modernized (swiftui-expert-skill): material chrome,
+`ContentUnavailableView`, extracted subviews, `.animation(_:value:)`, Pop-inspired springs,
+`@ScaledMetric` headers. Host them in the HUD via the generic accessory slot:
+
+```swift
+let hud = AndromedaHUDModel(showsAccessory: true, expansion: .expanded)
+let console = MemoryKitConsoleModel.snapshotFixture()
+AndromedaHUDView(model: hud) {
+    MemoryKitConsoleView(model: console)
+}
+```
+
+`MemoryKitConsoleView` tabs Command / Roster / MCP / Projects / Pet. The root
+`AndromedaHUD` package does **not** depend on MemoryKit (keeps Linux gateway builds lean);
+product apps link both modules.
+
 ## Out of scope (follow-on)
 
 - Live `memory.*` / gateway wiring (stub ledger only today)
 - Menu-bar status item host app target
+- Native Liquid Glass (`glassEffect`) when deployment bumps to macOS 26 SDK
 - CoreHaptics / multi-display edge cases beyond metrics conversion

@@ -80,6 +80,8 @@ public final class AndromedaHUDModel {
     public private(set) var submissions: [HUDSearchSubmission]
     /// Last measured timing sample (BIN-59 proofs).
     public var lastTiming: HUDTimingSample?
+    /// When true, expanded HUD reserves room for a MemoryKit console accessory.
+    public var showsAccessory: Bool
 
     public init(
         expansion: HUDExpansion = .collapsed,
@@ -89,7 +91,8 @@ public final class AndromedaHUDModel {
         healthDetail: String? = nil,
         query: String = "",
         reduceMotion: Bool = false,
-        submissions: [HUDSearchSubmission] = []
+        submissions: [HUDSearchSubmission] = [],
+        showsAccessory: Bool = false
     ) {
         self.expansion = expansion
         self.snapMode = snapMode
@@ -99,11 +102,17 @@ public final class AndromedaHUDModel {
         self.query = query
         self.reduceMotion = reduceMotion
         self.submissions = submissions
+        self.showsAccessory = showsAccessory
     }
 
     /// Current chrome size for snap / window layout.
     public var chromeSize: HUDPoint {
-        expansion.isExpanded ? HUDSnapEngine.expandedSize : HUDSnapEngine.collapsedSize
+        if expansion.isExpanded {
+            return showsAccessory
+                ? HUDSnapEngine.expandedWithAccessorySize
+                : HUDSnapEngine.expandedSize
+        }
+        return HUDSnapEngine.collapsedSize
     }
 
     /// Combined accessibility announcement for the root chrome.

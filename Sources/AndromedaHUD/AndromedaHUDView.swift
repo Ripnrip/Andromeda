@@ -6,22 +6,25 @@ import SwiftUI
  Modern SwiftUI chrome for the Andromeda floating HUD (BIN-58).
 
  Collapsed: status glyph + brand + Ask AI affordance in a material pill.
- Expanded: Screendrop-inspired search field routing `memory.*` / `infer.write`.
+ Expanded: Ask AI search + optional MemoryKit console accessory.
  Motion: Pop-inspired springs via `HUDPopMotion` (no ObjC Pop dependency).
  */
 @MainActor
-public struct AndromedaHUDView: View {
+public struct AndromedaHUDView<Accessory: View>: View {
     @Bindable public var model: AndromedaHUDModel
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 
     private let honorSystemReduceMotion: Bool
+    private let accessory: Accessory
 
     public init(
         model: AndromedaHUDModel,
-        honorSystemReduceMotion: Bool = true
+        honorSystemReduceMotion: Bool = true,
+        @ViewBuilder accessory: () -> Accessory
     ) {
         self.model = model
         self.honorSystemReduceMotion = honorSystemReduceMotion
+        self.accessory = accessory()
     }
 
     public var body: some View {
@@ -62,7 +65,6 @@ public struct AndromedaHUDView: View {
         }
     }
 
-    /// Pop-inspired spring for expand/collapse; linear fade under reduce-motion.
     private var expandAnimation: Animation {
         if reduceMotionEffective {
             return .easeInOut(duration: 0.12)
@@ -186,6 +188,12 @@ public struct AndromedaHUDView: View {
                     .foregroundStyle(timing.isWithinBudget ? .green : .orange)
                     .accessibilityIdentifier("andromedaHUD.timing")
             }
+
+            if model.showsAccessory {
+                Divider().opacity(0.35)
+                accessory
+                    .accessibilityIdentifier("andromedaHUD.accessory")
+            }
         }
         .padding(.top, 8)
         .accessibilityIdentifier("andromedaHUD.expanded")
@@ -233,6 +241,20 @@ public struct AndromedaHUDView: View {
     }
 }
 
+extension AndromedaHUDView where Accessory == EmptyView {
+    /// Convenience init when no MemoryKit / console accessory is attached.
+    public init(
+        model: AndromedaHUDModel,
+        honorSystemReduceMotion: Bool = true
+    ) {
+        self.init(
+            model: model,
+            honorSystemReduceMotion: honorSystemReduceMotion,
+            accessory: { EmptyView() }
+        )
+    }
+}
+
 // MARK: - Preview catalog
 
 #if DEBUG
@@ -275,21 +297,6 @@ enum AndromedaHUDPreviewCatalog {
 
 #Preview("HUD · expanded · working · dark") {
     AndromedaHUDView(model: AndromedaHUDPreviewCatalog.expandedWorking(), honorSystemReduceMotion: false)
-        .padding(24)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
-}
-
-#Preview("HUD · collapsed · degraded · light") {
-    AndromedaHUDView(model: AndromedaHUDPreviewCatalog.degraded(), honorSystemReduceMotion: false)
-        .padding(24)
-        .background(Color.white)
-        .preferredColorScheme(.light)
-}
-
-#Preview("HUD · expanded · a11y2") {
-    AndromedaHUDView(model: AndromedaHUDPreviewCatalog.expandedWorking(), honorSystemReduceMotion: false)
-        .environment(\.dynamicTypeSize, .accessibility2)
         .padding(24)
         .background(Color.black)
         .preferredColorScheme(.dark)
