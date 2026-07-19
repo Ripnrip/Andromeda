@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# DEPRECATED / SCOPE — BIN-101 · HAB-104 · PROOF 44 (2026-07-19)
+# This Bash installer violates ANDROMEDA-CHARTER.md + AGENTS.md ("no project-maintained
+# Bash automation"). Hybrid rejected: replace with typed SPM product `andromeda-install`
+# (build → ~/Applications → adhoc codesign → LaunchAgent mutate), then DELETE this file.
+# Do not extend this script; implement Swift CLI. Codex P1:
+# https://github.com/Ripnrip/Andromeda/pull/10#discussion_r3609132727
+#
 # Build AndromedaHome and/or AndromedaHUD → ~/Applications/*.app → adhoc codesign → launch
 # Why: linker-signed SPM binaries inside a .app trip taskgated
 # ("code has no resources but signature indicates they must be present").
@@ -13,12 +20,39 @@
 # HUD LaunchAgent: ops/com.andromeda.hud.plist → ~/Library/LaunchAgents/ (RunAtLoad, no KeepAlive)
 # HUD must NOT be started with `open -a` from agent shells (inherits OPENROUTER_*/paid keys).
 # Prefer: launchctl kickstart -k gui/$(id -u)/com.andromeda.hud
+#
+# Codex P2 (PR #10 discussion_r3609132728): repo plist is a Studio template (/Users/admin).
+# launchd does NOT expand $HOME/~ — install_launch_agent rewrites /Users/admin → $HOME at copy.
+# Interim only; Swift andromeda-install (BIN-101) must preserve the same contract then delete this.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TARGET="${1:-home}"
 VERSION="${CFBundleShortVersionString:-0.3}"
 BUILD="$(date +%Y%m%d%H%M)"
+
+# Studio SoT template home baked into ops/*.plist. Rewrite at install for other accounts.
+STUDIO_HOME_TEMPLATE="/Users/admin"
+
+# Render plist template → DEST with absolute $HOME paths (no launchctl mutate).
+render_launch_agent_plist() {
+  local PLIST_SRC="$1"
+  local DEST="$2"
+  local HOME_ABS="${HOME:?HOME required}"
+  test -f "$PLIST_SRC"
+  /usr/bin/python3 - "$PLIST_SRC" "$DEST" "$STUDIO_HOME_TEMPLATE" "$HOME_ABS" <<'PY'
+import pathlib, sys
+src = pathlib.Path(sys.argv[1])
+dest = pathlib.Path(sys.argv[2])
+studio = sys.argv[3]
+home = sys.argv[4]
+text = src.read_text()
+if studio not in text and home != studio:
+    raise SystemExit(f"plist missing studio template {studio!r}: {src}")
+dest.write_text(text.replace(studio, home))
+print(f"Rendered {dest} (HOME={home})")
+PY
+}
 
 install_product() {
   local PRODUCT="$1"
@@ -105,7 +139,7 @@ install_launch_agent() {
 
   test -f "$PLIST_SRC"
   mkdir -p "${HOME}/.multibrain/logs" "${HOME}/Library/LaunchAgents"
-  cp "$PLIST_SRC" "$DEST"
+  render_launch_agent_plist "$PLIST_SRC" "$DEST"
 
   # Prefer modern bootstrap; fall back to load if already registered under legacy path.
   launchctl bootout "gui/${UID_NUM}/${LABEL}" 2>/dev/null || true
