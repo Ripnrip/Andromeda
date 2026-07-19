@@ -2,8 +2,9 @@
 
 **Date:** 2026-07-19  
 **Type:** Knowledge / product-identity lock (file-based; no paid LLM knowledge-sync)  
-**Homes:** multibrain `main` + Andromeda `feat/andromeda-hud-core-promote` (PR #10)  
+**Homes:** multibrain `main` @ `fde8b6b` + Andromeda `feat/andromeda-hud-core-promote` @ `d42953c` (PR #10)  
 **Does not claim:** secrets broker, MCP consolidate, SkillRegistry, or full fleet mutate shipped. Flip still NO-GO.
+**Trackers:** Linear [BIN-102](https://linear.app/binary-bros/issue/BIN-102) · Multica HAB-105 · comments on BIN-101 / BIN-55
 
 ## Locked six pillars
 
