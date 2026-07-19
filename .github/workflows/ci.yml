@@ -14,8 +14,6 @@ jobs:
     name: Build & Test (macOS)
     # macOS runner is required: the snapshot suite is AppKit-guarded and would be
     # silently skipped on Linux, hiding red snapshots.
-    # macOS runner is required: the snapshot suite is AppKit-guarded and would be
-    # silently skipped on Linux, hiding red snapshots.
     # Snapshot PNGs are tied to this image (re-record with [record-snapshots] if changed).
     runs-on: macos-15
     steps:
