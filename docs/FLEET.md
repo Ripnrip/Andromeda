@@ -1,6 +1,7 @@
 # Fleet — Multi-Brain Hosts
 
-Who runs what. Verified 2026-07-14 (Studio local + `ssh book.local`). Ops detail: [RUNBOOK.md](RUNBOOK.md).
+Who runs what. Studio facts are locally documented; Book was verified 2026-07-14 but
+its live state is **unverified today**. Ops detail: [RUNBOOK.md](RUNBOOK.md).
 
 ## Topology
 
@@ -37,6 +38,17 @@ Who runs what. Verified 2026-07-14 (Studio local + `ssh book.local`). Ops detail
 | Weekly retro LaunchAgent | ✅ Mon 08:00 | ❌ |
 | `brain` CLI | ✅ | after chezmoi alias sync + hub reachability |
 
+## Full machine matrix
+
+| Machine | Fleet role | Stores / flows | Current caveat |
+|---------|------------|----------------|----------------|
+| Studio | Phase-2 hub | canonical SecondBrain deposit, SwiftData hot store, `state.db`, Letta/Postgres, Ladybug, Qdrant, Multica | hub services are Python/native services, not a shipped all-Swift runtime |
+| Book | Phase-1 satellite | local vault mirror, nightly + health + Telegram | live jobs/tunnels unverified today; report failures as degraded |
+| Mac Mini | isolated lane | its own local state only | **not** a hive satellite unless explicitly promoted |
+| habitat VM | Hermes source | `~/.hermes/state.db` via read-only SSH extractor | tunnel can degrade without stopping Studio-local sources |
+| iPhone | MinIO/Obsidian sync client | curated file sync/consumption | not CloudKit-shipped proof or a hub |
+| iMac | aspirational CloudKit satellite | none declared live | planned only |
+
 ## LaunchAgent install policy
 
 | Plist | Studio | Book |
@@ -47,21 +59,27 @@ Who runs what. Verified 2026-07-14 (Studio local + `ssh book.local`). Ops detail
 | `com.multibrain.letta*` | install | **do not** |
 | `com.multibrain.index-server` | install | **do not** |
 | `com.multibrain.retro` | install | **do not** |
+| `com.multibrain.dreamcatcher` | install (`--no-llm`) | optional / **do not** by default |
 
 Repo `ops/*.plist` bake Studio absolute paths (`/Users/admin/...`). Always rewrite `HOME` + script paths for other users.
 
 ## Config expectations
 
-**Studio** typically sets: `vault_dir`, `staging_dir`, `state_db`, `claude_mem_db`, `synthesis_model` / z.ai path, `graphify_nightly`, Telegram keys, optional `"role": "hub"`.
+**Studio (hub)** sets: `vault_dir`, `staging_dir`, `state_db`, `claude_mem_db`, `synthesis_backend=zai` (or omit — defaults to z.ai → `--no-llm`), `graphify_nightly`, Telegram keys, optional `"role": "hub"`.
 
-**Book** may only set `synthesis_backend=openrouter` + Telegram. Add `vault_dir` pointing at Book’s `~/Developer/SecondBrain/07-Sessions` so consolidate and git steps agree. Auto-detect marks Book as `satellite` when no `.lbug` / Letta runtime is present.
+**No OpenRouter on Studio nightly (locked 2026-07-15).** Hub `run-nightly.sh` ignores `synthesis_backend=openrouter` if Ladybug + Letta runtime are present. Dreamcatcher LaunchAgent forces `--no-llm`. Letta's conversational path may still reference OpenRouter in runtime env — rotate keys as a **human Linear-only** task (never commit secrets).
 
-## Known satellite issues (2026-07-14)
+**Book (satellite)** may set `synthesis_backend=openrouter` only as an explicit opt-in (historically hit HTTP 402). Prefer `zai` or `no-llm`. Add `vault_dir` pointing at Book’s `~/Developer/SecondBrain/07-Sessions` so consolidate and git steps agree. Auto-detect marks Book as `satellite` when no `.lbug` / Letta runtime is present.
 
-- Book nightly recently hit **OpenRouter HTTP 402** → fell back to `--no-llm` templates; health went RED and Telegram fired.
+## Known satellite issues (2026-07-14; re-verify live)
+
+- Book nightly recently hit **OpenRouter HTTP 402** → fell back to `--no-llm` templates; health went RED and Telegram fired. Prefer killing OpenRouter on satellites too when possible.
 - Book repo tip can lag Studio; pull before expecting new hub-only scripts.
 - Book `ops/` templates still look like Studio — trust installed LaunchAgents under `~/Library/LaunchAgents/`, not the raw templates.
 
 ## Mini
 
-Mac Mini is expected to follow the **satellite** pattern (openrouter synthesis, nightly + health) unless promoted to a second hub. Horizon-4 “Docker Hermes on mini” is outdated — prefer native Hermes / habitat SSH feeders.
+Mac Mini stays in an **isolated lane**. Do not install the hive nightly, Letta,
+Ladybug, or Qdrant there by default. Any future promotion requires an explicit
+operator decision and a fresh inventory. Horizon-4 “Docker Hermes on mini” is
+outdated; habitat SSH remains the documented Hermes feeder.

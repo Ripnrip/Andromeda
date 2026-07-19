@@ -25,6 +25,26 @@
 
 **Bottom line:** Flip is **NO-GO**. Adversarial audit (PROOF 44) found premature greens, curtain leaks, spend/secrets issues, and red PR #10 CI. Stay in multibrain for fleet/nightly/PROOFS until hard blockers clear **and** the human says the word.
 
+## Behind-the-curtain documentation/schema re-audit
+
+This documentation pass does not clear implementation gates. Re-audit all rows after
+PR #10 is merged and before changing NO-GO:
+
+| Gap | Required evidence |
+|-----|-------------------|
+| HUD journal/session dump | parser parity proof with Home/Bar |
+| HUD privacy | writes pass `VisibilityFilter`; no hardcoded-private bypass |
+| Python materialized notes | optional `visibility` + `content_hash`; missing defaults private |
+| CloudKit/vector egress | test proves only public/friends leave local stores |
+| `infer.write` semantics | versioned rename or real inference routing; current store callers preserved |
+| Book/tunnels | current live schedule and degraded-state evidence |
+| Swift runtime boundary | separate from Autocache; current Hummingbird HTTP/WS proof |
+| Installer/fleet mutate | BIN-101 all-Swift install; no hybrid Bash exception |
+
+PROOF 44 remains frozen evidence. Canonical architecture and status matrix:
+[ANDROMEDA-CONTROL-PLANE.md](ANDROMEDA-CONTROL-PLANE.md); documentation proof:
+`PROOFS/46-andromeda-behind-the-curtain-2026-07-19.md`.
+
 ## Product scope note — six control-plane pillars (2026-07-19)
 
 Andromeda’s product identity is **broader than HUD/memory**. Locked pillars (Memory, MCP host, Skills, LLM proxy, Secrets broker, Fleet runtime) live in [ANDROMEDA-CONTROL-PLANE.md](./ANDROMEDA-CONTROL-PLANE.md). These are **product-scope documentation** — they do **not** claim secrets broker, MCP consolidate, SkillRegistry, or full fleet mutate are shipped, and they do **not** clear the flip gates above. FleetObserve / LaunchEntity observe paths exist (🚧); Swift install mutate remains BIN-101 (📐).

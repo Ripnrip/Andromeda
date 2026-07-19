@@ -101,8 +101,8 @@ flowchart LR
 
 | Store | Role | Owner tomorrow |
 |-------|------|----------------|
-| **SwiftData or Realm (Local)** | Hot episodic capture (SoT for raw capture, transactional, sub-ms, local, main-thread non-blocking, returns immediately after write + seal) | Anima core capture, Layer 01 (Episodic) |
-| **iCloud / CloudKit** | Cold sync (DR backup + automatic multi-device satellite sync, one-way from local hot store) | Anima core sync |
+| **SwiftData (implemented)** | Hot episodic capture at `~/.multibrain/anima-hot.store` (episodic SoT, transactional, local, returns before projection) | Anima core capture, Layer 01; **Realm is not implemented** |
+| **iCloud / CloudKit** | Planned cold replica; engine/agent smoke exists, but end-to-end replication is not declared shipped | Anima core sync |
 | **Obsidian / SecondBrain** | Human-readable substrate (SoT for curated semantic notes) | Semantic + Dream outputs, Layer 02 (Semantic) |
 | **LadybugDB** | Multibrain hub graph+vector index (rebuildable cache, point ID = `content_hash`, thin payload, async-at-materialization, fail-open) | Semantic retrieval backend (or Swift HNSW/USearch peer) |
 | **Qdrant `secondbrain_learnings`** | `/knowledge-sync` fact vectors only (rebuildable cache, point ID = `content_hash`, thin payload, async, fail-open) | Semantic adapter — **not** the nightly index |
@@ -199,14 +199,15 @@ NON-GOALS
 
 | Client-facing capability (Swift) | Hides behind the curtain |
 |----------------------------------|--------------------------|
-| `memory.recall` / `memory.store` / `memory.journal` / `memory.document` | SwiftData, CloudKit, Obsidian materialize, Qdrant/Ladybug, claude-mem |
-| `infer.write` (or similar) | Cerebras, model registry, health, OpenRouter fallbacks, MCP server logic, n8n |
-| `project.state` CRUD (`list` / `get` / `create` / `update`) | Linear + Multica + kanban + Slack fanout |
+| `memory.recall` / `memory.store` | ✅ SwiftData hot capture + vault-aware recall |
+| `memory.journal` / `memory.session_dump` | ✅ Home/Bar; HUD parser remains 🚧 |
+| `infer.write` | 🚧 **today: episodic store alias tagged `infer-write`, not LLM inference** |
+| `project.state` CRUD (`list` / `get` / `create` / `update`) | ✅ operator bridge may hide Linear + Multica + Slack fanout |
 | `slack_proxy` / `github_proxy` / `write.too` (📐 secrets broker) | Slack/GitHub/Cerebras (etc.) tokens — **never** raw env keys in client process |
 
 | Anima module | Andromeda capability ID (sketch) | Side effects |
 |--------------|----------------------------------|--------------|
-| `AnimaHotStore` (SwiftData/Realm) | `memory.store` / `memory.recall` (also `memory.episodic.*`) | SwiftData/Realm local |
+| `AnimaHotStore` (SwiftData) | `memory.store` / `memory.recall` (also `memory.episodic.*`) | SwiftData local |
 | `Knowledge/` PageIndex | `memory.document` / `memory.semantic.search` | Read vault; optional index rebuild |
 | `VisionEngine` | `memory.photographic.search` | CLIP/MLX local |
 | `MerkleTree` | `memory.integrity.verify` | Proofs; fail closed |
@@ -223,7 +224,24 @@ Every capability: observe-event first → execute → internalize with provenanc
 
 ---
 
-## 7. Related docs
+## 7. Privacy, graph, and Librarian boundaries
+
+- Visibility is `public | friends | private | internal`; missing values default to
+  `private`, and cloak/secret/credential markers force `internal`.
+- Local SwiftData/Ladybug/Obsidian may contain all classes. CloudKit and vector egress
+  are allowed only for `public`/`friends`; HUD and Python note enforcement remain open.
+- Obsidian `colorGroups` is the human graph, graphify HTML/JSON is analytical,
+  Ladybug is a rebuildable query index, and Qdrant is `/knowledge-sync` facts only.
+- Letta today is the Python interactive Librarian (`:8283`, bridge `:8284`, shim
+  `:8285`, Postgres `:5442`), never the nightly conductor. A future Swift agent
+  runtime is separate from the Hummingbird Autocache LLM proxy.
+
+Canonical matrices and re-audit criteria:
+[ANDROMEDA-CONTROL-PLANE.md](ANDROMEDA-CONTROL-PLANE.md).
+
+---
+
+## 8. Related docs
 
 | Doc | Use |
 |-----|-----|
@@ -233,7 +251,7 @@ Every capability: observe-event first → execute → internalize with provenanc
 | [FLEET.md](FLEET.md) | Studio hub vs Book satellite |
 | [RUNBOOK.md](RUNBOOK.md) | LaunchAgents, Telegram, health |
 | [DATA-CONTRACTS.md](DATA-CONTRACTS.md) | Note + health schemas |
-| [MANIFESTO.md](../MANIFESTO.md) | Why we fight evaporation tax |
+| `MANIFESTO.md` (multibrain repo) | Why we fight evaporation tax |
 
 ---
 
