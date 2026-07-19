@@ -14,7 +14,10 @@ jobs:
     name: Build & Test (macOS)
     # macOS runner is required: the snapshot suite is AppKit-guarded and would be
     # silently skipped on Linux, hiding red snapshots.
-    runs-on: macos-15
+    # Prefer macos-15 (Sequoia) when capacity allows; macos-14 keeps Xcode 16.4 and
+    # was more allocatable during 2026-07-19 runner shortages. Snapshot baselines are
+    # tied to this runner image — re-record with [record-snapshots] after changing it.
+    runs-on: macos-14
     steps:
       - name: Checkout
         # Pin to immutable SHA (v4.3.1); mutable @v4 tags are a supply-chain risk.
@@ -31,7 +34,7 @@ jobs:
       - name: Build
         run: swift build
 
-      # Baselines must be recorded on macos-15 + Xcode 16.4 (this job). Local macOS 26 /
+      # Baselines must be recorded on macos-14 + Xcode 16.4 (this job). Local macOS 26 /
       # Xcode 26 PNGs will not pixel-match the runner. Tip a commit with [record-snapshots]
       # to rewrite **/__Snapshots__ here, then download the artifact and commit.
       - name: Detect snapshot record mode
