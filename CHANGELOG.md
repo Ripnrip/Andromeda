@@ -2,6 +2,25 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-07-19 — Six Control-Plane Pillars Locked
+
+**Tone hat:** Cartographer 🗺️
+**Commit message of the day:** `docs: lock six Andromeda control-plane pillars`
+**Steps taken:** Encoded Memory + MCP host + Skills + LLM proxy + Secrets broker + Fleet runtime as permanent product identity; honesty table so agents do not greenwash.
+
+### Added
+- `docs/ANDROMEDA-CONTROL-PLANE.md` — six pillars, capability curtain examples (`slack_proxy`, `github_proxy`, `write.too`), Fleet runtime observe-vs-mutate.
+- `PROOFS/45-andromeda-control-plane-pillars-2026-07-19.md`
+
+### Changed
+- README big-picture section; ROADMAP pillar horizons; AGENTS + Charter product identity; WORKSPACE-READINESS product-scope note (flip still NO-GO); SURFACE-AREA + MEMORY-ONEPAGER pointers.
+
+### Security
+- Documented secrets-broker rule: never raw API key values in client/agent process env; UI agents stay HOME+PATH scrubbed.
+
+### Reflection
+- The constellation finally has six named stars instead of “HUD and maybe gateway.” 🛰️
+
 ## 2026-07-15 — Hummingbird Autocache Gateway
 
 **Tone hat:** Thrifty engineer 🪙

@@ -1,6 +1,7 @@
 # Andromeda × Anima — Total Control / Observability Surface Area
 
-> **Inventory date:** 2026-07-15  
+> **Inventory date:** 2026-07-15 (pillars pointer 2026-07-19)  
+> **Product identity:** six control-plane pillars — [ANDROMEDA-CONTROL-PLANE.md](./ANDROMEDA-CONTROL-PLANE.md) (Memory, MCP host, Skills, LLM proxy, Secrets broker, Fleet runtime).  
 > **Scope:** Make every invisible/scattered control surface a **visible Swift entity**, optionally orchestrable via **n8n**, without creating a second source of truth.  
 > **Sources:** `~/Developer/multibrain` (ops/, bin/, docs/, Packages/), `~/Developer/Andromeda`, `~/Library/LaunchAgents`, `~/Developer/multibrain-bar`, live ports on Studio.  
 > **Rule:** Docs only — no code changes in this inventory pass.

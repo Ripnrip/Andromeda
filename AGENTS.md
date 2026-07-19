@@ -4,7 +4,11 @@ Until MemoryKit is battle-tested against live multibrain stores, day-to-day flee
 
 ## Capability hiding
 
-Clients and satellite agents see stable IDs only (`memory.*`, `infer.write`, `project.state.*`) — never Linear/Multica, providers, or n8n. Andromeda owns provider selection behind the curtain.
+Clients and satellite agents see stable IDs only (`memory.*`, `infer.write`, `project.state.*`, and later secrets/proxy IDs like `slack_proxy` / `github_proxy` / `write.too`) — never Linear/Multica, providers, n8n, or raw API keys in process env. Andromeda owns provider selection and secret injection behind the curtain.
+
+## Six control-plane pillars (do not lose sight)
+
+Andromeda is **Memory + MCP host + Skills + LLM proxy + Secrets broker + Fleet runtime** — not HUD/memory alone. Read `docs/ANDROMEDA-CONTROL-PLANE.md`. Mark 🚧/📐 honestly; do not claim secrets broker or MCP consolidate shipped. Fleet: observe via `LaunchEntity` / `FleetObserveReport`; mutate via typed Swift install (BIN-101), not bash.
 
 ## Project tracking
 
