@@ -1,6 +1,6 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Space_Grotesk, Geist_Mono } from "next/font/google"
+import { Space_Grotesk, JetBrains_Mono, Instrument_Serif } from "next/font/google"
 import "./globals.css"
 
 const spaceGrotesk = Space_Grotesk({
@@ -9,9 +9,17 @@ const spaceGrotesk = Space_Grotesk({
   display: "swap",
 })
 
-const geistMono = Geist_Mono({
+const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-geist-mono",
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+})
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-instrument-serif",
   display: "swap",
 })
 
@@ -35,7 +43,10 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} ${geistMono.variable} bg-background`}>
+    <html
+      lang="en"
+      className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable} bg-background`}
+    >
       <body className="font-sans antialiased">{children}</body>
     </html>
   )

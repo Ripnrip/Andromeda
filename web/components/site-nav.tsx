@@ -1,10 +1,11 @@
 import Link from "next/link"
-import { AndromedaMark } from "./andromeda-mark"
+import { Wordmark } from "./wordmark"
 
 const LINKS = [
   { href: "#pillars", label: "Pillars" },
   { href: "#curtain", label: "Curtain" },
   { href: "#bar", label: "Command Bar" },
+  { href: "#surfaces", label: "Surfaces" },
   { href: "/design", label: "Design System" },
 ]
 
@@ -12,9 +13,8 @@ export function SiteNav() {
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/70 backdrop-blur-xl">
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-3">
-          <AndromedaMark size={30} />
-          <span className="text-lg font-semibold tracking-tight">Andromeda</span>
+        <Link href="/" className="flex items-center">
+          <Wordmark size="sm" />
         </Link>
         <div className="hidden items-center gap-1 md:flex">
           {LINKS.map((l) => (

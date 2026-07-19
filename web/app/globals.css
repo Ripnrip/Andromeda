@@ -35,9 +35,11 @@
   --color-shipped: var(--shipped);
   --color-partial: var(--partial);
   --color-spec: var(--spec);
+  --color-signal: var(--signal);
 
   --font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -76,6 +78,7 @@
   --shipped: oklch(0.83 0.14 190);
   --partial: oklch(0.82 0.13 90);
   --spec: oklch(0.62 0.02 220);
+  --signal: oklch(0.8 0.19 150);
 }
 
 @layer base {
@@ -87,6 +90,42 @@
     color: var(--foreground);
     -webkit-font-smoothing: antialiased;
   }
+}
+
+/* Dotted-grid canvas used behind the living floating bar */
+@utility bg-dotgrid {
+  background-image: radial-gradient(oklch(0.55 0.04 200 / 0.22) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+}
+
+/* Orbital core: a slow breathing pulse for the bar's living center */
+@keyframes andromeda-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.83 0.14 190 / 0.55);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 0 6px oklch(0.83 0.14 190 / 0);
+    opacity: 0.82;
+  }
+}
+@utility animate-orbital {
+  animation: andromeda-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes andromeda-drift {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(360deg);
+  }
+}
+@utility animate-drift {
+  animation: andromeda-drift 14s linear infinite;
 }
 
 /* Reusable atmosphere: faint starfield + aurora glow anchored to brand cyan */

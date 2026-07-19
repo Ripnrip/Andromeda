@@ -70,7 +70,7 @@ export function SectionHeading({
         <span className="h-px w-8 bg-primary/60" />
         <span className="font-mono text-xs uppercase tracking-[0.3em] text-primary">{eyebrow}</span>
       </div>
-      <h2 className="text-balance text-3xl font-bold tracking-tight md:text-4xl">{title}</h2>
+      <h2 className="text-balance font-serif text-4xl leading-[1.05] tracking-tight md:text-5xl">{title}</h2>
       {desc && <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">{desc}</p>}
     </div>
   )
