@@ -24,16 +24,17 @@ export function Hero() {
               <span className="h-1.5 w-1.5 rounded-full bg-primary" style={{ boxShadow: "0 0 8px var(--primary)" }} />
               Observe → Evolve → Execute → Internalize
             </div>
-            <h1 className="text-balance text-5xl font-bold leading-[1.05] tracking-tight md:text-6xl">
+            <h1 className="text-balance font-serif text-6xl leading-[1.02] tracking-tight md:text-7xl">
               The control plane for{" "}
-              <span className="text-primary" style={{ textShadow: "0 0 40px oklch(0.83 0.14 190 / 0.4)" }}>
+              <span className="italic text-primary" style={{ textShadow: "0 0 40px oklch(0.83 0.14 190 / 0.4)" }}>
                 multi-agent
               </span>{" "}
               engineering
             </h1>
             <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
-              Andromeda replaces fragile scripts, hidden workers, and provider-specific wiring with one
-              observable, permission-aware system. Local-first, Swift-native, graph-aware.
+              The local-first Swift control plane — <span className="font-serif italic text-foreground/90">visible,
+              durable, graph-aware</span>. One observable, permission-aware system in place of fragile scripts,
+              hidden workers, and provider-specific wiring.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
