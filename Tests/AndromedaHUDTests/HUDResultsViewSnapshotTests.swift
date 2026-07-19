@@ -15,7 +15,7 @@ import SwiftUI
 struct HUDResultsViewSnapshotTests {
 
     private var recordMode: SnapshotTestingConfiguration.Record {
-        ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"] != nil ? .all : .missing
+        (ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"].map { !$0.isEmpty } ?? false) ? .all : .missing
     }
 
     private func makeSUT(isVisible: Bool) -> some View {

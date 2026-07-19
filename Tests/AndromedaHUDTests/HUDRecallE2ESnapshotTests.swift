@@ -24,7 +24,7 @@ import MemoryKit
 struct HUDRecallE2ESnapshotTests {
 
     private var recordMode: SnapshotTestingConfiguration.Record {
-        ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"] != nil ? .all : .missing
+        (ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"].map { !$0.isEmpty } ?? false) ? .all : .missing
     }
 
     /// Build a HUDModel wired to a hermetic in-memory MemoryKit session.
