@@ -46,10 +46,17 @@ jobs:
           fi
 
       - name: Test (root package)
-        env:
-          SNAPSHOT_TESTING_RECORD: ${{ steps.snapshots.outputs.record == 'true' && '1' || '' }}
+        if: steps.snapshots.outputs.record != 'true'
         # Single worker: AppKit snapshot + MainActor HUD tests contend under default
         # Swift Testing parallelism and flake debounce / project.state timeouts on CI.
+        # IMPORTANT: do not set SNAPSHOT_TESTING_RECORD="" — empty still counts as set
+        # in ProcessInfo.environment and forces Point-Free record=.all (always fails).
+        run: swift test --parallel --num-workers 1
+
+      - name: Test (root package, record snapshots)
+        if: steps.snapshots.outputs.record == 'true'
+        env:
+          SNAPSHOT_TESTING_RECORD: "1"
         run: swift test --parallel --num-workers 1
 
       - name: Upload CI snapshot baselines
@@ -78,8 +85,18 @@ jobs:
       # Full-pipeline HUD e2e (store → recall → render). Only present once
       # AndromedaHUDTests is wired in Package.swift (HUD promote PR).
       - name: E2E · HUD store→recall→render snapshots
+        if: steps.snapshots.outputs.record != 'true'
+        run: |
+          if swift package dump-package 2>/dev/null | grep -q '"AndromedaHUDTests"'; then
+            swift test --filter HUDRecallE2ESnapshotTests --parallel --num-workers 1
+          else
+            echo "AndromedaHUDTests not in Package.swift yet — skipping HUD e2e (lands with HUD promote)"
+          fi
+
+      - name: E2E · HUD store→recall→render snapshots (record)
+        if: steps.snapshots.outputs.record == 'true'
         env:
-          SNAPSHOT_TESTING_RECORD: ${{ steps.snapshots.outputs.record == 'true' && '1' || '' }}
+          SNAPSHOT_TESTING_RECORD: "1"
         run: |
           if swift package dump-package 2>/dev/null | grep -q '"AndromedaHUDTests"'; then
             swift test --filter HUDRecallE2ESnapshotTests --parallel --num-workers 1

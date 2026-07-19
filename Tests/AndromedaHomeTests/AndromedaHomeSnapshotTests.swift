@@ -22,7 +22,7 @@ final class AndromedaHomeSnapshotTests: XCTestCase {
 
     override func invokeTest() {
         let recordMode: SnapshotTestingConfiguration.Record =
-            ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"] != nil ? .all : .missing
+            (ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"].map { !$0.isEmpty } ?? false) ? .all : .missing
         withSnapshotTesting(record: recordMode) {
             super.invokeTest()
         }
