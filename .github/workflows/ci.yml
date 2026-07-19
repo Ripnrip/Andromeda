@@ -30,5 +30,26 @@ jobs:
       - name: Build
         run: swift build
 
-      - name: Test
+      - name: Test (root package)
         run: swift test
+
+      # Nested SPM package — root `swift test` does not discover MemoryKitTests.
+      - name: Test MemoryKit (nested package)
+        working-directory: Packages/MemoryKit
+        run: swift test
+
+      # Explicit e2e gate (also covered by MemoryKit suite). Skips cleanly when
+      # ~/Developer/SecondBrain or /opt/homebrew/bin/rg are absent on the runner.
+      - name: E2E · live-vault recall (RetrievalServiceVaultLiveTests)
+        working-directory: Packages/MemoryKit
+        run: swift test --filter RetrievalServiceVaultLiveTests
+
+      # Full-pipeline HUD e2e (store → recall → render). Only present once
+      # AndromedaHUDTests is wired in Package.swift (HUD promote PR).
+      - name: E2E · HUD store→recall→render snapshots
+        run: |
+          if swift package dump-package 2>/dev/null | grep -q '"AndromedaHUDTests"'; then
+            swift test --filter HUDRecallE2ESnapshotTests
+          else
+            echo "AndromedaHUDTests not in Package.swift yet — skipping HUD e2e (lands with HUD promote)"
+          fi
