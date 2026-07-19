@@ -86,9 +86,9 @@ export function FloatingBar({
     <div ref={barRef} className="absolute z-20 select-none" style={{ left: pos.x, top: pos.y, touchAction: "none" }}>
       <div
         className={[
-          "flex items-center gap-1.5 border border-border/70 bg-popover/80 p-1.5 backdrop-blur-xl",
+          "flex items-center border border-border/70 bg-popover/80 p-1.5 backdrop-blur-xl",
           "rounded-full ring-1 ring-primary/10 shadow-[0_24px_70px_-20px_oklch(0.05_0.02_210/0.95)]",
-          isH ? "flex-row" : "flex-col",
+          isH ? "flex-row gap-1.5" : "flex-col gap-1",
         ].join(" ")}
       >
         {/* Grip handle */}
