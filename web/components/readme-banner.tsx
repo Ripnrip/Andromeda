@@ -34,7 +34,14 @@ export function ReadmeBanner() {
             className="absolute inset-0 rounded-full"
             style={{ background: "radial-gradient(circle, oklch(0.83 0.14 190 / 0.5), transparent 70%)", filter: "blur(24px)" }}
           />
-          <Image src="/andromeda-logo.png" alt="Andromeda" width={200} height={200} className="relative object-contain" priority />
+          <Image
+            src="/andromeda-icon.png"
+            alt="Andromeda"
+            width={200}
+            height={200}
+            className="relative rounded-[22%] object-cover"
+            priority
+          />
         </div>
 
         <div className="min-w-0">
