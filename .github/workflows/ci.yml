@@ -53,7 +53,9 @@ jobs:
         run: swift test --parallel --num-workers 1
 
       - name: Upload CI snapshot baselines
-        if: steps.snapshots.outputs.record == 'true'
+        # SnapshotTesting .all records PNGs then fails on purpose ("Record mode is on").
+        # Always upload after a record tip so we can commit the rewritten baselines.
+        if: ${{ always() && steps.snapshots.outputs.record == 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ci-snapshot-baselines-${{ github.sha }}
