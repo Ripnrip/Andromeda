@@ -68,8 +68,17 @@ public final class MemorySearchViewModel {
         let delay = debounceNanoseconds
         searchTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: delay)
-            guard !Task.isCancelled else { return }
-            guard let self, self.generation == token else { return }
+            guard let self else { return }
+            // Cancelled debounce must clear the spinner when it still owns this generation;
+            // otherwise a cancelled-before-submit task can leave `isSearching == true` with
+            // no live work (flake under main-actor saturation / parallel suites).
+            guard !Task.isCancelled else {
+                if self.generation == token {
+                    self.isSearching = false
+                }
+                return
+            }
+            guard self.generation == token else { return }
             // Live debounce must not pollute recent-query history.
             await self.hudModel.submitQuery(trimmed, recordRecent: false)
             if self.generation == token {
