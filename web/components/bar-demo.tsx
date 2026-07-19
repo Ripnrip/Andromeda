@@ -35,7 +35,7 @@ export function BarDemo() {
         {/* Canvas */}
         <div
           ref={canvasRef}
-          className="relative mt-10 h-[480px] w-full overflow-hidden rounded-2xl border border-border bg-dotgrid"
+          className="relative mt-10 h-[560px] w-full overflow-hidden rounded-2xl border border-border bg-dotgrid"
           style={{
             backgroundColor: "oklch(0.13 0.018 210)",
           }}
@@ -51,10 +51,10 @@ export function BarDemo() {
             style={{ background: "oklch(0.83 0.14 190)", boxShadow: "0 0 40px 4px oklch(0.83 0.14 190 / 0.5)" }}
           />
 
-          <FloatingBar boundsRef={canvasRef} initial={{ x: 32, y: 32 }} onOrientationChange={setOrientation} />
+          <FloatingBar boundsRef={canvasRef} initial={{ x: 340, y: 40 }} onOrientationChange={setOrientation} />
 
           {/* Second instance shown vertically for reference */}
-          <FloatingBar boundsRef={canvasRef} initial={{ x: 40, y: 150 }} initialOrientation="vertical" />
+          <FloatingBar boundsRef={canvasRef} initial={{ x: 36, y: 40 }} initialOrientation="vertical" />
         </div>
 
         <p className="mt-4 font-mono text-xs text-muted-foreground">

@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react"
 import { SiteNav } from "@/components/site-nav"
 import { SiteFooter } from "@/components/site-footer"
 import { AndromedaMark } from "@/components/andromeda-mark"
+import { Wordmark } from "@/components/wordmark"
 import { StatusDot } from "@/components/status-dot"
 
 const SWATCHES = [
@@ -15,12 +16,16 @@ const SWATCHES = [
   { name: "Light", token: "--foreground", css: "oklch(0.95 0.012 200)", note: "Text" },
 ]
 
-const TYPE_SCALE = [
-  { label: "Display", cls: "text-5xl font-bold tracking-tight", sample: "Andromeda" },
-  { label: "H1", cls: "text-4xl font-bold tracking-tight", sample: "Control plane" },
+const SERIF_SCALE = [
+  { label: "Display", cls: "font-serif text-6xl tracking-tight", sample: "Andromeda" },
+  { label: "H1", cls: "font-serif text-4xl tracking-tight", sample: "The control plane" },
+  { label: "Italic", cls: "font-serif text-3xl italic", sample: "visible, durable, graph-aware" },
+]
+
+const SANS_SCALE = [
   { label: "H2", cls: "text-2xl font-semibold", sample: "Six pillars, one curtain" },
   { label: "Body", cls: "text-base leading-relaxed", sample: "Local-first, Swift-native, graph-aware." },
-  { label: "Small", cls: "text-sm text-muted-foreground", sample: "Observe → Evolve → Execute → Internalize" },
+  { label: "Label", cls: "font-mono text-xs uppercase tracking-[0.3em] text-primary", sample: "Type language" },
 ]
 
 export default function DesignPage() {
@@ -40,10 +45,13 @@ export default function DesignPage() {
           <span className="h-px w-8 bg-primary/60" />
           <span className="font-mono text-xs uppercase tracking-[0.3em] text-primary">Design System</span>
         </div>
-        <h1 className="text-balance text-4xl font-bold tracking-tight md:text-5xl">Andromeda visual language</h1>
+        <h1 className="text-balance font-serif text-5xl leading-[1.02] tracking-tight md:text-6xl">
+          Andromeda visual language
+        </h1>
         <p className="mt-4 max-w-2xl text-pretty leading-relaxed text-muted-foreground">
-          A deep-space system built from the logo: a glowing teal trefoil suspended above a lit horizon. Dark,
-          observable, and precise — every surface earns its glow.
+          Editorial type locked: <span className="font-serif italic text-foreground">Instrument Serif</span> for
+          display, Space Grotesk for body and UI, JetBrains Mono for capability IDs. A deep-space system built
+          from the logo — a glowing teal trefoil above a lit horizon.
         </p>
 
         {/* Logo */}
@@ -62,10 +70,7 @@ export default function DesignPage() {
               />
             </Tile>
             <Tile label="Lockup">
-              <div className="flex items-center gap-3">
-                <AndromedaMark size={40} />
-                <span className="text-2xl font-semibold tracking-tight">Andromeda</span>
-              </div>
+              <Wordmark size="md" />
             </Tile>
           </div>
         </Block>
@@ -89,16 +94,34 @@ export default function DesignPage() {
         </Block>
 
         {/* Typography */}
-        <Block title="Typography" desc="Space Grotesk for display and UI; Geist Mono for capability IDs, code, and metadata.">
-          <div className="grid gap-6 lg:grid-cols-2">
+        <Block
+          title="Typography"
+          desc="Committed to a three-family system: Instrument Serif for display, Space Grotesk for body and UI, JetBrains Mono for capability IDs, code, and metadata."
+        >
+          <div className="grid gap-6 lg:grid-cols-3">
             <div className="rounded-xl border border-border bg-card p-6">
               <p className="mb-4 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                Space Grotesk — Sans
+                Instrument Serif — Display · roman + italic
               </p>
               <div className="space-y-3">
-                {TYPE_SCALE.map((t) => (
+                {SERIF_SCALE.map((t) => (
                   <div key={t.label} className="flex items-baseline gap-4">
-                    <span className="w-16 shrink-0 font-mono text-[10px] uppercase text-muted-foreground">
+                    <span className="w-14 shrink-0 font-mono text-[10px] uppercase text-muted-foreground">
+                      {t.label}
+                    </span>
+                    <span className={t.cls}>{t.sample}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-6">
+              <p className="mb-4 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                Space Grotesk — Body &amp; UI · 300–600
+              </p>
+              <div className="space-y-3">
+                {SANS_SCALE.map((t) => (
+                  <div key={t.label} className="flex items-baseline gap-4">
+                    <span className="w-14 shrink-0 font-mono text-[10px] uppercase text-muted-foreground">
                       {t.label}
                     </span>
                     <span className={`font-sans ${t.cls}`}>{t.sample}</span>
@@ -108,12 +131,16 @@ export default function DesignPage() {
             </div>
             <div className="rounded-xl border border-border bg-card p-6">
               <p className="mb-4 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                Geist Mono — Code / IDs
+                JetBrains Mono — Code / IDs
               </p>
               <div className="space-y-2 font-mono text-sm">
-                <p><span className="text-primary">memory.recall</span>(&#123; query &#125;)</p>
-                <p><span className="text-primary">infer.write</span> → gateway</p>
-                <p className="text-muted-foreground">X-Autocache-ROI-Percent: 41%</p>
+                <p>
+                  <span className="text-primary">memory.recall</span>(&#123; query &#125;)
+                </p>
+                <p>
+                  <span className="text-primary">infer.write</span> → gateway
+                </p>
+                <p className="text-muted-foreground">project.state.*</p>
                 <p className="text-muted-foreground">$ swift run andromeda status</p>
                 <p className="text-muted-foreground">0123456789 · ●◐○</p>
               </div>
@@ -165,7 +192,7 @@ export default function DesignPage() {
 function Block({ title, desc, children }: { title: string; desc: string; children: React.ReactNode }) {
   return (
     <section className="mt-14 border-t border-border/60 pt-10">
-      <h2 className="text-xl font-semibold">{title}</h2>
+      <h2 className="font-serif text-3xl tracking-tight">{title}</h2>
       <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">{desc}</p>
       <div className="mt-6">{children}</div>
     </section>

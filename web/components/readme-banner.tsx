@@ -49,9 +49,13 @@ export function ReadmeBanner() {
             <span className="h-px w-8 bg-primary/60" />
             <span className="font-mono text-sm uppercase tracking-[0.4em] text-primary">Control Plane</span>
           </div>
-          <h1 className="font-sans text-7xl font-bold tracking-tight text-foreground">Andromeda</h1>
+          <h1 className="font-serif text-8xl leading-none tracking-tight text-foreground">
+            Andromeda<span className="text-primary">.</span>
+          </h1>
           <p className="mt-3 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
-            A macOS-first, Swift-native control plane for visible, durable, graph-aware multi-agent engineering.
+            A macOS-first, Swift-native control plane for{" "}
+            <span className="font-serif italic text-foreground/90">visible, durable, graph-aware</span>{" "}
+            multi-agent engineering.
           </p>
           <div className="mt-6 flex flex-wrap gap-2">
             {PILLARS.map((p) => (
