@@ -260,6 +260,20 @@ public final class HUDModel {
         activationFeedback = nil
     }
 
+    #if DEBUG
+    /// Test seam — inject a deterministic capture/retrieval session so integration and
+    /// snapshot tests can drive the real `submitQuery` → recall/store → `applyOutcome`
+    /// pipeline against an in-memory store (no on-disk boot, no live vault ripgrep).
+    /// Never called in production; the real session is built in `start()`.
+    func injectSessionForTesting(retrieval: RetrievalService, capture: CaptureService? = nil) {
+        self.retrieval = retrieval
+        if let capture {
+            self.capture = capture
+        }
+        isReady = true
+    }
+    #endif
+
     /// 👁️ Compact FleetObserveComposer pulse (local health.json × launchctl — no paid paths).
     public func refreshFleetPulse() {
         let report = FleetObserveComposer.observeLive(observingHostRole: .hub)
