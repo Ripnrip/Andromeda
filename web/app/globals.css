@@ -128,6 +128,41 @@
   animation: andromeda-drift 14s linear infinite;
 }
 
+/* Seamless editorial ticker */
+@keyframes andromeda-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@utility animate-marquee {
+  animation: andromeda-marquee 32s linear infinite;
+}
+
+/* Slow-panning starfield for the manifesto */
+@keyframes andromeda-pan {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -600px -200px;
+  }
+}
+@utility animate-pan {
+  animation: andromeda-pan 90s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .animate-drift,
+  .animate-orbital,
+  .animate-pan {
+    animation: none !important;
+  }
+}
+
 /* Reusable atmosphere: faint starfield + aurora glow anchored to brand cyan */
 @utility bg-starfield {
   background-image:

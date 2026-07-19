@@ -1,19 +1,47 @@
 import Image from "next/image"
 import { PILLARS } from "@/lib/pillars"
 
+type Theme = "dark" | "light"
+
+const THEMES: Record<
+  Theme,
+  {
+    bg: string
+    fg: string
+    muted: string
+    chipBorder: string
+    chipBg: string
+    chipFg: string
+  }
+> = {
+  dark: {
+    bg: "radial-gradient(120% 140% at 50% 120%, oklch(0.24 0.06 195), oklch(0.13 0.02 210) 60%)",
+    fg: "oklch(0.95 0.012 200)",
+    muted: "oklch(0.68 0.02 205)",
+    chipBorder: "oklch(0.32 0.03 200)",
+    chipBg: "oklch(0.19 0.02 210 / 0.6)",
+    chipFg: "oklch(0.95 0.012 200)",
+  },
+  light: {
+    bg: "radial-gradient(120% 140% at 50% 120%, oklch(0.92 0.05 195), oklch(0.98 0.008 200) 60%)",
+    fg: "oklch(0.22 0.03 210)",
+    muted: "oklch(0.45 0.03 205)",
+    chipBorder: "oklch(0.85 0.03 200)",
+    chipBg: "oklch(1 0 0 / 0.6)",
+    chipFg: "oklch(0.28 0.03 210)",
+  },
+}
+
 /**
  * Wide banner for the top of a GitHub README (1280 x 400 export target).
  * Rendered at a fixed width so it screenshots cleanly to a PNG.
  */
-export function ReadmeBanner() {
+export function ReadmeBanner({ theme = "dark" }: { theme?: Theme }) {
+  const t = THEMES[theme]
   return (
     <div
-      className="relative overflow-hidden bg-starfield"
-      style={{
-        width: 1280,
-        height: 400,
-        background: "radial-gradient(120% 140% at 50% 120%, oklch(0.24 0.06 195), oklch(0.13 0.02 210) 60%)",
-      }}
+      className="relative overflow-hidden"
+      style={{ width: 1280, height: 400, background: t.bg }}
     >
       {/* horizon glow */}
       <div
@@ -46,24 +74,29 @@ export function ReadmeBanner() {
 
         <div className="min-w-0">
           <div className="mb-3 flex items-center gap-3">
-            <span className="h-px w-8 bg-primary/60" />
-            <span className="font-mono text-sm uppercase tracking-[0.4em] text-primary">Control Plane</span>
+            <span className="h-px w-8" style={{ background: "oklch(0.72 0.14 190 / 0.6)" }} />
+            <span className="font-mono text-sm uppercase tracking-[0.4em]" style={{ color: "oklch(0.62 0.13 192)" }}>
+              Control Plane
+            </span>
           </div>
-          <h1 className="font-serif text-8xl leading-none tracking-tight text-foreground">
-            Andromeda<span className="text-primary">.</span>
+          <h1 className="font-serif text-8xl leading-none tracking-tight" style={{ color: t.fg }}>
+            Andromeda<span style={{ color: "oklch(0.66 0.13 192)" }}>.</span>
           </h1>
-          <p className="mt-3 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
+          <p className="mt-3 max-w-xl text-pretty text-lg leading-relaxed" style={{ color: t.muted }}>
             A macOS-first, Swift-native control plane for{" "}
-            <span className="font-serif italic text-foreground/90">visible, durable, graph-aware</span>{" "}
+            <span className="font-serif italic" style={{ color: t.fg }}>
+              visible, durable, graph-aware
+            </span>{" "}
             multi-agent engineering.
           </p>
           <div className="mt-6 flex flex-wrap gap-2">
             {PILLARS.map((p) => (
               <span
                 key={p.key}
-                className="flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1.5 font-mono text-xs text-foreground"
+                className="flex items-center gap-2 rounded-full border px-3 py-1.5 font-mono text-xs"
+                style={{ borderColor: t.chipBorder, background: t.chipBg, color: t.chipFg }}
               >
-                <p.icon className="h-3.5 w-3.5 text-primary" />
+                <p.icon className="h-3.5 w-3.5" style={{ color: "oklch(0.62 0.13 192)" }} />
                 {p.name}
               </span>
             ))}
