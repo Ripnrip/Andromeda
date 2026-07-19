@@ -40,8 +40,10 @@ struct MemorySearchViewModelTests {
 
         // Poll until debounce fires + submit settles. Budget is generous because the loop
         // breaks as soon as work settles; the extra ceiling only absorbs main-actor
-        // saturation under parallel suite load (prevents a false flake, no cost when green).
-        let deadline = ContinuousClock.now + .milliseconds(3000)
+        // saturation under suite load (prevents a false flake, no cost when green).
+        // CI also runs `swift test --num-workers 1`, but snapshot AppKit work can still
+        // stall the main actor briefly on macos-15 runners.
+        let deadline = ContinuousClock.now + .seconds(10)
         while ContinuousClock.now < deadline {
             if case .syncing = model.lastOutcome {
                 try? await Task.sleep(nanoseconds: 20_000_000)

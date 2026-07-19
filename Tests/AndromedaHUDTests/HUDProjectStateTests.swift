@@ -137,6 +137,9 @@ struct HUDProjectStateTests {
         )
         let store = InMemoryProjectStateStore(seed: [seed])
         let model = HUDModel(projectSurface: store)
+        // Default submit watchdog (2.5s) can fire under AppKit snapshot main-actor load on
+        // CI even for an in-memory create; widen for this unit path only.
+        model.submitTimeoutNanoseconds = 15_000_000_000
 
         await model.submitQuery("project.state create Ship HUD create path")
 
