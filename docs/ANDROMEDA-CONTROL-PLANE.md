@@ -4,7 +4,9 @@
 > **Rule:** Andromeda is **not** “just HUD + memory.” It is the local-first Swift control plane.  
 > **Honesty:** ✅ shipped · 🚧 partial · 📐 specified / not built. Do not greenwash.
 
-Dual-home: keep this file identical in `~/Developer/Andromeda/docs/ANDROMEDA-CONTROL-PLANE.md`.
+Dual-home mirror: keep this document byte-identical in both
+`~/Developer/multibrain/docs/ANDROMEDA-CONTROL-PLANE.md` and
+`~/Developer/Andromeda/docs/ANDROMEDA-CONTROL-PLANE.md`.
 
 ---
 
@@ -205,9 +207,10 @@ LLM proxy only. There is no Swift Letta server today.
 
 The pasted `SwiftLettaServer` is a **speculative, non-prescriptive sketch**. It uses
 outdated Hummingbird APIs and undefined types such as `Context7Core`, `MemFS`, and
-`AgentID`; it is not an implementation plan or evidence. **Context7 has zero repo
-presence today.** If adopted later, it is an optional MCP/skill adapter, never a core
-constructor dependency or required pillar.
+`AgentID`; it is not an implementation plan or evidence. **Context7 has no
+implementation/code presence; documentation references are non-prescriptive.** If
+adopted later, it is an optional MCP/skill adapter, never a core constructor
+dependency or required pillar.
 
 ## Open gaps and re-audit criteria
 

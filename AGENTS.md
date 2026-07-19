@@ -14,8 +14,9 @@ Behind the curtain, fleet clocks, host/store ownership, privacy egress, graph/in
 brands, Letta/Python services, trackers, and secrets are operator internals.
 `infer.write` is currently an episodic-store alias, not LLM inference; SwiftData is
 the only implemented hot store; missing visibility is private and cloak/credential
-content is internal. Context7 has no repo implementation and may only be an optional
-future MCP/skill adapter, never a core dependency.
+content is internal. Context7 has no implementation/code presence; documentation
+references are non-prescriptive. It may only be an optional future MCP/skill adapter,
+never a core dependency.
 
 ## Project tracking
 
