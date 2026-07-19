@@ -200,7 +200,7 @@ NON-GOALS
 | Client-facing capability (Swift) | Hides behind the curtain |
 |----------------------------------|--------------------------|
 | `memory.recall` / `memory.store` | ✅ SwiftData hot capture + vault-aware recall |
-| `memory.journal` / `memory.session_dump` | ✅ Home/Bar; HUD parser remains 🚧 |
+| `memory.journal` / `memory.session_dump` | ✅ Home/Bar; ✅ HUD promotion branch with distinct IDs, tags, default bodies, and E2E coverage (main merge/CI pending) |
 | `infer.write` | 🚧 **today: episodic store alias tagged `infer-write`, not LLM inference** |
 | `project.state` CRUD (`list` / `get` / `create` / `update`) | ✅ operator bridge may hide Linear + Multica + Slack fanout |
 | `slack_proxy` / `github_proxy` / `write.too` (📐 secrets broker) | Slack/GitHub/Cerebras (etc.) tokens — **never** raw env keys in client process |

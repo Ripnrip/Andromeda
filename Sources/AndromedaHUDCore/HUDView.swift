@@ -60,13 +60,13 @@ public struct HUDView: View {
                         .accessibilityHidden(true)
                         .onTapGesture { expandAndFocusSearch() }
 
-                    TextField("recall · store · infer.write…", text: $searchQuery)
+                    TextField("recall · store · journal · infer.write…", text: $searchQuery)
                         .focused($isSearchFocused)
                         .textFieldStyle(.plain)
                         .font(.body)
                         .frame(maxWidth: .infinity)
                         .accessibilityLabel("Memory command")
-                        .accessibilityHint("Type recall, store, infer.write, or project.state. Arrow keys move among results. Escape dismisses results.")
+                        .accessibilityHint("Type recall, store, journal, infer.write, or project.state. Arrow keys move among results. Escape dismisses results.")
                         .onSubmit {
                             handleSubmit()
                         }
@@ -412,6 +412,14 @@ struct HUDOutcomeView: View {
                 showsProgress: false,
                 title: "Stored memory (id: \(id))",
                 accessibilityLabel: "Stored memory, ID: \(id)",
+                tinted: true
+            )
+        case .journaled(let id):
+            HUDStatusRow(
+                systemImage: "book.closed.fill",
+                showsProgress: false,
+                title: "Journaled session (id: \(id))",
+                accessibilityLabel: "Journaled session, ID: \(id)",
                 tinted: true
             )
         case .created(let title):
