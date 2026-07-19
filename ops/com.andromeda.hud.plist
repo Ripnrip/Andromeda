@@ -10,15 +10,25 @@
 
   Does NOT touch Python nightly/cron.
 
-  Install:
+  Path template: Studio SoT uses the literal home path baked into ProgramArguments /
+  WorkingDirectory / log paths / EnvironmentVariables.HOME below.
+  launchd does NOT expand $HOME/~ — install must rewrite that Studio home string to
+  the real $HOME (absolute paths only).
+  Prefer: ./scripts/install-and-sign.sh hud  (renders + bootstraps).
+  Swift successor: andromeda-install (BIN-101 / HAB-104) must keep the same contract.
+
+  Manual render (no bootstrap — safe dry-run):
+    # replace the Studio home template string with os.environ["HOME"]
+    python3 -c "from pathlib import Path; import os; p=Path('ops/com.andromeda.hud.plist');
+    t='/Users/'+'admin'; Path('/tmp/com.andromeda.hud.plist').write_text(p.read_text().replace(t, os.environ['HOME']))"
+
+  Install (via installer — remaps HOME, then bootstrap):
     mkdir -p ~/.multibrain/logs
-    cp ops/com.andromeda.hud.plist ~/Library/LaunchAgents/
-    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.andromeda.hud.plist
-    launchctl kickstart -k gui/$(id -u)/com.andromeda.hud
+    ./scripts/install-and-sign.sh hud
   Unload:
     launchctl bootout gui/$(id -u)/com.andromeda.hud
 
-  Prerequisite: ./scripts/install-and-sign.sh hud
+  Prerequisite: ./scripts/install-and-sign.sh hud  (interim; BIN-101 deletes bash)
 -->
 <plist version="1.0">
 <dict>
