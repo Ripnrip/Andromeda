@@ -53,11 +53,15 @@ final class MCPRegistrySnapshotTests: XCTestCase {
             .frame(width: 420, height: 520)
         let hosting = NSHostingController(rootView: root)
         hosting.view.frame = NSRect(x: 0, y: 0, width: 420, height: 520)
+        // Honor SNAPSHOT_TESTING_RECORD like the rest of the MemoryKit catalog —
+        // hardcoding record:false left these four PNGs stranded on local macOS 26 pixels.
+        let shouldRecord = ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"]
+            .map { !$0.isEmpty } ?? false
         assertSnapshot(
             of: hosting,
             as: .image,
             named: named,
-            record: false,
+            record: shouldRecord,
             file: file,
             testName: testName,
             line: line
