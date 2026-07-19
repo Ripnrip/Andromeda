@@ -1,9 +1,10 @@
 # Andromeda Workspace Promotion Readiness
 
-**Status:** GATED — do **not** force-move the Cursor workspace into Andromeda yet.  
-**Date:** 2026-07-19 (HUD vault-true + e2e gates; checklist expanded; flip still GATED)  
+**Status:** GATED — **NO-GO** — do **not** force-move the Cursor workspace into Andromeda yet.  
+**Date:** 2026-07-19 (adversarial milestone audit PROOF 44; flip still NO-GO)  
 **Locked decision:** dual-home until MemoryKit is battle-tested against live multibrain stores **and** the human says the word.  
-**Linear / Multica:** BIN-39 / HAB-56 lineage — checklist items below; workspace flip **still GATED**.
+**Install policy (locked 2026-07-19):** Andromeda install / sign / LaunchAgent deploy is **ALL SWIFT** (`andromeda-install`) — **no Bash exception**; hybrid rejected. See BIN-101 + PROOF 44.  
+**Linear / Multica:** BIN-39 / HAB-56 lineage + BIN-101 / PROOF 44 — checklist items below; workspace flip **still NO-GO**.
 
 ## Executive answer (2026-07-19)
 
@@ -11,16 +12,18 @@
 
 | Gate | State | Notes |
 |------|-------|-------|
-| Memory battle-test checklist #1–#10 | ✅ | Visible Alpha + residual wave |
-| Live vault recall (hot-empty → vault hits) | ✅ | `RetrievalServiceVaultLiveTests` + rebuilt HUD |
-| Hermetic HUD e2e (store→recall→render) | ✅ | `HUDRecallE2ESnapshotTests` on Andromeda PR #10 |
-| CI e2e gates | ✅ wired | Andromeda PR #9/#10 (nested MemoryKit + named filters) |
-| Multibrain dual-home tip on `main` | ✅ | `b73bc2b` (fleet-observe + PROOFS 31–43) |
-| Andromeda HUD+Home SoT on `main` | 🚧 | **Merge [PR #10](https://github.com/Ripnrip/Andromeda/pull/10)** first |
-| CloudKit GUI smoke | 🚧 human | PROOF 43 agent smoke only (BIN-79) |
+| Adversarial audit (PROOF 44) | ❌ NO-GO | 15+10 lanes; hard blockers listed in proof |
+| Memory battle-test checklist #1–#12 | ⚠️ overclaimed | Local/PR tip greens ≠ merged main; see PROOF 44 table A |
+| Live vault recall (hot-empty → vault hits) | ⚠️ | Local proof real; CI does not gate |
+| Hermetic HUD e2e (store→recall→render) | ⚠️ | Hot hermetic only on PR #10; not live vault/boot |
+| CI e2e gates | ❌ | Theater / soft-skips; PR #10 GHA red |
+| Multibrain dual-home tip on `main` | ⚠️ | tip↔PR10 identical; Andromeda `main` ~42 files behind |
+| Andromeda HUD+Home SoT on `main` | ❌ | **Do not merge [PR #10](https://github.com/Ripnrip/Andromeda/pull/10)** until CI green |
+| Swift-native install (BIN-101) | ❌ Todo | Replace `install-and-sign.sh`; no bash exception |
+| CloudKit GUI smoke | 🚧 human | PROOF 43 honesty OK; BIN-79 does **not** block flip |
 | Human word to flip | ❌ | Agents will **not** flip unilaterally |
 
-**Bottom line:** MemoryKit is battle-tested enough for a **product** flip. You are **one merge + one explicit “flip it”** away from making `~/Developer/Andromeda` the default app workspace. Stay in multibrain for fleet/nightly/PROOFS until then (and keep fleet SoT there even after flip).
+**Bottom line:** Flip is **NO-GO**. Adversarial audit (PROOF 44) found premature greens, curtain leaks, spend/secrets issues, and red PR #10 CI. Stay in multibrain for fleet/nightly/PROOFS until hard blockers clear **and** the human says the word.
 
 **Recommended flip sequence (when you say the word):**
 1. Merge Andromeda PR #10 (and close PR #9 as superseded).
@@ -106,6 +109,8 @@ Do **not** flip the Cursor workspace root to Andromeda until the checklist above
 ## Next human actions (workspace flip)
 
 1. ~~Rsync MemoryKit until #9 is ✅~~ — done 2026-07-16; re-landed 2026-07-19 on multibrain `main`.
-2. **Merge Andromeda PR #10**; close PR #9 as superseded.
-3. Optional: BIN-79 CloudKit GUI smoke (does not block app-workspace flip).
-4. **Say the word** to flip workspace defaults — agents will **not** do it unilaterally.
+2. **Do not merge Andromeda PR #10** until GHA is green (snapshots + flakes); then merge and close PR #9 as superseded.
+3. Clear PROOF 44 hard blockers (curtain scrub, Letta/Home spend, live-vault CI gate, checklist #13–#20, status honesty).
+4. Land BIN-101 Swift-native `andromeda-install`; delete `install-and-sign.sh` (no bash exception).
+5. Optional: BIN-79 CloudKit GUI smoke (does not block app-workspace flip).
+6. **Say the word** to flip workspace defaults — agents will **not** do it unilaterally.
