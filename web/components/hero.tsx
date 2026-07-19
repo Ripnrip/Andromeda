@@ -80,14 +80,24 @@ export function Hero() {
                 filter: "blur(30px)",
               }}
             />
-            <Image
-              src="/andromeda-logo.png"
-              alt="Andromeda mark — a glowing trefoil"
-              width={420}
-              height={420}
-              className="relative object-contain drop-shadow-2xl"
-              priority
-            />
+            <div
+              className="relative overflow-hidden rounded-2xl border border-border"
+              style={{ boxShadow: "0 30px 80px oklch(0.72 0.14 190 / 0.2)" }}
+            >
+              <Image
+                src="/andromeda-hero.png"
+                alt="Andromeda — a glowing trefoil rising over a dark horizon beneath a constellation"
+                width={720}
+                height={405}
+                className="relative object-cover"
+                priority
+              />
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{ boxShadow: "inset 0 0 60px oklch(0 0 0 / 0.5)" }}
+              />
+            </div>
           </div>
         </div>
 
