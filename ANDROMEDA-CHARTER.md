@@ -26,6 +26,8 @@ Andromeda is a local-first, Swift-native control plane for multi-agent engineeri
 
 Andromeda is a gateway, graph-native memory fabric, orchestration engine, and macOS control plane connecting agents, tools, models, MCP servers, Obsidian notes, event journals, graph stores, and human decisions.
 
+**Six pillars (locked 2026-07-19):** (1) Memory / Anima, (2) MCP host, (3) Agent skills home, (4) LLM proxy, (5) Secrets vault/broker, (6) Fleet runtime (LaunchAgents + observability). Canonical detail: `docs/ANDROMEDA-CONTROL-PLANE.md`. Clients call stable capability IDs; Andromeda resolves providers, secrets, and processes behind the curtain.
+
 | Loop stage | Responsibility |
 | --- | --- |
 | Observe | Capture events, outcomes, documents, tool calls, diagnostics, and decisions. |

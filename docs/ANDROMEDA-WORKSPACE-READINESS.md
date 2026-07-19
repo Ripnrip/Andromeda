@@ -25,6 +25,10 @@
 
 **Bottom line:** Flip is **NO-GO**. Adversarial audit (PROOF 44) found premature greens, curtain leaks, spend/secrets issues, and red PR #10 CI. Stay in multibrain for fleet/nightly/PROOFS until hard blockers clear **and** the human says the word.
 
+## Product scope note — six control-plane pillars (2026-07-19)
+
+Andromeda’s product identity is **broader than HUD/memory**. Locked pillars (Memory, MCP host, Skills, LLM proxy, Secrets broker, Fleet runtime) live in [ANDROMEDA-CONTROL-PLANE.md](./ANDROMEDA-CONTROL-PLANE.md). These are **product-scope documentation** — they do **not** claim secrets broker, MCP consolidate, SkillRegistry, or full fleet mutate are shipped, and they do **not** clear the flip gates above. FleetObserve / LaunchEntity observe paths exist (🚧); Swift install mutate remains BIN-101 (📐).
+
 **Recommended flip sequence (when you say the word):**
 1. Merge Andromeda PR #10 (and close PR #9 as superseded).
 2. Rsync/pin MemoryKit dual-home SHA (multibrain `main` ↔ Andromeda `main`).

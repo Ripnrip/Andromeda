@@ -195,13 +195,14 @@ NON-GOALS
 
 ## 6. Suggested Swift module → Andromeda capability surface
 
-**Capability hiding (locked 2026-07-15):** clients and satellite agents call stable capability IDs only. Andromeda Observe→Evolve→Execute→Internalize selects providers behind the curtain — same pattern as inference. Never expose Linear/Multica routing, model registries, n8n, or store plumbing in client tool menus.
+**Capability hiding (locked 2026-07-15):** clients and satellite agents call stable capability IDs only. Andromeda Observe→Evolve→Execute→Internalize selects providers behind the curtain — same pattern as inference. Never expose Linear/Multica routing, model registries, n8n, or store plumbing in client tool menus. **Full control-plane pillars** (MCP host, skills, LLM proxy, secrets broker, fleet runtime): [ANDROMEDA-CONTROL-PLANE.md](ANDROMEDA-CONTROL-PLANE.md).
 
 | Client-facing capability (Swift) | Hides behind the curtain |
 |----------------------------------|--------------------------|
 | `memory.recall` / `memory.store` / `memory.journal` / `memory.document` | SwiftData, CloudKit, Obsidian materialize, Qdrant/Ladybug, claude-mem |
 | `infer.write` (or similar) | Cerebras, model registry, health, OpenRouter fallbacks, MCP server logic, n8n |
 | `project.state` CRUD (`list` / `get` / `create` / `update`) | Linear + Multica + kanban + Slack fanout |
+| `slack_proxy` / `github_proxy` / `write.too` (📐 secrets broker) | Slack/GitHub/Cerebras (etc.) tokens — **never** raw env keys in client process |
 
 | Anima module | Andromeda capability ID (sketch) | Side effects |
 |--------------|----------------------------------|--------------|
@@ -216,6 +217,8 @@ NON-GOALS
 | (Andromeda PM fabric) | `project.state.list/get/create/update` | Linear∪Multica∪Slack — **never** exposed as those brands to clients |
 | (Andromeda inference) | `infer.write` | Provider registry + health + fallbacks — **never** Cerebras/OpenRouter IDs on the client menu |
 
+**`project.state` stub (MemoryKit, 2026-07-15):** `ProjectStateSurface` + `InMemoryProjectStateStore` + `OperatorProjectStateBridge` (protocols for Linear/Multica behind the curtain) + `ProjectStatePanel`. Public fields are id/title/status/items only — optional `provenance` is operator-internal and stripped from Codable. Proof: `Packages/MemoryKit/PROOFS/31-project-state-capability.md`.
+
 Every capability: observe-event first → execute → internalize with provenance hash. n8n may orchestrate behind capabilities; never treat n8n as the client SoT.
 
 ---
@@ -225,6 +228,7 @@ Every capability: observe-event first → execute → internalize with provenanc
 | Doc | Use |
 |-----|-----|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Multibrain layers as-built |
+| [ANDROMEDA-CONTROL-PLANE.md](ANDROMEDA-CONTROL-PLANE.md) | Six Andromeda pillars + secrets/proxy curtain |
 | [KNOWLEDGE-STACK.md](KNOWLEDGE-STACK.md) | Checkpoint / sync / close |
 | [FLEET.md](FLEET.md) | Studio hub vs Book satellite |
 | [RUNBOOK.md](RUNBOOK.md) | LaunchAgents, Telegram, health |

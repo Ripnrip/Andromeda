@@ -6,6 +6,21 @@
 
 Andromeda replaces fragmented scripts, hidden workers, ad-hoc memory stores, provider-specific model wiring, and silent background automation with one observable system.
 
+## Big picture — six control-plane pillars (locked 2026-07-19)
+
+Andromeda is **not** HUD + memory alone. It is the local-first Swift **control plane**:
+
+| # | Pillar | Role |
+|---|--------|------|
+| 1 | **Memory (Anima)** | Durable recall/store behind `memory.*` / `infer.write` / `project.state.*` |
+| 2 | **MCP home** | Host/consolidate MCPs so Studio does not run ~50 `npm` processes |
+| 3 | **Agent skills home** | Registry/surface for skills agents use (`SkillRegistry`) |
+| 4 | **LLM proxy** | Andromeda-owned inference routing (Autocache/gateway lineage); clients do not pick providers |
+| 5 | **Secrets vault / broker** | Stable IDs like `slack_proxy`, `github_proxy`, `write.too` — never raw keys in client env |
+| 6 | **Fleet runtime** | LaunchAgents / plists / launchd + observability + telemetry — visible, auditable, accessible |
+
+Clients see **stable capability IDs**; Andromeda resolves providers, secrets, MCP processes, and LaunchAgents behind the curtain. Honesty table (✅/🚧/📐) and examples: **[docs/ANDROMEDA-CONTROL-PLANE.md](docs/ANDROMEDA-CONTROL-PLANE.md)**. Workspace flip remains gated — pillars are product scope, not a flip claim.
+
 ## Mission Loop
 
 ```mermaid
@@ -66,11 +81,13 @@ Point Anthropic clients at `http://127.0.0.1:8080` instead of `https://api.anthr
 
 ## Documentation
 
+- [**Control plane — six pillars**](docs/ANDROMEDA-CONTROL-PLANE.md) ← agents: read this first for product scope
 - [Charter](ANDROMEDA-CHARTER.md)
 - [Roadmap](ROADMAP.md)
 - [Changelog](CHANGELOG.md)
 - [Agent guidance](AGENTS.md)
 - [Claude guidance](CLAUDE.md)
+- [Workspace readiness / flip gate](docs/ANDROMEDA-WORKSPACE-READINESS.md)
 - [Sequence diagrams](Documentation/Diagrams/README.md)
 - [Gateway architecture](Documentation/Architecture/GATEWAY-ARCHITECTURE.md)
 - [Autocache Swift port](Documentation/Architecture/AUTOCACHE-SWIFT.md)
