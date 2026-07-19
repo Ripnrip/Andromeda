@@ -33,7 +33,7 @@ jobs:
 
       # Baselines must be recorded on macos-15 + Xcode 16.4 (this job). Local macOS 26 /
       # Xcode 26 PNGs will not pixel-match the runner. Tip a commit with [record-snapshots]
-      # to rewrite Tests/**/__Snapshots__ here, then download the artifact and commit.
+      # to rewrite **/__Snapshots__ here, then download the artifact and commit.
       - name: Detect snapshot record mode
         id: snapshots
         run: |
@@ -58,6 +58,21 @@ jobs:
         env:
           SNAPSHOT_TESTING_RECORD: "1"
         run: swift test --parallel --num-workers 1
+        continue-on-error: true
+
+      # Nested SPM package — root `swift test` does not discover MemoryKitTests.
+      - name: Test MemoryKit (nested package)
+        if: steps.snapshots.outputs.record != 'true'
+        working-directory: Packages/MemoryKit
+        run: swift test --parallel --num-workers 1
+
+      - name: Test MemoryKit (nested package, record snapshots)
+        if: steps.snapshots.outputs.record == 'true'
+        working-directory: Packages/MemoryKit
+        env:
+          SNAPSHOT_TESTING_RECORD: "1"
+        run: swift test --parallel --num-workers 1
+        continue-on-error: true
 
       - name: Upload CI snapshot baselines
         # SnapshotTesting .all records PNGs then fails on purpose ("Record mode is on").
@@ -69,16 +84,14 @@ jobs:
           path: |
             Tests/AndromedaHUDTests/__Snapshots__/
             Tests/AndromedaHomeTests/__Snapshots__/
+            Packages/MemoryKit/Tests/MemoryKitTests/__Snapshots__/
+            Packages/MemoryKit/Tests/MemoryKitTests/Snapshots/__Snapshots__/
           if-no-files-found: error
-
-      # Nested SPM package — root `swift test` does not discover MemoryKitTests.
-      - name: Test MemoryKit (nested package)
-        working-directory: Packages/MemoryKit
-        run: swift test --parallel --num-workers 1
 
       # Explicit e2e gate (also covered by MemoryKit suite). Skips cleanly when
       # ~/Developer/SecondBrain or /opt/homebrew/bin/rg are absent on the runner.
       - name: E2E · live-vault recall (RetrievalServiceVaultLiveTests)
+        if: steps.snapshots.outputs.record != 'true'
         working-directory: Packages/MemoryKit
         run: swift test --filter RetrievalServiceVaultLiveTests --parallel --num-workers 1
 
@@ -86,17 +99,6 @@ jobs:
       # AndromedaHUDTests is wired in Package.swift (HUD promote PR).
       - name: E2E · HUD store→recall→render snapshots
         if: steps.snapshots.outputs.record != 'true'
-        run: |
-          if swift package dump-package 2>/dev/null | grep -q '"AndromedaHUDTests"'; then
-            swift test --filter HUDRecallE2ESnapshotTests --parallel --num-workers 1
-          else
-            echo "AndromedaHUDTests not in Package.swift yet — skipping HUD e2e (lands with HUD promote)"
-          fi
-
-      - name: E2E · HUD store→recall→render snapshots (record)
-        if: steps.snapshots.outputs.record == 'true'
-        env:
-          SNAPSHOT_TESTING_RECORD: "1"
         run: |
           if swift package dump-package 2>/dev/null | grep -q '"AndromedaHUDTests"'; then
             swift test --filter HUDRecallE2ESnapshotTests --parallel --num-workers 1

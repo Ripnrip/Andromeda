@@ -92,7 +92,7 @@ final class ProjectStatePanelSnapshotTests: XCTestCase {
 
         // 🌙 Prefer SnapshotTestingConfiguration.Record when SNAPSHOT_TESTING_RECORD is set
         withSnapshotTesting(
-            record: ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"] != nil ? .all : .missing
+            record: (ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"].map { !$0.isEmpty } ?? false) ? .all : .missing
         ) {
             assertSnapshot(
                 of: host,
