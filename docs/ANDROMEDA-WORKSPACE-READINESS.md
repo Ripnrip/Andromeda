@@ -32,8 +32,8 @@ PR #10 is merged and before changing NO-GO:
 
 | Gap | Required evidence |
 |-----|-------------------|
-| HUD journal/session dump | parser parity proof with Home/Bar |
-| HUD privacy | writes pass `VisibilityFilter`; no hardcoded-private bypass |
+| HUD journal/session dump | ✅ promotion-branch parser/E2E ([PROOF 47](../PROOFS/47-hud-curtain-journal-privacy-2026-07-19.md)); require PR #10 merge + CI proof |
+| HUD privacy | ✅ promotion-branch writes pass `VisibilityFilter` with cloak→internal E2E ([PROOF 47](../PROOFS/47-hud-curtain-journal-privacy-2026-07-19.md)); require PR #10 merge + CI proof |
 | Python materialized notes | optional `visibility` + `content_hash`; missing defaults private |
 | CloudKit/vector egress | test proves only public/friends leave local stores |
 | `infer.write` semantics | versioned rename or real inference routing; current store callers preserved |

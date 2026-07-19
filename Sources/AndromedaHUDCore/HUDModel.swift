@@ -12,13 +12,17 @@ enum HUDLogger {
 public enum HUDCapabilityID: String, Sendable {
     case recall = "memory.recall"
     case store = "memory.store"
+    case journal = "memory.journal"
+    case sessionDump = "memory.session_dump"
     case inferWrite = "infer.write"
     case project = "project.state"
 }
 
-/// 🌟 Parsed HUD submit verbs (store / infer.write / project.state / recall).
+/// 🌟 Parsed HUD submit verbs (store / journal / infer.write / project.state / recall).
 public enum HUDCommand: Equatable, Sendable {
     case store(narrative: String)
+    case journal(body: String)
+    case sessionDump(body: String)
     case inferWrite(thought: String)
     /// List / filter projects (`project.state` / `project` / `project.state list`).
     case project(query: String)
@@ -37,6 +41,28 @@ public enum HUDCommand: Equatable, Sendable {
         if lower.hasPrefix("store ") || lower == "store" {
             let rest = String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
             return .store(narrative: rest)
+        }
+        if lower.hasPrefix("memory.journal ") || lower == "memory.journal"
+            || lower.hasPrefix("journal ") || lower == "journal" {
+            let prefix = lower.hasPrefix("memory.journal") ? "memory.journal" : "journal"
+            let rest = String(trimmed.dropFirst(prefix.count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return .journal(body: rest)
+        }
+        if lower.hasPrefix("memory.session_dump ") || lower == "memory.session_dump"
+            || lower.hasPrefix("session dump ") || lower == "session dump"
+            || lower.hasPrefix("sessiondump ") || lower == "sessiondump" {
+            let prefix: String
+            if lower.hasPrefix("memory.session_dump") {
+                prefix = "memory.session_dump"
+            } else if lower.hasPrefix("session dump") {
+                prefix = "session dump"
+            } else {
+                prefix = "sessiondump"
+            }
+            let rest = String(trimmed.dropFirst(prefix.count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return .sessionDump(body: rest)
         }
         // Prefer `infer.write` over bare `infer` so the capability ID wins.
         if lower.hasPrefix("infer.write") {
@@ -90,6 +116,8 @@ public enum HUDCommand: Equatable, Sendable {
     public var capabilityID: HUDCapabilityID {
         switch self {
         case .store: return .store
+        case .journal: return .journal
+        case .sessionDump: return .sessionDump
         case .inferWrite: return .inferWrite
         case .project, .projectCreate, .projectUpdate: return .project
         case .recall: return .recall
@@ -102,6 +130,7 @@ public enum HUDOutcome: Equatable, Sendable {
     case syncing
     case recalled(hits: [MemoryHit])
     case stored(idSummary: String)
+    case journaled(idSummary: String)
     /// 🌐 Capability `project.state.list` result — titles/status only, no tracker brands.
     case projects(states: [ProjectState])
     /// ✨ Capability `project.state.create` confirmation.
@@ -116,7 +145,7 @@ public enum HUDOutcome: Equatable, Sendable {
         switch self {
         case .idle:
             return false
-        case .syncing, .recalled, .projects, .stored, .created, .updated, .empty, .failed:
+        case .syncing, .recalled, .projects, .stored, .journaled, .created, .updated, .empty, .failed:
             return true
         }
     }
@@ -362,6 +391,35 @@ public final class HUDModel {
                 provenance: HUDCapabilityID.store.rawValue,
                 tags: [],
                 emptyHint: "store",
+                isJournal: false,
+                token: token
+            )
+        case .journal(let body):
+            guard isReady, let capture else {
+                applyOutcome(.failed(message: "Memory session not ready"), token: token)
+                return
+            }
+            await runStore(
+                narrative: body.isEmpty ? Self.defaultCaptureBody(for: .journal) : body,
+                capture: capture,
+                provenance: HUDCapabilityID.journal.rawValue,
+                tags: ["journal"],
+                emptyHint: "journal",
+                isJournal: true,
+                token: token
+            )
+        case .sessionDump(let body):
+            guard isReady, let capture else {
+                applyOutcome(.failed(message: "Memory session not ready"), token: token)
+                return
+            }
+            await runStore(
+                narrative: body.isEmpty ? Self.defaultCaptureBody(for: .sessionDump) : body,
+                capture: capture,
+                provenance: HUDCapabilityID.sessionDump.rawValue,
+                tags: ["journal", "session-dump"],
+                emptyHint: "session dump",
+                isJournal: true,
                 token: token
             )
         case .inferWrite(let thought):
@@ -375,6 +433,7 @@ public final class HUDModel {
                 provenance: HUDCapabilityID.inferWrite.rawValue,
                 tags: ["infer-write"],
                 emptyHint: "infer.write",
+                isJournal: false,
                 token: token
             )
         case .recall(let needle):
@@ -564,6 +623,7 @@ public final class HUDModel {
         provenance: String,
         tags: [String],
         emptyHint: String,
+        isJournal: Bool,
         token: UInt64
     ) async {
         guard !narrative.isEmpty else {
@@ -571,21 +631,42 @@ public final class HUDModel {
             return
         }
 
+        let resolvedVisibility = VisibilityFilter.determineVisibility(
+            for: narrative,
+            suggestedVisibility: VisibilityClass.private.rawValue,
+            tags: tags
+        )
+
         do {
             let id = try await capture.storeMemory(
                 narrative: narrative,
                 project: "andromeda-hud",
                 agent: "andromeda-hud",
                 provenance: provenance,
-                visibility: "private",
+                visibility: resolvedVisibility,
                 tags: tags
             )
             let summary = String(id.uuidString.prefix(8))
-            applyOutcome(.stored(idSummary: summary), token: token)
+            applyOutcome(
+                isJournal ? .journaled(idSummary: summary) : .stored(idSummary: summary),
+                token: token
+            )
         } catch is CancellationError {
             return
         } catch {
             applyOutcome(.failed(message: error.localizedDescription), token: token)
+        }
+    }
+
+    private static func defaultCaptureBody(for capability: HUDCapabilityID) -> String {
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        switch capability {
+        case .journal:
+            return "Journal entry \(stamp) — captured from AndromedaHUD (\(capability.rawValue))."
+        case .sessionDump:
+            return "Session dump \(stamp) — captured from AndromedaHUD (\(capability.rawValue))."
+        default:
+            preconditionFailure("Default capture body is only valid for journal capabilities")
         }
     }
 }

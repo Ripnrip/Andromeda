@@ -44,7 +44,7 @@ flowchart TB
 
 | # | Pillar | Client-facing IDs (examples) | Status 2026-07-19 | Code / doc lineage |
 |---|--------|------------------------------|-------------------|--------------------|
-| 1 | **Memory (Anima)** | `memory.recall`, `memory.store`, `memory.journal` / session dump, `infer.write`, `project.state.*` | 🚧 curtain + MemoryKit live; CloudKit GUI / Letta WS open | [MEMORY-ONEPAGER.md](./MEMORY-ONEPAGER.md), MemoryKit |
+| 1 | **Memory (Anima)** | `memory.recall`, `memory.store`, `memory.journal` / session dump, `infer.write`, `project.state.*` | 🚧 curtain + MemoryKit live; HUD journal/privacy landed on promotion branch; CloudKit GUI / Letta WS open | [MEMORY-ONEPAGER.md](./MEMORY-ONEPAGER.md), MemoryKit |
 | 2 | **MCP home** | MCP tools appear as capabilities after host consolidate — not 50× `npm exec` per Studio | 🚧 `MCPServerRegistry` observe/scan + sprawl bent 55→37; **shared lifecycle / dedupe host not shipped** | BIN-41, [MCP-SPRAWL-PROBLEM.md](./MCP-SPRAWL-PROBLEM.md), Gate F |
 | 3 | **Agent skills home** | Skill invoke via registry surface (not tribal `~/.claude/skills` hunting) | 📐 `SkillRegistry` target entity; inventory exists in surface-area | HAB-39, [ANDROMEDA-SURFACE-AREA.md](./ANDROMEDA-SURFACE-AREA.md) §F |
 | 4 | **LLM proxy** | `infer.write` (and aliases) — clients never pick Cerebras/OpenRouter/Anthropic | 🚧 Autocache Anthropic Hummingbird surface live; full multi-provider router / OpenAI-compat / breakers **not** done | `GatewayConfig`, Gate D, Autocache proofs |
@@ -93,8 +93,8 @@ store brands, ports, and credentials are operator implementation details.
 |------------------|--------|--------------------|--------------------|
 | `memory.recall` | ✅ | Recalls from the SwiftData hot store, with the vault fallback used by Home/HUD | Ladybug is not this API's backend |
 | `memory.store` | ✅ | Transactional episodic write into `~/.multibrain/anima-hot.store` | Materialization/index writes are asynchronous and fail-open |
-| `memory.journal` | ✅ Home/Bar; 🚧 HUD | Home/Bar parse journal/session-dump input and store it | HUD still lacks the journal parser |
-| `memory.session_dump` | ✅ Home/Bar; 🚧 HUD | Session dump is accepted by Home/Bar and stored through memory capture | Do not advertise HUD parity yet |
+| `memory.journal` | ✅ Home/Bar; ✅ HUD promotion branch | Distinct journal parsing, metadata, default body, and capture path | Merge/CI on Andromeda main still gates shipped status |
+| `memory.session_dump` | ✅ Home/Bar; ✅ HUD promotion branch | Distinct session-dump identity, metadata, default body, and capture path | Merge/CI on Andromeda main still gates shipped status |
 | `infer.write` | 🚧 misleading name | Today this is an episodic store alias tagged `infer-write` | It does **not** perform LLM inference or provider routing today |
 | `project.state.list/get/create/update` | ✅ | Stable project-state CRUD; operator bridge may route to Linear/Multica/Slack | Clients never see tracker brands |
 | `slack_proxy`, `github_proxy`, `write.too` | 📐 | Reserved stable IDs for a future server-side secrets broker/proxy | No broker runtime or secret injection is shipped |
@@ -178,11 +178,10 @@ may delete a source-of-truth record merely because a derived index accepted it.
 | `private` | **default** | allowed | blocked |
 | `internal` | explicit or forced by cloak/secrets/credential markers | allowed | blocked |
 
-The HUD currently hardcodes `private` and does not apply `VisibilityFilter`. Python
-session-note frontmatter also lacks a guaranteed `visibility` field. Those are open
-schema/enforcement gaps, not evidence that egress is safe. Unknown/missing visibility
-must be treated as `private`; cloak, secret, token, password, key, and credential
-markers force `internal`.
+HUD writes on the promotion branch now pass through `VisibilityFilter`: unknown
+visibility defaults to `private`, while cloak/secrets/credential markers force
+`internal`. Python session-note frontmatter still lacks a guaranteed `visibility`
+field. That remains an open schema/enforcement gap, not evidence that egress is safe.
 
 ## Graph views — do not conflate them
 
@@ -214,7 +213,8 @@ dependency or required pillar.
 
 ## Open gaps and re-audit criteria
 
-- Add HUD journal/session-dump parsing and route all HUD writes through visibility policy.
+- Land the tested HUD journal/session-dump + visibility-policy slice on Andromeda main;
+  keep distinct capability identity and cloak→internal E2E coverage.
 - Add optional `visibility` and `content_hash` to Python materialized-note contracts;
   interpret missing visibility as private.
 - Prove public/friends-only CloudKit and vector export; do not call CloudKit shipped first.

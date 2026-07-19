@@ -37,7 +37,6 @@ struct HUDRecallE2ESnapshotTests {
             processRunner: LocalProcessRunner(),
             ripgrepExecutable: "/opt/homebrew/bin/rg"
         )
-        HUDModel.clearPersistedRecentQueries()
         let model = HUDModel(
             projectSurface: InMemoryProjectStateStore(),
             recentQueries: []
@@ -51,14 +50,14 @@ struct HUDRecallE2ESnapshotTests {
         let model = try makeModelWithInMemorySession()
 
         // Drive the real store capability through the submit pipeline.
-        await model.submitQuery("store Andromeda HUD ships the floating memory bar")
+        await model.submitQuery("store Andromeda HUD ships the floating memory bar", recordRecent: false)
         guard case .stored = model.lastOutcome else {
             Issue.record("Expected .stored, got \(String(describing: model.lastOutcome))")
             return
         }
 
         // Drive the real recall capability — hot-store search finds the just-stored neuron.
-        await model.submitQuery("recall andromeda")
+        await model.submitQuery("recall andromeda", recordRecent: false)
         guard case .recalled(let hits) = model.lastOutcome else {
             Issue.record("Expected .recalled, got \(String(describing: model.lastOutcome))")
             return
@@ -83,13 +82,13 @@ struct HUDRecallE2ESnapshotTests {
     func recallNoMatchRendersEmpty() async throws {
         let model = try makeModelWithInMemorySession()
 
-        await model.submitQuery("store Andromeda HUD ships the floating memory bar")
+        await model.submitQuery("store Andromeda HUD ships the floating memory bar", recordRecent: false)
         guard case .stored = model.lastOutcome else {
             Issue.record("Expected .stored, got \(String(describing: model.lastOutcome))")
             return
         }
 
-        await model.submitQuery("recall nonexistent-needle-zzz")
+        await model.submitQuery("recall nonexistent-needle-zzz", recordRecent: false)
         guard case .empty(let message) = model.lastOutcome else {
             Issue.record("Expected .empty, got \(String(describing: model.lastOutcome))")
             return
@@ -106,5 +105,65 @@ struct HUDRecallE2ESnapshotTests {
             hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
             assertSnapshot(of: hostingView, as: .image, named: "Dark_E2E_Empty")
         }
+    }
+
+    @Test("E2E · journal lands with session tags and is recallable")
+    func journalRoundTrip() async throws {
+        let model = try makeModelWithInMemorySession()
+
+        await model.submitQuery("journal", recordRecent: false)
+        guard case .journaled = model.lastOutcome else {
+            Issue.record("Expected .journaled, got \(String(describing: model.lastOutcome))")
+            return
+        }
+
+        await model.submitQuery("recall memory.journal", recordRecent: false)
+        guard case .recalled(let hits) = model.lastOutcome else {
+            Issue.record("Expected .recalled, got \(String(describing: model.lastOutcome))")
+            return
+        }
+        #expect(hits.count == 1)
+        #expect(hits.first?.narrative.contains("Journal entry") == true)
+        #expect(hits.first?.tags.contains("journal") == true)
+        #expect(hits.first?.tags.contains("session-dump") == false)
+    }
+
+    @Test("E2E · session dump retains its capability identity")
+    func sessionDumpRoundTrip() async throws {
+        let model = try makeModelWithInMemorySession()
+
+        await model.submitQuery("memory.session_dump", recordRecent: false)
+        guard case .journaled = model.lastOutcome else {
+            Issue.record("Expected .journaled, got \(String(describing: model.lastOutcome))")
+            return
+        }
+
+        await model.submitQuery("recall memory.session_dump", recordRecent: false)
+        guard case .recalled(let hits) = model.lastOutcome else {
+            Issue.record("Expected .recalled, got \(String(describing: model.lastOutcome))")
+            return
+        }
+        #expect(hits.count == 1)
+        #expect(hits.first?.narrative.contains("Session dump") == true)
+        #expect(hits.first?.tags.contains("journal") == true)
+        #expect(hits.first?.tags.contains("session-dump") == true)
+    }
+
+    @Test("E2E · visibility policy forces cloak writes internal")
+    func cloakWriteIsInternal() async throws {
+        let model = try makeModelWithInMemorySession()
+
+        await model.submitQuery("store [cloak] private curtain note", recordRecent: false)
+        guard case .stored = model.lastOutcome else {
+            Issue.record("Expected .stored, got \(String(describing: model.lastOutcome))")
+            return
+        }
+
+        await model.submitQuery("recall private curtain note", recordRecent: false)
+        guard case .recalled(let hits) = model.lastOutcome else {
+            Issue.record("Expected .recalled, got \(String(describing: model.lastOutcome))")
+            return
+        }
+        #expect(hits.first?.visibility == VisibilityClass.internal.rawValue)
     }
 }
