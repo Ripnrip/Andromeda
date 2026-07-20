@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Explicit content sources — required because this app lives in web/ inside a
+   larger Swift monorepo, where Tailwind v4's automatic detection (relative to
+   the git root) can miss these files and emit empty CSS. */
+@source "../app";
+@source "../components";
+@source "../lib";
+
 /*
   ANDROMEDA DESIGN SYSTEM
   -----------------------
