@@ -1,26 +1,28 @@
 import { SiteNav } from "@/components/site-nav"
-import { Hero } from "@/components/hero"
+import { ComingSoonHero } from "@/components/coming-soon-hero"
 import { PromiseStrip } from "@/components/promise-strip"
-import { PillarsSection } from "@/components/pillars-section"
+import { ValueTrio } from "@/components/value-trio"
+import { MemoryLayers } from "@/components/memory-layers"
+import { GraphVector } from "@/components/graph-vector"
 import { CurtainSection } from "@/components/curtain-section"
-import { BarDemo } from "@/components/bar-demo"
-import { SurfacesSection } from "@/components/surfaces-section"
-import { Manifesto } from "@/components/manifesto"
-import { BannerPreview } from "@/components/banner-preview"
+import { HonestStatus } from "@/components/honest-status"
+import { Roadmap } from "@/components/roadmap"
+import { WaitlistSection } from "@/components/waitlist-section"
 import { SiteFooter } from "@/components/site-footer"
 
 export default function HomePage() {
   return (
     <main className="min-h-screen">
       <SiteNav />
-      <Hero />
+      <ComingSoonHero />
       <PromiseStrip />
-      <PillarsSection />
+      <ValueTrio />
+      <MemoryLayers />
+      <GraphVector />
       <CurtainSection />
-      <BarDemo />
-      <SurfacesSection />
-      <Manifesto />
-      <BannerPreview />
+      <HonestStatus />
+      <Roadmap />
+      <WaitlistSection />
       <SiteFooter />
     </main>
   )

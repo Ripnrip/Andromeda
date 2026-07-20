@@ -24,11 +24,17 @@ const instrumentSerif = Instrument_Serif({
 })
 
 export const metadata: Metadata = {
-  title: "Andromeda — Local-first Swift control plane",
+  title: "Andromeda — Memory that doesn't evaporate · Coming soon",
   description:
-    "Andromeda owns Memory, MCP host, Skills, LLM proxy, Secrets broker, and Fleet runtime behind a capability curtain. Local-first, Swift-native, graph-aware.",
+    "Andromeda is a local-first Swift control plane. Its first pillar, Anima, distills every agent's day into one curated, connected, queryable brain. In active development — join the waitlist.",
   icons: {
     icon: "/andromeda-icon.png",
+  },
+  openGraph: {
+    title: "Andromeda — Memory that doesn't evaporate",
+    description:
+      "A local-first Swift control plane. Building Memory (Anima) first — graph-aware, provenance-preserving, local-first. Join the waitlist for early access.",
+    type: "website",
   },
 }
 

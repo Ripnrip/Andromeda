@@ -9,18 +9,20 @@ export function SiteFooter() {
           <AndromedaMark size={28} />
           <div>
             <p className="font-semibold">Andromeda</p>
-            <p className="font-mono text-xs text-muted-foreground">Six pillars. One curtain. No silent sprawl.</p>
+            <p className="font-mono text-xs text-muted-foreground">
+              Work in progress · building Memory first · no silent sprawl.
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-5 text-sm text-muted-foreground">
-          <Link href="/design" className="transition-colors hover:text-foreground">
-            Design System
+          <Link href="#memory" className="transition-colors hover:text-foreground">
+            Memory
           </Link>
-          <Link href="/banner" className="transition-colors hover:text-foreground">
-            Banner
+          <Link href="#roadmap" className="transition-colors hover:text-foreground">
+            Roadmap
           </Link>
-          <Link href="https://github.com/Ripnrip/Andromeda" className="transition-colors hover:text-foreground">
-            GitHub
+          <Link href="#waitlist" className="transition-colors hover:text-foreground">
+            Request access
           </Link>
         </div>
       </div>
