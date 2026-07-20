@@ -34,6 +34,7 @@ export const STORES: Store[] = [
   { name: "qdrant", style: "vector", answers: "Find the note about X by meaning, not keywords." },
   { name: "graphify", style: "graph", answers: "What is connected to what?" },
   { name: "LadybugDB", style: "graph + vector", answers: "Query the whole vault analytically, fast." },
+  { name: "PageIndex", style: "reasoning tree", answers: "Navigate a long document by its table of contents — reasoning, not embeddings." },
 ]
 
 // Letta sits above the stores: the conversational layer that reads across every
