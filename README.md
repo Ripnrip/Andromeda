@@ -1,3 +1,11 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset=".github/andromeda-banner-light.png" />
+    <source media="(prefers-color-scheme: dark)" srcset=".github/andromeda-banner.png" />
+    <img src=".github/andromeda-banner.png" alt="Andromeda — a macOS-first, Swift-native control plane. Pillars: Memory, MCP Host, Skills, LLM Proxy, Secrets Broker, Fleet Runtime." width="100%" />
+  </picture>
+</p>
+
 # Andromeda
 
 > A macOS-first, Swift-native control plane for visible, durable, graph-aware multi-agent engineering.
