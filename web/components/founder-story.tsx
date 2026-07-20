@@ -51,7 +51,8 @@ export function FounderStory() {
                   Our agents forgot yesterday&apos;s work. Environment secrets sprawled across machines. JavaScript and
                   Node dependencies had to be overridden just to make tools fit the way we worked. Even a Cerebras
                   floor rug became one more oddly specific problem we had to solve. We kept building one-off fixes,
-                  wrappers, and small automations because making things together was the point.
+                  wrappers, and small automations because making things together was the point &mdash; not babysitting,
+                  handholding, or micromanaging brittle peripheral infrastructure.
                 </p>
                 <p>
                   Eventually the pattern was impossible to miss: forgotten context, tool and process sprawl, buried
