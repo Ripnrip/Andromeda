@@ -16,7 +16,7 @@
 | Memory battle-test checklist #1–#12 | ⚠️ overclaimed | Local/PR tip greens ≠ merged main; see PROOF 44 table A |
 | Live vault recall (hot-empty → vault hits) | ⚠️ | Local proof real; CI does not gate |
 | Hermetic HUD e2e (store→recall→render) | ⚠️ | Hot hermetic only on PR #10; not live vault/boot |
-| CI e2e gates | ❌ | Theater / soft-skips; PR #10 GHA red |
+| CI e2e gates | 🚧 | Self-hosted Studio runner (`docs/CI-SELF-HOSTED.md`); hosted macOS blocked by billing |
 | Multibrain dual-home tip on `main` | ⚠️ | tip↔PR10 identical; Andromeda `main` ~42 files behind |
 | Andromeda HUD+Home SoT on `main` | ❌ | **Do not merge [PR #10](https://github.com/Ripnrip/Andromeda/pull/10)** until CI green |
 | Swift-native install (BIN-101) | ✅ | `swift run andromeda-install home|hud|both`; bash installer deleted |

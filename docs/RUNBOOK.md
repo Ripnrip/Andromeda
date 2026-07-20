@@ -192,3 +192,7 @@ apply `VisibilityFilter`; never infer safe egress from a successful local write.
 - Never point graphify `--obsidian-dir` at the live vault — use scratch + `graphify_merge.py`.
 - FAISS is intentionally unused.
 - HUD empty recall for a vault-known needle ⇒ suspect **stale binary**; rebuild/reinstall before debugging MemoryKit.
+
+## CI (self-hosted macOS)
+
+GitHub-hosted `macos-*` minutes are optional; default CI targets a **Studio self-hosted** runner. Setup: [CI-SELF-HOSTED.md](CI-SELF-HOSTED.md). Label `andromeda` required. Runner LaunchAgent: `com.andromeda.github-actions-runner` (visible; logs under `~/.multibrain/logs/`).

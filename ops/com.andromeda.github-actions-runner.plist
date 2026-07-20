@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Visible GitHub Actions self-hosted runner for Andromeda CI (free vs hosted macOS).
+
+  KeepAlive: runner process should stay up; quitting intentionally requires bootout.
+  Local-only env scrub: HOME + PATH only — never OPENROUTER_*/ANTHROPIC_* keys.
+
+  Labels required by .github/workflows/ci.yml: macOS + andromeda
+  Setup: docs/CI-SELF-HOSTED.md
+
+  Path template: Studio SoT uses /Users/admin — install must rewrite to real $HOME
+  (launchd does not expand $HOME/~).
+
+  Bootstrap (operator; absolute launchctl):
+    # see docs/CI-SELF-HOSTED.md § LaunchAgent
+  Unload:
+    /bin/launchctl bootout gui/$(/usr/bin/id -u)/com.andromeda.github-actions-runner
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.andromeda.github-actions-runner</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/admin/actions-runner/run.sh</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/admin/actions-runner</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>LimitLoadToSessionType</key>
+	<string>Aqua</string>
+	<key>StandardOutPath</key>
+	<string>/Users/admin/.multibrain/logs/andromeda-gha-runner.launchd.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/admin/.multibrain/logs/andromeda-gha-runner.launchd.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>/Users/admin</string>
+		<key>PATH</key>
+		<string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
+	</dict>
+</dict>
+</plist>

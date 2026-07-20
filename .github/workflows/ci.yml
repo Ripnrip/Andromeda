@@ -10,21 +10,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Free path: Studio (or Book) self-hosted Mac — avoids GitHub-hosted macOS billing.
+  # Package.swift is macOS-only (AppKit HUD/Home); ubuntu-latest cannot build this package.
+  # Register once: docs/CI-SELF-HOSTED.md · labels must include macOS + andromeda.
   build-test:
-    name: Build & Test (macOS)
-    # macOS runner is required: the snapshot suite is AppKit-guarded and would be
-    # silently skipped on Linux, hiding red snapshots.
-    # Snapshot PNGs are tied to this image (re-record with [record-snapshots] if changed).
-    runs-on: macos-15
+    name: Build & Test (macOS self-hosted)
+    # Snapshot suite is AppKit-guarded; Linux would silently skip red snapshots.
+    # Baselines are tied to this machine's macOS + Xcode — re-record with
+    # [record-snapshots] after changing the runner host or Xcode major.
+    runs-on: [self-hosted, macOS, andromeda]
     steps:
       - name: Checkout
         # Pin to immutable SHA (v4.3.1); mutable @v4 tags are a supply-chain risk.
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Select Xcode 16.4 (Swift 6.1)
-        # Package.swift requires swift-tools-version 6.1; pin Xcode so the toolchain
-        # does not drift when the runner default changes.
-        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+      - name: Select Xcode (prefer 16.4 when installed)
+        # Package.swift requires swift-tools-version 6.1. Hosted images used
+        # Xcode_16.4.app; Studio may only have Xcode.app — prefer pin, else active.
+        run: |
+          set -euo pipefail
+          if [ -d /Applications/Xcode_16.4.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.4.app
+          elif [ -d /Applications/Xcode.app ]; then
+            sudo xcode-select -s /Applications/Xcode.app
+          fi
+          xcode-select -p
+          xcodebuild -version || true
 
       - name: Swift version
         run: swift --version
@@ -32,9 +43,8 @@ jobs:
       - name: Build
         run: swift build
 
-      # Baselines must be recorded on macos-14 + Xcode 16.4 (this job). Local macOS 26 /
-      # Xcode 26 PNGs will not pixel-match the runner. Tip a commit with [record-snapshots]
-      # to rewrite **/__Snapshots__ here, then download the artifact and commit.
+      # Tip a commit with [record-snapshots] to rewrite **/__Snapshots__ here,
+      # then download the artifact and commit (or commit on the runner host).
       - name: Detect snapshot record mode
         id: snapshots
         run: |
@@ -96,8 +106,7 @@ jobs:
         working-directory: Packages/MemoryKit
         run: swift test --filter RetrievalServiceVaultLiveTests --parallel --num-workers 1
 
-      # Full-pipeline HUD e2e (store → recall → render). Only present once
-      # AndromedaHUDTests is wired in Package.swift (HUD promote PR).
+      # Full-pipeline HUD e2e (store → recall → render).
       - name: E2E · HUD store→recall→render snapshots
         if: steps.snapshots.outputs.record != 'true'
         run: |
