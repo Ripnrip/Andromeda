@@ -34,8 +34,29 @@ export const STORES: Store[] = [
   { name: "qdrant", style: "vector", answers: "Find the note about X by meaning, not keywords." },
   { name: "graphify", style: "graph", answers: "What is connected to what?" },
   { name: "LadybugDB", style: "graph + vector", answers: "Query the whole vault analytically, fast." },
-  { name: "Letta", style: "conversational", answers: "Ask, refine, follow up \u2014 recall that holds a thread." },
 ]
+
+// Letta sits above the stores: the conversational layer that reads across every
+// backing store on your behalf and drives the nightly Dream cycle.
+export type Librarian = {
+  name: string
+  style: string
+  role: string
+  answers: string
+  duties: string[]
+}
+
+export const LIBRARIAN: Librarian = {
+  name: "Letta",
+  style: "conversational",
+  role: "The master librarian & dreamer",
+  answers: "Ask, refine, follow up — recall that holds a thread.",
+  duties: [
+    "Reads across every backing store on your behalf, so one question fans out to all of them.",
+    "Holds the thread across turns — context survives the follow-up, not just the first ask.",
+    "Drives the nightly Dream cycle: Review → Shadow → Insight → Integration, so the morning is smarter.",
+  ],
+}
 
 // §10 — honest status. No greenwashing.
 export const STATUS_BOARD: { status: Status; heading: string; items: string[] }[] = [
