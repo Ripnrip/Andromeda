@@ -79,7 +79,10 @@ export function FounderStory() {
                   rel="noreferrer"
                   className="group overflow-hidden rounded-2xl border border-border bg-card/40 transition-colors hover:border-primary/40"
                 >
-                  <div className={`relative overflow-hidden border-b border-border/60 bg-secondary ${founder.frameClass}`}>
+                  <div
+                    className={`relative overflow-hidden border-b border-border/60 bg-secondary ${founder.frameClass}`}
+                    style={{ position: "relative", overflow: "hidden", aspectRatio: "1 / 1" }}
+                  >
                     <Image
                       src={founder.image}
                       alt={founder.alt}
