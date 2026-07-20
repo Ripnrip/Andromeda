@@ -10,7 +10,7 @@ const FOUNDERS = [
     image: "/founders/gurinder-full.png",
     alt: "Full illustrated portrait of Gurinder Singh at an arcade",
     frameClass: "aspect-square",
-    imageClass: "object-contain",
+    imageClass: "object-cover object-center",
   },
   {
     name: "@hashimotolabs",
