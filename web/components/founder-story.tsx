@@ -9,7 +9,7 @@ const FOUNDERS = [
     href: "https://github.com/Ripnrip",
     image: "/founders/gurinder-full.png",
     alt: "Full illustrated portrait of Gurinder Singh at an arcade",
-    frameClass: "aspect-[2/3]",
+    frameClass: "aspect-square",
     imageClass: "object-contain",
   },
   {
@@ -49,15 +49,16 @@ export function FounderStory() {
               <div className="mt-6 flex flex-col gap-5 text-base leading-relaxed text-muted-foreground">
                 <p>
                   Our agents forgot yesterday&apos;s work. Environment secrets sprawled across machines. JavaScript and
-                  Node dependencies had to be overridden just to make tools fit the way we worked. We kept building
-                  one-off fixes, wrappers, and small automations — sometimes serious infrastructure, sometimes a
-                  Cerebras floor rug — because making things together was the point.
+                  Node dependencies had to be overridden just to make tools fit the way we worked. Even a Cerebras
+                  floor rug became one more oddly specific problem we had to solve. We kept building one-off fixes,
+                  wrappers, and small automations because making things together was the point.
                 </p>
                 <p>
                   Eventually the pattern was impossible to miss: forgotten context, tool and process sprawl, buried
                   skills, provider churn, scattered secrets, and invisible automation were not isolated annoyances.
                   They were parts of the same missing control plane. We started solving it for ourselves, chose Memory
-                  as the first active build track, and turned those nightly fixes into a six-pillar charter.
+                  as the first active build track, and turned those nightly fixes into the six-pillar charter you see
+                  here.
                 </p>
               </div>
               <div className="mt-8 flex items-start gap-3 border-t border-border/60 pt-6">
@@ -69,7 +70,7 @@ export function FounderStory() {
               </div>
             </div>
 
-            <div className="grid items-start gap-4 sm:grid-cols-[0.78fr_1.22fr]">
+            <div className="grid items-start gap-4 sm:grid-cols-2">
               {FOUNDERS.map((founder) => (
                 <Link
                   key={founder.href}
