@@ -8,7 +8,7 @@ export type MemoryLayer = {
   differentiator?: boolean
 }
 
-// §3 — the eight layers of memory (Anima). Integrity / Awareness / Dream are the differentiators.
+// §3 — the eight layers of memory (Anima). Integrity / Awareness / Dreaming are the differentiators.
 export const MEMORY_LAYERS: MemoryLayer[] = [
   { n: "01", name: "Episodic", intent: "\u201cWe talked Tuesday.\u201d Timed, ordered, compactable capture.", status: "shipped" },
   { n: "02", name: "Semantic", intent: "\u201cChapter 3 has the state machine.\u201d Structure-first recall.", status: "partial" },
@@ -17,7 +17,7 @@ export const MEMORY_LAYERS: MemoryLayer[] = [
   { n: "05", name: "Meditation", intent: "Morning reflection that reads the dream journal and sets intention.", status: "partial" },
   { n: "06", name: "Soul", intent: "Presence, mood, relationship depth \u2014 context, not a chatbot.", status: "partial" },
   { n: "07", name: "Awareness", intent: "Speak only when it matters. Silence is a feature.", status: "partial", differentiator: true },
-  { n: "08", name: "Dream", intent: "Night: Review \u2192 Shadow \u2192 Insight \u2192 Integration.", status: "partial", differentiator: true },
+  { n: "08", name: "Dreaming", intent: "Night: Review \u2192 Shadow \u2192 Insight \u2192 Integration.", status: "partial", differentiator: true },
 ]
 
 // §4 — one job per store. Ordered along the exact \u2192 meaning \u2192 relationship spectrum.
@@ -34,8 +34,30 @@ export const STORES: Store[] = [
   { name: "qdrant", style: "vector", answers: "Find the note about X by meaning, not keywords." },
   { name: "graphify", style: "graph", answers: "What is connected to what?" },
   { name: "LadybugDB", style: "graph + vector", answers: "Query the whole vault analytically, fast." },
-  { name: "Letta", style: "conversational", answers: "Ask, refine, follow up \u2014 recall that holds a thread." },
+  { name: "PageIndex", style: "reasoning tree", answers: "Navigate a long document by its table of contents — reasoning, not embeddings." },
 ]
+
+// Letta sits above the stores: the conversational layer that reads across every
+// backing store on your behalf and drives the nightly Dream cycle.
+export type Librarian = {
+  name: string
+  style: string
+  role: string
+  answers: string
+  duties: string[]
+}
+
+export const LIBRARIAN: Librarian = {
+  name: "Letta",
+  style: "conversational",
+  role: "The master librarian & dreamer",
+  answers: "Ask, refine, follow up — recall that holds a thread.",
+  duties: [
+    "Reads across every backing store on your behalf, so one question fans out to all of them.",
+    "Holds the thread across turns — context survives the follow-up, not just the first ask.",
+    "Drives the nightly Dream cycle: Review → Shadow → Insight → Integration, so the morning is smarter.",
+  ],
+}
 
 // §10 — honest status. No greenwashing.
 export const STATUS_BOARD: { status: Status; heading: string; items: string[] }[] = [

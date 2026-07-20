@@ -51,7 +51,8 @@ export function FounderStory() {
                   Our agents forgot yesterday&apos;s work. Environment secrets sprawled across machines. JavaScript and
                   Node dependencies had to be overridden just to make tools fit the way we worked. Even a Cerebras
                   floor rug became one more oddly specific problem we had to solve. We kept building one-off fixes,
-                  wrappers, and small automations because making things together was the point.
+                  wrappers, and small automations because making things together was the point &mdash; not babysitting,
+                  handholding, or micromanaging brittle peripheral infrastructure.
                 </p>
                 <p>
                   Eventually the pattern was impossible to miss: forgotten context, tool and process sprawl, buried
@@ -79,7 +80,10 @@ export function FounderStory() {
                   rel="noreferrer"
                   className="group overflow-hidden rounded-2xl border border-border bg-card/40 transition-colors hover:border-primary/40"
                 >
-                  <div className={`relative overflow-hidden border-b border-border/60 bg-secondary ${founder.frameClass}`}>
+                  <div
+                    className={`relative overflow-hidden border-b border-border/60 bg-secondary ${founder.frameClass}`}
+                    style={{ position: "relative", overflow: "hidden", aspectRatio: "1 / 1" }}
+                  >
                     <Image
                       src={founder.image}
                       alt={founder.alt}
