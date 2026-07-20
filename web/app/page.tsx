@@ -6,6 +6,7 @@ import { MemoryLayers } from "@/components/memory-layers"
 import { GraphVector } from "@/components/graph-vector"
 import { CurtainSection } from "@/components/curtain-section"
 import { HonestStatus } from "@/components/honest-status"
+import { FounderStory } from "@/components/founder-story"
 import { Roadmap } from "@/components/roadmap"
 import { WaitlistSection } from "@/components/waitlist-section"
 import { SiteFooter } from "@/components/site-footer"
@@ -21,6 +22,7 @@ export default function HomePage() {
       <GraphVector />
       <CurtainSection />
       <HonestStatus />
+      <FounderStory />
       <Roadmap />
       <WaitlistSection />
       <SiteFooter />

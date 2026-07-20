@@ -5,6 +5,7 @@ const LINKS = [
   { href: "#memory", label: "Memory" },
   { href: "#recall", label: "Why graph + vector" },
   { href: "#status", label: "Status" },
+  { href: "#story", label: "Our story" },
   { href: "#roadmap", label: "Roadmap" },
 ]
 

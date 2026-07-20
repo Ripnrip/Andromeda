@@ -24,7 +24,7 @@ export function ValueTrio() {
       <div className="mx-auto max-w-6xl px-6">
         <p className="mb-3 text-center font-mono text-xs uppercase tracking-[0.3em] text-primary">What it&apos;s for</p>
         <h2 className="mx-auto max-w-3xl text-balance text-center font-serif text-4xl leading-[1.05] tracking-tight md:text-5xl">
-          Control the chaos. Conceal the complexity. Stop paying the evaporation tax.
+          The problems that pushed us to build Andromeda
         </h2>
 
         <div className="mt-14 grid gap-4 md:grid-cols-3">
