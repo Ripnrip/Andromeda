@@ -2,6 +2,19 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-07-20 — Swift-native `andromeda-install` (BIN-101)
+
+### Added
+- SPM library `AndromedaInstall` + executable product `andromeda-install` (build → `~/Applications` → adhoc codesign → HUD LaunchAgent mutate).
+- Required target `home|hud|both`; Studio-home plist rewrite to `$HOME`; absolute `/usr/bin/codesign` + `/bin/launchctl`; fail-closed kickstart.
+- `AndromedaInstallTests` covering parse, plist render, plan, and kickstart fail-closed.
+
+### Removed
+- `scripts/install-and-sign.sh` (Charter/AGENTS ban; Codex P1 on PR #10).
+
+### Changed
+- RUNBOOK / CONTROL-PLANE / WORKSPACE-READINESS / `ops/com.andromeda.hud.plist` point at `swift run andromeda-install` only.
+
 ## 2026-07-19 — Six Control-Plane Pillars Locked
 
 **Tone hat:** Cartographer 🗺️
