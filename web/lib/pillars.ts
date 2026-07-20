@@ -93,7 +93,7 @@ export const PILLARS: Pillar[] = [
     tagline: "Keys never touch client env",
     description:
       "Stable proxy IDs resolve to Keychain-backed secrets server-side. Satellite agents run env-scrubbed; the broker injects credentials at call time.",
-    capabilities: ["slack_proxy", "github_proxy", "write.too"],
+    capabilities: ["slack_proxy", "github_proxy", "write.tool"],
   },
   {
     index: 6,
@@ -142,7 +142,7 @@ export const CURTAIN: CurtainRow[] = [
     neverSees: "GITHUB_TOKEN, gh auth dumps",
   },
   {
-    id: "write.too",
+    id: "write.tool",
     hides: "Fast codegen inference via proxy",
     neverSees: "Provider brand + API key in env",
   },
