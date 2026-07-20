@@ -10,7 +10,7 @@ export function MemoryLayers() {
         <SectionHeading
           eyebrow="Active build track · pillar 01"
           title="A closer look at Memory"
-          desc="Anima is the first pillar under active construction, not the boundary of Andromeda. Its design treats memory as eight distinct jobs rather than a chat log with RAG — including Integrity, Awareness, and Dream."
+          desc="Anima is the first pillar under active construction, not the boundary of Andromeda. Its design treats memory as eight distinct jobs rather than a chat log with RAG — including Integrity, Awareness, and Dreaming."
         />
 
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

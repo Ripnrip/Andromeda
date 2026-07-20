@@ -8,7 +8,7 @@ export type MemoryLayer = {
   differentiator?: boolean
 }
 
-// §3 — the eight layers of memory (Anima). Integrity / Awareness / Dream are the differentiators.
+// §3 — the eight layers of memory (Anima). Integrity / Awareness / Dreaming are the differentiators.
 export const MEMORY_LAYERS: MemoryLayer[] = [
   { n: "01", name: "Episodic", intent: "\u201cWe talked Tuesday.\u201d Timed, ordered, compactable capture.", status: "shipped" },
   { n: "02", name: "Semantic", intent: "\u201cChapter 3 has the state machine.\u201d Structure-first recall.", status: "partial" },
@@ -17,7 +17,7 @@ export const MEMORY_LAYERS: MemoryLayer[] = [
   { n: "05", name: "Meditation", intent: "Morning reflection that reads the dream journal and sets intention.", status: "partial" },
   { n: "06", name: "Soul", intent: "Presence, mood, relationship depth \u2014 context, not a chatbot.", status: "partial" },
   { n: "07", name: "Awareness", intent: "Speak only when it matters. Silence is a feature.", status: "partial", differentiator: true },
-  { n: "08", name: "Dream", intent: "Night: Review \u2192 Shadow \u2192 Insight \u2192 Integration.", status: "partial", differentiator: true },
+  { n: "08", name: "Dreaming", intent: "Night: Review \u2192 Shadow \u2192 Insight \u2192 Integration.", status: "partial", differentiator: true },
 ]
 
 // §4 — one job per store. Ordered along the exact \u2192 meaning \u2192 relationship spectrum.
