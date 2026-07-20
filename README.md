@@ -77,6 +77,15 @@ swift run andromeda status
 ANTHROPIC_API_KEY=sk-ant-... swift run andromeda serve --port 8080
 ```
 
+Install / resign Home or HUD (macOS; typed Swift only — no Bash installer):
+
+```console
+swift run andromeda-install home
+swift run andromeda-install hud
+swift run andromeda-install both
+swift run andromeda-install hud --dry-run
+```
+
 Point Anthropic clients at `http://127.0.0.1:8080` instead of `https://api.anthropic.com`. Compatible headers include `X-Autocache-Injected`, `X-Autocache-Cache-Ratio`, and `X-Autocache-ROI-Percent`.
 
 ## Documentation
