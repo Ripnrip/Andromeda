@@ -2,6 +2,7 @@ import { SiteNav } from "@/components/site-nav"
 import { ComingSoonHero } from "@/components/coming-soon-hero"
 import { PromiseStrip } from "@/components/promise-strip"
 import { ValueTrio } from "@/components/value-trio"
+import { PillarsSection } from "@/components/pillars-section"
 import { MemoryLayers } from "@/components/memory-layers"
 import { GraphVector } from "@/components/graph-vector"
 import { CurtainSection } from "@/components/curtain-section"
@@ -18,12 +19,13 @@ export default function HomePage() {
       <ComingSoonHero />
       <PromiseStrip />
       <ValueTrio />
-      <MemoryLayers />
-      <GraphVector />
+      <PillarsSection />
       <CurtainSection />
       <HonestStatus />
       <FounderStory />
       <Roadmap />
+      <MemoryLayers />
+      <GraphVector />
       <WaitlistSection />
       <SiteFooter />
     </main>

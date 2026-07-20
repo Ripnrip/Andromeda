@@ -1,20 +1,20 @@
-import { Layers, EyeOff, Droplets } from "lucide-react"
+import { Activity, Route, Eye } from "lucide-react"
 
 const VALUES = [
   {
-    icon: Layers,
-    title: "Control the chaos",
-    body: "Many agents, many jobs, many days of work — brought into one observable place instead of scattered across terminals and transcripts.",
+    icon: Activity,
+    title: "Make the invisible visible",
+    body: "Agents, jobs, daemons, and scheduled work should report into one observable surface — not disappear across terminals, machines, and background processes.",
   },
   {
-    icon: EyeOff,
-    title: "Conceal the complexity",
-    body: "Several specialized stores sit behind one simple curtain. Clients ask a question; they never see the machinery that answers it.",
+    icon: Route,
+    title: "Give clients stable capabilities",
+    body: "Clients ask localhost for memory, tools, models, skills, or secrets by capability ID. Andromeda resolves the provider and policy behind the curtain.",
   },
   {
-    icon: Droplets,
-    title: "Stop paying the evaporation tax",
-    body: "The river of fixes, decisions, and root causes each day is distilled into durable memory — not lost the moment a session closes.",
+    icon: Eye,
+    title: "Keep control local",
+    body: "The control plane, audit trail, routing rules, and human kill switch stay yours — even when the providers behind them change.",
   },
 ]
 

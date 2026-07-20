@@ -7,9 +7,10 @@ const FOUNDERS = [
     name: "Gurinder Singh",
     handle: "@Ripnrip",
     href: "https://github.com/Ripnrip",
-    image: "/founders/gurinder.png",
-    alt: "Illustrated portrait of Gurinder Singh outdoors",
-    imageClass: "object-cover scale-[1.18] object-[50%_58%]",
+    image: "/founders/gurinder-full.png",
+    alt: "Full illustrated portrait of Gurinder Singh at an arcade",
+    frameClass: "aspect-[2/3]",
+    imageClass: "object-contain",
   },
   {
     name: "@hashimotolabs",
@@ -17,6 +18,7 @@ const FOUNDERS = [
     href: "https://github.com/hashimotolabs",
     image: "/founders/hashimotolabs.png",
     alt: "Portrait of the Hashimoto Labs founder in a terminal-filled workspace",
+    frameClass: "aspect-square",
     imageClass: "object-cover object-top",
   },
 ] as const
@@ -52,9 +54,10 @@ export function FounderStory() {
                   Cerebras floor rug — because making things together was the point.
                 </p>
                 <p>
-                  Eventually the pattern was impossible to miss: these were not isolated annoyances. They were parts
-                  of the same missing control plane. So we started solving it for ourselves, with Memory first, and
-                  turned those nightly fixes into the roadmap you see below.
+                  Eventually the pattern was impossible to miss: forgotten context, tool and process sprawl, buried
+                  skills, provider churn, scattered secrets, and invisible automation were not isolated annoyances.
+                  They were parts of the same missing control plane. We started solving it for ourselves, chose Memory
+                  as the first active build track, and turned those nightly fixes into a six-pillar charter.
                 </p>
               </div>
               <div className="mt-8 flex items-start gap-3 border-t border-border/60 pt-6">
@@ -66,7 +69,7 @@ export function FounderStory() {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid items-start gap-4 sm:grid-cols-[0.78fr_1.22fr]">
               {FOUNDERS.map((founder) => (
                 <Link
                   key={founder.href}
@@ -75,7 +78,7 @@ export function FounderStory() {
                   rel="noreferrer"
                   className="group overflow-hidden rounded-2xl border border-border bg-card/40 transition-colors hover:border-primary/40"
                 >
-                  <div className="relative aspect-[4/3] overflow-hidden border-b border-border/60 bg-secondary">
+                  <div className={`relative overflow-hidden border-b border-border/60 bg-secondary ${founder.frameClass}`}>
                     <Image
                       src={founder.image}
                       alt={founder.alt}

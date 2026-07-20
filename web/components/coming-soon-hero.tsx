@@ -1,6 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowRight, Brain } from "lucide-react"
+import { ArrowRight, Layers3 } from "lucide-react"
 
 export function ComingSoonHero() {
   return (
@@ -33,10 +33,9 @@ export function ComingSoonHero() {
             </h1>
 
             <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
-              <span className="font-serif italic text-foreground/90">Andromeda</span> is the local-first, Swift-native
-              control plane we wished existed for our own agents. We&apos;re starting with{" "}
-              <span className="text-foreground">Memory</span>: turning scattered sessions, decisions, and fixes into
-              durable context that compounds instead of disappearing.
+              <span className="font-serif italic text-foreground/90">Andromeda</span> is a local-first, Swift-native
+              control plane for the machinery around AI work: agents, jobs, tools, providers, secrets, and daemons —
+              visible and manageable behind one stable interface.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -49,17 +48,17 @@ export function ComingSoonHero() {
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
               <Link
-                href="#memory"
+                href="#pillars"
                 className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-5 py-3 font-medium text-foreground transition-colors hover:border-primary/50"
               >
-                <Brain className="h-4 w-4 text-primary" />
-                See what we&apos;re building
+                <Layers3 className="h-4 w-4 text-primary" />
+                Explore the six pillars
               </Link>
             </div>
 
             <p className="mt-6 font-mono text-xs leading-relaxed text-muted-foreground">
-              Andromeda is in active development. Memory (Anima) is the pillar we&apos;re building first — the rest of
-              the control plane is on the roadmap below.
+              Every agent, every job — visible. Memory (Anima) is the active build track; the six-pillar control plane
+              is the charter.
             </p>
           </div>
 

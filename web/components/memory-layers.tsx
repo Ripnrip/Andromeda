@@ -8,9 +8,9 @@ export function MemoryLayers() {
     <section id="memory" className="relative border-t border-border/60 py-20">
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeading
-          eyebrow="Anima · how it remembers"
-          title="Memory isn't one thing"
-          desc="Human memory has many modes; so does Anima. Eight layers, one job each. Most products ship only a chat log and maybe RAG — the differentiator is the full spectrum, especially Integrity, Awareness, and Dream."
+          eyebrow="Active build track · pillar 01"
+          title="A closer look at Memory"
+          desc="Anima is the first pillar under active construction, not the boundary of Andromeda. Its design treats memory as eight distinct jobs rather than a chat log with RAG — including Integrity, Awareness, and Dream."
         />
 
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

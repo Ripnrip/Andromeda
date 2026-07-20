@@ -2,8 +2,8 @@ import Link from "next/link"
 import { Wordmark } from "./wordmark"
 
 const LINKS = [
-  { href: "#memory", label: "Memory" },
-  { href: "#recall", label: "Why graph + vector" },
+  { href: "#pillars", label: "Six pillars" },
+  { href: "#curtain", label: "Curtain" },
   { href: "#status", label: "Status" },
   { href: "#story", label: "Our story" },
   { href: "#roadmap", label: "Roadmap" },
