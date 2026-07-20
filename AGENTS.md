@@ -8,7 +8,7 @@ Clients and satellite agents see stable IDs only (`memory.*`, `infer.write`, `pr
 
 ## Six control-plane pillars (do not lose sight)
 
-Andromeda is **Memory + MCP host + Skills + LLM proxy + Secrets broker + Fleet runtime** — not HUD/memory alone. Read `docs/ANDROMEDA-CONTROL-PLANE.md`. Mark 🚧/📐 honestly; do not claim secrets broker or MCP consolidate shipped. Fleet: observe via `LaunchEntity` / `FleetObserveReport`; mutate via typed Swift install (BIN-101), not bash.
+Andromeda is **Memory + MCP host + Skills + LLM proxy + Secrets broker + Fleet runtime** — not HUD/memory alone. Read `docs/ANDROMEDA-CONTROL-PLANE.md`. Mark 🚧/📐 honestly; do not claim secrets broker or MCP consolidate shipped. Fleet: observe via `LaunchEntity` / `FleetObserveReport`; mutate via typed Swift `andromeda-install` (`swift run andromeda-install {home|hud|both}`), never bash.
 
 Behind the curtain, fleet clocks, host/store ownership, privacy egress, graph/index
 brands, Letta/Python services, trackers, and secrets are operator internals.

@@ -19,7 +19,7 @@
 | CI e2e gates | ❌ | Theater / soft-skips; PR #10 GHA red |
 | Multibrain dual-home tip on `main` | ⚠️ | tip↔PR10 identical; Andromeda `main` ~42 files behind |
 | Andromeda HUD+Home SoT on `main` | ❌ | **Do not merge [PR #10](https://github.com/Ripnrip/Andromeda/pull/10)** until CI green |
-| Swift-native install (BIN-101) | ❌ Todo | Replace `install-and-sign.sh`; no bash exception |
+| Swift-native install (BIN-101) | ✅ | `swift run andromeda-install home|hud|both`; bash installer deleted |
 | CloudKit GUI smoke | 🚧 human | PROOF 43 honesty OK; BIN-79 does **not** block flip |
 | Human word to flip | ❌ | Agents will **not** flip unilaterally |
 
@@ -47,7 +47,7 @@ PROOF 44 remains frozen evidence. Canonical architecture and status matrix:
 
 ## Product scope note — six control-plane pillars (2026-07-19)
 
-Andromeda’s product identity is **broader than HUD/memory**. Locked pillars (Memory, MCP host, Skills, LLM proxy, Secrets broker, Fleet runtime) live in [ANDROMEDA-CONTROL-PLANE.md](./ANDROMEDA-CONTROL-PLANE.md). These are **product-scope documentation** — they do **not** claim secrets broker, MCP consolidate, SkillRegistry, or full fleet mutate are shipped, and they do **not** clear the flip gates above. FleetObserve / LaunchEntity observe paths exist (🚧); Swift install mutate remains BIN-101 (📐).
+Andromeda’s product identity is **broader than HUD/memory**. Locked pillars (Memory, MCP host, Skills, LLM proxy, Secrets broker, Fleet runtime) live in [ANDROMEDA-CONTROL-PLANE.md](./ANDROMEDA-CONTROL-PLANE.md). These are **product-scope documentation** — they do **not** claim secrets broker, MCP consolidate, SkillRegistry, or full fleet plist centralization are shipped, and they do **not** clear the flip gates above. FleetObserve / LaunchEntity observe paths exist (🚧); Home/HUD install mutate ships as `andromeda-install` (BIN-101 ✅).
 
 **Recommended flip sequence (when you say the word):**
 1. Merge Andromeda PR #10 (and close PR #9 as superseded).
@@ -70,7 +70,7 @@ Tonight closed the **Visible Alpha** capability curtain as a visible chapter —
 
 ## HUD vault-true wave (2026-07-18→19)
 
-- Stale AndromedaHUD binary (hot-store-only) returned empty for `"cloak"` while vault had matches — rebuilt via `scripts/install-and-sign.sh hud`.
+- Stale AndromedaHUD binary (hot-store-only) returned empty for `"cloak"` while vault had matches — rebuilt via `swift run andromeda-install hud`.
 - Live vault regression: hot=0, vaultHitCount=12, `degraded=false` (`RetrievalServiceVaultLiveTests` in both homes).
 - Hermetic e2e: real submit pipeline → pixel baselines (`Dark_E2E_Recalled` / `Dark_E2E_Empty`).
 - Dirty trees reconciled: Andromeda → clean PR #10; multibrain → committed `b73bc2b` + planning docs this session.
@@ -135,6 +135,6 @@ Do **not** flip the Cursor workspace root to Andromeda until the checklist above
 1. ~~Rsync MemoryKit until #9 is ✅~~ — done 2026-07-16; re-landed 2026-07-19 on multibrain `main`.
 2. **Do not merge Andromeda PR #10** until GHA is green (snapshots + flakes); then merge and close PR #9 as superseded.
 3. Clear PROOF 44 hard blockers (curtain scrub, Letta/Home spend, live-vault CI gate, checklist #13–#20, status honesty).
-4. Land BIN-101 Swift-native `andromeda-install`; delete `install-and-sign.sh` (no bash exception).
+4. ~~Land BIN-101 Swift-native `andromeda-install`; delete `install-and-sign.sh`~~ — shipped (`andromeda-install`; bash deleted).
 5. Optional: BIN-79 CloudKit GUI smoke (does not block app-workspace flip).
 6. **Say the word** to flip workspace defaults — agents will **not** do it unilaterally.

@@ -166,10 +166,19 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.multibrain.retro.pli
 Cursor default workspace stays **multibrain** until the human says the word. Gate checklist + flip sequence: [ANDROMEDA-WORKSPACE-READINESS.md](ANDROMEDA-WORKSPACE-READINESS.md).
 
 After flip: day-to-day **app** work lives in `~/Developer/Andromeda`; this repo
-remains the **fleet / nightly / PROOFS** SoT. Install or rebuild HUD only through the
-typed Swift `andromeda-install` CLI required by BIN-101. Its exact invocation is
-**gated/TBD until that artifact ships**; do not substitute `scripts/install-and-sign.sh`
-or any post-flip Bash installer guidance.
+remains the **fleet / nightly / PROOFS** SoT. Install or rebuild Home/HUD only through
+typed Swift `andromeda-install` (BIN-101 / HAB-104) — no Bash installer:
+
+```console
+swift run andromeda-install home
+swift run andromeda-install hud
+swift run andromeda-install both
+swift run andromeda-install hud --dry-run
+```
+
+Target is required (`home|hud|both`). HUD mutates LaunchAgent `com.andromeda.hud`
+(Studio-home template → `$HOME`, absolute `/usr/bin/codesign` + `/bin/launchctl`,
+fail-closed kickstart). MemoryKit FleetObserve stays observe-only.
 
 Architecture/status matrices (capabilities, stores, privacy, graphs, Letta boundary):
 [ANDROMEDA-CONTROL-PLANE.md](ANDROMEDA-CONTROL-PLANE.md). The current HUD does not

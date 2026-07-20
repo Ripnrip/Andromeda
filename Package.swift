@@ -12,7 +12,9 @@ let package = Package(
         .library(name: "AndromedaGateway", targets: ["AndromedaGateway"]),
         .library(name: "AndromedaHomeCore", targets: ["AndromedaHomeCore"]),
         .library(name: "AndromedaHUDCore", targets: ["AndromedaHUDCore"]),
+        .library(name: "AndromedaInstall", targets: ["AndromedaInstall"]),
         .executable(name: "andromeda", targets: ["AndromedaCLI"]),
+        .executable(name: "andromeda-install", targets: ["AndromedaInstallCLI"]),
         .executable(name: "AndromedaHome", targets: ["AndromedaHome"]),
         .executable(name: "AndromedaHUD", targets: ["AndromedaHUD"]),
     ],
@@ -96,6 +98,35 @@ let package = Package(
                 "AndromedaHUDCore",
             ],
             path: "Sources/AndromedaHUD",
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .target(
+            name: "AndromedaInstall",
+            dependencies: [],
+            path: "Sources/AndromedaInstall",
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .executableTarget(
+            name: "AndromedaInstallCLI",
+            dependencies: [
+                "AndromedaInstall",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+            path: "Sources/AndromedaInstallCLI",
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .testTarget(
+            name: "AndromedaInstallTests",
+            dependencies: [
+                "AndromedaInstall",
+            ],
+            path: "Tests/AndromedaInstallTests",
             swiftSettings: [
                 .swiftLanguageMode(.v6)
             ]
