@@ -49,6 +49,8 @@ swift test
 swift build -c release
 ```
 
+CI uses a **Studio self-hosted** GitHub Actions runner (`[self-hosted, macOS, andromeda]`) to avoid hosted macOS billing — see `docs/CI-SELF-HOSTED.md`. Do not add invisible runner daemons; keep `com.andromeda.github-actions-runner` as a visible LaunchAgent.
+
 Dual-home MemoryKit package:
 
 ```console

@@ -97,6 +97,7 @@ Point Anthropic clients at `http://127.0.0.1:8080` instead of `https://api.anthr
 - [Agent guidance](AGENTS.md)
 - [Claude guidance](CLAUDE.md)
 - [Workspace readiness / flip gate](docs/ANDROMEDA-WORKSPACE-READINESS.md)
+- [CI self-hosted macOS (Studio)](docs/CI-SELF-HOSTED.md)
 - [Sequence diagrams](Documentation/Diagrams/README.md)
 - [Gateway architecture](Documentation/Architecture/GATEWAY-ARCHITECTURE.md)
 - [Autocache Swift port](Documentation/Architecture/AUTOCACHE-SWIFT.md)

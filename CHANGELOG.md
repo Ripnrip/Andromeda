@@ -2,6 +2,16 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-07-20 — Self-hosted macOS CI (billing bypass)
+
+### Changed
+- `.github/workflows/ci.yml` runs on `[self-hosted, macOS, andromeda]` instead of billed `macos-15`.
+- Added `docs/CI-SELF-HOSTED.md` + visible LaunchAgent template `ops/com.andromeda.github-actions-runner.plist`.
+
+### Notes
+- Root package is macOS-only — Linux hosted runners cannot replace AppKit CI.
+- Operator must register the Studio runner once (token + labels).
+
 ## 2026-07-20 — Swift-native `andromeda-install` (BIN-101)
 
 ### Added
