@@ -11,9 +11,9 @@ export function Roadmap() {
     <section id="roadmap" className="relative border-t border-border/60 py-20">
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeading
-          eyebrow="Roadmap · six pillars, one curtain"
+          eyebrow="Roadmap · from nightly fixes to one control plane"
           title="Building Memory first"
-          desc="Anima is where we are now. The rest of the control plane follows the same rule — clients call stable capability IDs; Andromeda resolves providers, secrets, and processes behind the curtain."
+          desc="The roadmap grew out of the problems we kept solving together: forgotten agent context, scattered secrets, brittle tooling, and dependencies that fought customization. Anima is where we are now; the rest of the control plane follows from those same late-night lessons."
         />
 
         {/* Now: Memory */}

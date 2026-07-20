@@ -26,18 +26,17 @@ export function ComingSoonHero() {
             </div>
 
             <h1 className="text-balance font-serif text-6xl leading-[1.02] tracking-tight md:text-7xl">
-              One connected{" "}
+              Control the chaos.{" "}
               <span className="italic text-primary" style={{ textShadow: "0 0 40px oklch(0.83 0.14 190 / 0.4)" }}>
-                brain
-              </span>{" "}
-              for everything your agents learn
+                Conceal the complexity.
+              </span>
             </h1>
 
             <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
-              Every agent you run generates a river of work each day — fixes, decisions, root causes — and without
-              memory it all evaporates. <span className="font-serif italic text-foreground/90">Andromeda</span> is a
-              local-first Swift control plane whose first pillar, <span className="text-foreground">Anima</span>,
-              distills every agent&apos;s day into one curated, connected, queryable brain.
+              <span className="font-serif italic text-foreground/90">Andromeda</span> is the local-first, Swift-native
+              control plane we wished existed for our own agents. We&apos;re starting with{" "}
+              <span className="text-foreground">Memory</span>: turning scattered sessions, decisions, and fixes into
+              durable context that compounds instead of disappearing.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
