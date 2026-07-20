@@ -11,9 +11,9 @@ export function Roadmap() {
     <section id="roadmap" className="relative border-t border-border/60 py-20">
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeading
-          eyebrow="Roadmap · from nightly fixes to one control plane"
-          title="Building Memory first"
-          desc="The roadmap grew out of the problems we kept solving together: forgotten agent context, scattered secrets, brittle tooling, and dependencies that fought customization. Anima is where we are now; the rest of the control plane follows from those same late-night lessons."
+          eyebrow="Roadmap · six build tracks, one charter"
+          title="One active track. A much larger system."
+          desc="Andromeda is a six-pillar program, not a memory product with extras. Memory is the active implementation today; MCP, Skills, LLM routing, Secrets, and Fleet each have their own honest shipped, partial, or specified state."
         />
 
         {/* Now: Memory */}

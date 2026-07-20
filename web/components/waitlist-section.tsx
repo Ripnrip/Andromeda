@@ -17,11 +17,12 @@ export function WaitlistSection() {
             <span className="font-mono text-xs uppercase tracking-[0.3em] text-primary">Early access</span>
           </div>
           <h2 className="text-balance font-serif text-4xl leading-[1.05] tracking-tight md:text-5xl">
-            Be there when memory stops evaporating
+            Help shape the control plane we wish existed
           </h2>
           <p className="mt-4 max-w-lg text-pretty leading-relaxed text-muted-foreground">
-            We&apos;re building Andromeda in the open. Join the waitlist to follow Anima&apos;s milestones and get early
-            access as each pillar comes online. No spam — we email only when there&apos;s something real to show.
+            We&apos;re building Andromeda toward the open-source world: one local curtain for agents, jobs, tools,
+            providers, secrets, and fleet state. Join for real milestones as the six pillars come online — no launch
+            theater, no spam.
           </p>
 
           <ul className="mt-6 flex flex-col gap-2 font-mono text-xs text-muted-foreground">

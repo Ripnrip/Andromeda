@@ -24,16 +24,16 @@ const instrumentSerif = Instrument_Serif({
 })
 
 export const metadata: Metadata = {
-  title: "Andromeda — Memory that doesn't evaporate · Coming soon",
+  title: "Andromeda — Control the chaos · Coming soon",
   description:
-    "Andromeda is a local-first Swift control plane. Its first pillar, Anima, distills every agent's day into one curated, connected, queryable brain. In active development — join the waitlist.",
+    "Andromeda is a local-first, Swift-native control plane for agents, jobs, tools, models, secrets, memory, and fleet state. Six pillars behind one capability curtain.",
   icons: {
     icon: "/andromeda-icon.png",
   },
   openGraph: {
-    title: "Andromeda — Memory that doesn't evaporate",
+    title: "Andromeda — Control the chaos. Conceal the complexity.",
     description:
-      "A local-first Swift control plane. Building Memory (Anima) first — graph-aware, provenance-preserving, local-first. Join the waitlist for early access.",
+      "Every agent, every job — visible. Six pillars behind one local-first capability curtain, with Memory as the active build track.",
     type: "website",
   },
 }

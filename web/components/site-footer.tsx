@@ -10,16 +10,16 @@ export function SiteFooter() {
           <div>
             <p className="font-semibold">Andromeda</p>
             <p className="font-mono text-xs text-muted-foreground">
-              Work in progress · building Memory first · no silent sprawl.
+              Six pillars · one curtain · every agent, every job visible.
             </p>
           </div>
         </div>
         <div className="flex items-center gap-5 text-sm text-muted-foreground">
-          <Link href="#memory" className="transition-colors hover:text-foreground">
-            Memory
+          <Link href="#pillars" className="transition-colors hover:text-foreground">
+            Six pillars
           </Link>
-          <Link href="#roadmap" className="transition-colors hover:text-foreground">
-            Roadmap
+          <Link href="#curtain" className="transition-colors hover:text-foreground">
+            Capability curtain
           </Link>
           <Link href="#waitlist" className="transition-colors hover:text-foreground">
             Request access
