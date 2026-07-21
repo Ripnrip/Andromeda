@@ -34,7 +34,7 @@ export function HonestStatus() {
 
         <p className="mt-6 rounded-xl border border-partial/30 bg-partial/5 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
           <span className="font-mono text-xs uppercase tracking-wider text-partial">caveat</span>{" "}
-          <code className="font-mono text-foreground">infer.write</code> is currently an episodic-store alias — not LLM
+          <code className="font-mono text-foreground">write.tool</code> is currently an episodic-store alias — not LLM
           inference. It becomes a real inference capability only through an explicit versioned migration. We don&apos;t
           advertise it as inference until then.
         </p>

@@ -36,8 +36,8 @@ export function MemoryLayers() {
 
         <p className="mt-6 flex items-center gap-2 font-mono text-xs text-muted-foreground">
           <Sparkles className="h-3.5 w-3.5 text-primary" />
-          Differentiators: it can prove a memory is trustworthy, knows when <em>not</em> to interrupt, and reflects
-          overnight so the morning is smarter.
+          Differentiators: it can prove a memory is trustworthy, knows when <em>not</em> to interrupt, and Dreaming
+          consolidates overnight so the morning is smarter.
         </p>
       </div>
     </section>

@@ -13,8 +13,8 @@ export function CurtainSection() {
         />
 
         <div className="mt-12 overflow-hidden rounded-2xl border border-border bg-card/40">
-          {/* Header */}
-          <div className="grid grid-cols-12 gap-4 border-b border-border bg-secondary/50 px-5 py-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+          {/* Header — hidden on mobile, shown md+ */}
+          <div className="hidden md:grid md:grid-cols-12 gap-4 border-b border-border bg-secondary/50 px-5 py-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
             <div className="col-span-3">Capability ID</div>
             <div className="col-span-5">Hides behind the curtain</div>
             <div className="col-span-4">Client must never see</div>
@@ -22,17 +22,24 @@ export function CurtainSection() {
           {CURTAIN.map((row) => (
             <div
               key={row.id}
-              className="grid grid-cols-12 items-center gap-4 border-b border-border/50 px-5 py-4 text-sm transition-colors last:border-0 hover:bg-secondary/30"
+              className="border-b border-border/50 px-5 py-4 text-sm transition-colors last:border-0 hover:bg-secondary/30 md:grid md:grid-cols-12 md:items-center md:gap-4"
             >
-              <div className="col-span-3">
-                <code className="rounded-md bg-primary/10 px-2 py-1 font-mono text-[12px] text-primary">
+              {/* Mobile: stacked layout. md+: grid row */}
+              <div className="md:col-span-3">
+                <code className="rounded-md bg-primary/10 px-2 py-1 font-mono text-[12px] text-primary break-all">
                   {row.id}
                 </code>
               </div>
-              <div className="col-span-5 text-muted-foreground">{row.hides}</div>
-              <div className="col-span-4 flex items-center gap-2 text-muted-foreground/80">
-                <EyeOff className="h-3.5 w-3.5 shrink-0 text-partial" />
-                <span className="line-through decoration-partial/40">{row.neverSees}</span>
+              <div className="mt-2 md:mt-0 md:col-span-5 text-muted-foreground">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50 mr-1 md:hidden">Hides: </span>
+                {row.hides}
+              </div>
+              <div className="mt-1 md:mt-0 md:col-span-4 flex items-start gap-2 text-muted-foreground/80">
+                <EyeOff className="h-3.5 w-3.5 shrink-0 text-partial mt-0.5" />
+                <span className="line-through decoration-partial/40 break-words">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50 no-underline mr-1 md:hidden">Never: </span>
+                  {row.neverSees}
+                </span>
               </div>
             </div>
           ))}
