@@ -44,10 +44,10 @@ flowchart TB
 
 | # | Pillar | Client-facing IDs (examples) | Status 2026-07-19 | Code / doc lineage |
 |---|--------|------------------------------|-------------------|--------------------|
-| 1 | **Memory (Anima)** | `memory.recall`, `memory.store`, `memory.journal` / session dump, `infer.write`, `project.state.*` | 🚧 curtain + MemoryKit live; HUD journal/privacy landed on promotion branch; CloudKit GUI / Letta WS open | [MEMORY-ONEPAGER.md](./MEMORY-ONEPAGER.md), MemoryKit |
+| 1 | **Memory (Anima)** | `memory.recall`, `memory.store` (+ journal/session aliases), `project.state.*` — **not** `infer.write` | 🚧 curtain + MemoryKit live; HUD journal/privacy landed on promotion branch; CloudKit GUI / Letta WS open | [MEMORY-ONEPAGER.md](./MEMORY-ONEPAGER.md), [MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md), MemoryKit |
 | 2 | **MCP home** | MCP tools appear as capabilities after host consolidate — not 50× `npm exec` per Studio | 🚧 `MCPServerRegistry` observe/scan + sprawl bent 55→37; **shared lifecycle / dedupe host not shipped** | BIN-41, [MCP-SPRAWL-PROBLEM.md](./MCP-SPRAWL-PROBLEM.md), Gate F |
 | 3 | **Agent skills home** | Skill invoke via registry surface (not tribal `~/.claude/skills` hunting) | 📐 `SkillRegistry` target entity; inventory exists in surface-area | HAB-39, [ANDROMEDA-SURFACE-AREA.md](./ANDROMEDA-SURFACE-AREA.md) §F |
-| 4 | **LLM proxy** | `infer.write` (and aliases) — clients never pick Cerebras/OpenRouter/Anthropic | 🚧 Autocache Anthropic Hummingbird surface live; full multi-provider router / OpenAI-compat / breakers **not** done | `GatewayConfig`, Gate D, Autocache proofs |
+| 4 | **LLM proxy** | Autocache / future `infer.generate` / `write.too` — clients never pick Cerebras/OpenRouter/Anthropic; **LLM ≠ memory write** | 🚧 Autocache Anthropic Hummingbird surface live; full multi-provider router / OpenAI-compat / breakers **not** done | `GatewayConfig`, Gate D, Autocache proofs |
 | 5 | **Secrets vault / broker** | `slack_proxy`, `github_proxy`, `write.too` (e.g. Cerebras), … — **never** raw key values in client/agent process env | 📐 charter Keychain intent; VisibilityFilter redacts narrative secrets; **no broker injecting capabilities yet** | Charter `AndromedaConfig`; BIN-43 key pin lane |
 | 6 | **Fleet runtime** | Operator/UI: LaunchAgent roster, health pulse, telemetry — mutate via typed Swift install/CLI | 🚧 `LaunchEntity` / `FleetObserveReport` / TelemetryHub / bar roster **observe**; full plist centralization + typed mutate **not** done | BIN-26/33, BIN-101, [ANDROMEDA-SURFACE-AREA.md](./ANDROMEDA-SURFACE-AREA.md) §G |
 
@@ -59,8 +59,8 @@ Same pattern as memory: **stable ID in → Andromeda resolves secret + provider 
 
 | Capability ID | Hides behind the curtain | Client must NOT see |
 |---------------|--------------------------|---------------------|
-| `memory.recall` / `memory.store` | SwiftData hot, vault, Ladybug, Qdrant, cloaks | Store paths, index brands |
-| `infer.write` | Autocache / gateway / model registry / health / fallbacks | Anthropic, Cerebras, OpenRouter, raw API keys |
+| `memory.recall` / `memory.store` | Hot store (SwiftData today), WriteKind, vault/page/graphify/vectors, cloaks | Store paths, index brands, SwiftData/Realm |
+| `infer.write` | **Deprecated client alias** → `memory.store` + `WriteKind.inferAliasDeprecated` (not LLM) | Must not be advertised as inference |
 | `project.state.*` | Linear ∪ Multica ∪ Slack fanout | Tracker brand names in menus |
 | `slack_proxy` | Slack Web API via broker; token from Keychain/vault | `SLACK_BOT_TOKEN`, raw env |
 | `github_proxy` | GitHub API via broker | `GITHUB_TOKEN`, `gh` auth dumps in agent env |
@@ -91,17 +91,17 @@ store brands, ports, and credentials are operator implementation details.
 
 | Stable client ID | Status | Semantics as built | Important boundary |
 |------------------|--------|--------------------|--------------------|
-| `memory.recall` | ✅ | Recalls from the SwiftData hot store, with the vault fallback used by Home/HUD | Ladybug is not this API's backend |
-| `memory.store` | ✅ | Transactional episodic write into `~/.multibrain/anima-hot.store` | Materialization/index writes are asynchronous and fail-open |
-| `memory.journal` | ✅ Home/Bar; ✅ HUD promotion branch | Distinct journal parsing, metadata, default body, and capture path | Merge/CI on Andromeda main still gates shipped status |
-| `memory.session_dump` | ✅ Home/Bar; ✅ HUD promotion branch | Distinct session-dump identity, metadata, default body, and capture path | Merge/CI on Andromeda main still gates shipped status |
-| `infer.write` | 🚧 misleading name | Today this is an episodic store alias tagged `infer-write` | It does **not** perform LLM inference or provider routing today |
+| `memory.recall` | ✅ | Hot store first; vault ripgrep is degraded fallback today — target: page index → graphify → vectors ([MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md)) | Clients never pick backend brands |
+| `memory.store` | ✅ | **One** client write verb; transactional hot insert + WriteKind behind curtain | Materialization/index writes are asynchronous and fail-open |
+| `memory.journal` | ✅ Home/Bar; ✅ HUD promotion branch | Alias of `memory.store` + `WriteKind.journal` | Merge/CI on Andromeda main still gates shipped status |
+| `memory.session_dump` | ✅ Home/Bar; ✅ HUD promotion branch | Alias of `memory.store` + `WriteKind.sessionDump` | Merge/CI on Andromeda main still gates shipped status |
+| `infer.write` | 🚧 **deprecated client alias** | Maps to `memory.store` + `WriteKind.inferAliasDeprecated` (tag `infer-write`) | **Not** LLM inference; do not put on new client menus |
 | `project.state.list/get/create/update` | ✅ | Stable project-state CRUD; operator bridge may route to Linear/Multica/Slack | Clients never see tracker brands |
-| `slack_proxy`, `github_proxy`, `write.too` | 📐 | Reserved stable IDs for a future server-side secrets broker/proxy | No broker runtime or secret injection is shipped |
+| `slack_proxy`, `github_proxy`, `write.too` | 📐 | Secrets broker / fast codegen inference — **not** memory writes | No broker runtime or secret injection is shipped |
 
-`infer.write` may become an inference-facing capability only through an explicit,
-versioned contract. Existing callers must be treated as memory writers until that
-migration happens.
+Real LLM generation stays under the LLM-proxy pillar (Autocache / `write.too` /
+future `infer.generate`). Never recycle `infer.write` for inference until memory
+callers are fully on `memory.store`. See [MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md).
 
 ## Fleet and machine ownership
 
@@ -155,7 +155,7 @@ flowchart TB
 
 | Store | Role | Source-of-truth / retention rule |
 |-------|------|----------------------------------|
-| SwiftData `~/.multibrain/anima-hot.store` | implemented hot episodic capture | episodic SoT; **Realm is not implemented** |
+| SwiftData `~/.multibrain/anima-hot.store` | implemented hot episodic capture | episodic SoT today; **Realm not implemented** — pivot path is one HotStore adapter + optional live fanout ([MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md)), not twin SoTs |
 | SecondBrain / Obsidian | curated, human-readable semantic memory | semantic SoT; durable and git-auditable |
 | `~/.multibrain/state.db` | dedup, baselines, alert and operational metadata | operational SoT only; not user memory |
 | LadybugDB | hub graph/vector query index | rebuildable cache; not `memory.recall` |
@@ -218,8 +218,11 @@ dependency or required pillar.
 - Add optional `visibility` and `content_hash` to Python materialized-note contracts;
   interpret missing visibility as private.
 - Prove public/friends-only CloudKit and vector export; do not call CloudKit shipped first.
-- Rename/version `infer.write` semantics or implement real inference routing without
-  breaking its current episodic-store callers.
+- Retire `infer.write` from client menus (shim → `WriteKind.inferAliasDeprecated`);
+  keep real LLM under Autocache / `write.too` / future `infer.generate` — see
+  [MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md).
+- Promote page/structured index + graphify in `memory.recall`; demote ripgrep to
+  degraded fallback only.
 - Verify Book live jobs and tunnel health; keep Mini isolated.
 - Build neither secrets-broker nor MCP-consolidate claims until runtime proofs exist.
 - Keep future Swift agent runtime separate from Autocache and prove HTTP/WS APIs with
@@ -244,6 +247,7 @@ dependency or required pillar.
 
 | Doc | Role |
 |-----|------|
+| [MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md) | One write / one recall + WriteKind + retrieval ladder (design pivot) |
 | [MEMORY-ONEPAGER.md](./MEMORY-ONEPAGER.md) | Memory / Anima detail |
 | [ANDROMEDA-SURFACE-AREA.md](./ANDROMEDA-SURFACE-AREA.md) | Entity inventory (MCP, skills, LaunchAgents) |
 | [ANDROMEDA-WORKSPACE-READINESS.md](./ANDROMEDA-WORKSPACE-READINESS.md) | Flip gate (pillars ≠ flip) |
