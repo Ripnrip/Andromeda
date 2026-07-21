@@ -44,8 +44,8 @@ export const PILLARS: Pillar[] = [
     status: "partial",
     tagline: "Graph-native memory fabric",
     description:
-      "Append-first episodic capture with a curated semantic vault. Recall and store resolve across hot store, vault, and rebuildable indexes — provenance preserved. write.tool is the write path into memory: Cerebras under the hood, with Andromeda handling Node compatibility, model changes, system-prompt injection, and a pre-flight health check so writes never fail silently.",
-    capabilities: ["memory.recall", "memory.store", "memory.journal", "write.tool", "project.state.*"],
+      "Append-first into a local hot store; curated vault + rebuildable indexes behind the curtain. Clients call memory.store and memory.recall. Provenance stays; index failure never erases the source.",
+    capabilities: ["memory.recall", "memory.store", "memory.journal", "project.state.*"],
   },
   {
     index: 2,
