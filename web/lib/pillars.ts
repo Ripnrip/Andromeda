@@ -44,7 +44,7 @@ export const PILLARS: Pillar[] = [
     status: "partial",
     tagline: "Graph-native memory fabric",
     description:
-      "Append-first episodic capture with a curated semantic vault. Recall and store resolve across hot store, vault, and rebuildable indexes — provenance preserved.",
+      "Append-first episodic capture with a curated semantic vault. Recall and store resolve across hot store, vault, and rebuildable indexes — provenance preserved. infer.write is the write path into memory: Cerebras under the hood, with Andromeda handling Node compatibility, model changes, system-prompt injection, and a pre-flight health check so writes never fail silently.",
     capabilities: ["memory.recall", "memory.store", "memory.journal", "infer.write", "project.state.*"],
   },
   {
@@ -123,8 +123,8 @@ export const CURTAIN: CurtainRow[] = [
   },
   {
     id: "infer.write",
-    hides: "Autocache, gateway, model registry, fallbacks",
-    neverSees: "Anthropic, Cerebras, OpenRouter, API keys",
+    hides: "Cerebras under the hood — Andromeda manages Node compatibility, model changes, system-prompt injection so models know the write format, and a daily health check before any client call that would otherwise fail silently",
+    neverSees: "Cerebras, model names, API keys, raw Node errors",
   },
   {
     id: "project.state.*",
