@@ -10,6 +10,7 @@
  */
 
 import Foundation
+import MemoryKit
 
 // MARK: - Errors
 

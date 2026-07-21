@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import OSLog
-@testable import MemoryKit
+@testable import AnimaIndexing
 
 /**
  * 🎭 The LadybugIndexerTests - The Quality Assurance Ritual of the Cartographer

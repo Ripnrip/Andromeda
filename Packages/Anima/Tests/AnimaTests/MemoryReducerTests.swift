@@ -11,7 +11,8 @@
 import Foundation
 import ComposableArchitecture
 import Testing
-@testable import MemoryKit
+import MemoryKit
+@testable import AnimaCore
 
 @Suite("🎭 Anima Memory Reducer Test Stage ✨")
 @MainActor

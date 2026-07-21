@@ -10,7 +10,8 @@
 
 import Foundation
 import Testing
-@testable import MemoryKit
+import MemoryKit
+@testable import AnimaKnowledge
 
 @Suite("🔮 Obsidian Materializer Dream Rituals")
 struct ObsidianMaterializerTests {
