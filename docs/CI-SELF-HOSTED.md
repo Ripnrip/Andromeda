@@ -115,6 +115,10 @@ Logs: `~/.multibrain/logs/andromeda-gha-runner.launchd.log`.
 - Env scrub: runner LaunchAgent keeps `HOME` + `PATH` only (no paid API keys) — same curtain as HUD.
 - Registration tokens expire quickly; treat any token pasted into chat as burned and mint a fresh one from the GitHub UI if unsure.
 
+### Fallback (hosted macOS)
+
+While Studio self-hosted is offline, CI uses GitHub-hosted `macos-15` (same as `feat/andromeda-hud-core-promote`). Billing is unblocked on that path as of 2026-07-21. Switch `runs-on` back to `[self-hosted, macOS]` in `.github/workflows/ci.yml` once Andromeda shows an **Idle** runner.
+
 ## Behavior when offline
 
 If no self-hosted runner is online, the macOS job **queues** (does not burn hosted macOS minutes). Start or kickstart the LaunchAgent on Studio to drain the queue.
