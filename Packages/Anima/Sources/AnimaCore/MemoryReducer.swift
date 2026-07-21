@@ -10,48 +10,7 @@
 
 import Foundation
 import ComposableArchitecture
-
-// MARK: - Core State Types
-
-/// 🌟 The SyncStatus - Tracking our CloudKit sync pipeline's progress
-public enum SyncStatus: Equatable, Sendable {
-    case idle
-    case syncing
-    case success(Date)
-    case failed(SyncError)
-}
-
-/// 🌟 HealthStatus - Per-service probe for Letta / Ladybug / Qdrant (healthy / unhealthy).
-/// Fleet headline lanterns live as `FleetHealthStatus` (green/yellow/red) in Telemetry —
-/// two stages, two scripts, one spotlight. 🏮
-public enum HealthStatus: Equatable, Sendable {
-    case unknown
-    case healthy
-    case unhealthy(String)
-}
-
-/// 🌟 Alias preferred in newer call sites — same pulse, clearer billing on the marquee.
-public typealias ConnectionHealthStatus = HealthStatus
-
-/// 🌟 VisibilityLevel - Cloak dial for the reducer UI surface.
-/// Aliased to `VisibilityClass` so TCA state and Security gates share one taxonomy
-/// (public / friends / private / internal) — no twin moons in the sky. 🌙
-public typealias VisibilityLevel = VisibilityClass
-
-/// 🌟 The MaterializationStatus - Progress of Obsidian markdown projection
-public enum MaterializationStatus: Equatable, Sendable {
-    case idle
-    case materializing(progress: Double)
-    case success(String) // Path of the materialized markdown
-    case failed(String)  // Error details
-}
-
-/// 🌟 An error occurring during materialization — fail closed, never whisper success. 🌩️
-public struct MaterializationError: Error, LocalizedError, Equatable, Sendable {
-    public let message: String
-    public var errorDescription: String? { message }
-    public init(_ message: String) { self.message = message }
-}
+import MemoryKit
 
 // MARK: - Reducer Definition
 

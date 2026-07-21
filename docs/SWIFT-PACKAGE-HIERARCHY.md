@@ -194,7 +194,7 @@ targets: [
 | Phase | Deliverable | Tracker | Blocks |
 |-------|-------------|---------|--------|
 | **0** | This doc + curtain consolidation | BIN-151 / HAB-142 | — |
-| **1** | `Packages/Anima` with Knowledge + Indexing extraction | BIN-152 | PR #10 merge helpful |
+| **1** | `Packages/Anima` with Knowledge + Indexing + Core TCA | BIN-152 | ✅ landed 2026-07-21 (`feat/anima-package-phase1`) |
 | **2** | Move Registry/Telemetry/ProjectState → Andromeda | BIN-154 | Phase 1 |
 | **3** | `Andromeda.xcodeproj` macOS app target | BIN-153 | BIN-101 install + BIN-79 CloudKit |
 | **4** | AnimaPluginInstaller → Anima path dep | BIN-150 | BIN-144 PersonalOS module |

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import MemoryKit
+@testable import AnimaIndexing
 
 /**
  * 🎭 The QdrantIndexerTests - The Quality Assurance Ritual of the Vector Scribe

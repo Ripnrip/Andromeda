@@ -75,6 +75,11 @@ jobs:
         run: swift test --parallel --num-workers 1
         continue-on-error: true
 
+      - name: Test Anima (nested package, Phase 1)
+        if: steps.snapshots.outputs.record != 'true'
+        working-directory: Packages/Anima
+        run: swift test --parallel --num-workers 1
+
       - name: Upload CI snapshot baselines
         # SnapshotTesting .all records PNGs then fails on purpose ("Record mode is on").
         # Always upload after a record tip so we can commit the rewritten baselines.

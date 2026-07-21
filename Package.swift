@@ -24,6 +24,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-http-types.git", from: "1.3.0"),
         .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.17.0"),
         .package(path: "Packages/MemoryKit"),
+        .package(path: "Packages/Anima"),
     ],
     targets: [
         .target(
