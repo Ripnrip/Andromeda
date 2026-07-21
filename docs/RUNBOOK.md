@@ -195,4 +195,4 @@ apply `VisibilityFilter`; never infer safe egress from a successful local write.
 
 ## CI (self-hosted macOS)
 
-GitHub-hosted `macos-*` minutes are optional; default CI targets a **Studio self-hosted** runner. Setup: [CI-SELF-HOSTED.md](CI-SELF-HOSTED.md). Label `andromeda` required. Runner LaunchAgent: `com.andromeda.github-actions-runner` (visible; logs under `~/.multibrain/logs/`).
+GitHub-hosted `macos-*` minutes are optional; default CI targets a **Studio self-hosted** runner (`[self-hosted, macOS]`). Setup: [CI-SELF-HOSTED.md](CI-SELF-HOSTED.md). Runner LaunchAgent: `com.andromeda.github-actions-runner` (visible; logs under `~/.multibrain/logs/`).

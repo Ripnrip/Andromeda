@@ -6,11 +6,13 @@
   KeepAlive: runner process should stay up; quitting intentionally requires bootout.
   Local-only env scrub: HOME + PATH only — never OPENROUTER_*/ANTHROPIC_* keys.
 
-  Labels required by .github/workflows/ci.yml: macOS + andromeda
+  Workflow runs-on: [self-hosted, macOS] (Darwin auto-labels).
   Setup: docs/CI-SELF-HOSTED.md
 
   Path template: Studio SoT uses /Users/admin — install must rewrite to real $HOME
-  (launchd does not expand $HOME/~).
+  (launchd does not expand $HOME/~). Default install dir: $HOME/actions-runner.
+  If the runner lives under Andromeda/actions-runner, edit ProgramArguments /
+  WorkingDirectory after render.
 
   Bootstrap (operator; absolute launchctl):
     # see docs/CI-SELF-HOSTED.md § LaunchAgent

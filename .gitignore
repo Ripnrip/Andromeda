@@ -6,6 +6,9 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 
+# GitHub Actions self-hosted runner (local install; never commit)
+actions-runner/
+
 # OS
 .DS_Store
 

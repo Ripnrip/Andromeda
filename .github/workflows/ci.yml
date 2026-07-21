@@ -12,13 +12,14 @@ concurrency:
 jobs:
   # Free path: Studio (or Book) self-hosted Mac — avoids GitHub-hosted macOS billing.
   # Package.swift is macOS-only (AppKit HUD/Home); ubuntu-latest cannot build this package.
-  # Register once: docs/CI-SELF-HOSTED.md · labels must include macOS + andromeda.
+  # Register once: docs/CI-SELF-HOSTED.md · Darwin auto-adds macOS (+ ARM64/X64).
   build-test:
     name: Build & Test (macOS self-hosted)
     # Snapshot suite is AppKit-guarded; Linux would silently skip red snapshots.
     # Baselines are tied to this machine's macOS + Xcode — re-record with
     # [record-snapshots] after changing the runner host or Xcode major.
-    runs-on: [self-hosted, macOS, andromeda]
+    # Matches GitHub's default Mac self-hosted labels (no custom label required).
+    runs-on: [self-hosted, macOS]
     steps:
       - name: Checkout
         # Pin to immutable SHA (v4.3.1); mutable @v4 tags are a supply-chain risk.
