@@ -40,7 +40,7 @@ public struct InstallConfiguration: Sendable {
 }
 
 /// Executes build → stage → adhoc codesign → LaunchAgent mutate.
-public struct InstallEngine: Sendable {
+public struct InstallEngine {
     private let runner: any ProcessRunning
     private let fileManager: FileManager
 
