@@ -38,7 +38,9 @@ cd /path/to/Andromeda
 mkdir -p actions-runner && cd actions-runner
 ```
 
-Download + verify (pin matches GitHub UI as of 2026-07):
+Download + verify (pin matches GitHub UI as of 2026-07; pick **one** arch):
+
+**Apple Silicon (`osx-arm64`):**
 
 ```console
 curl -o actions-runner-osx-arm64-2.335.1.tar.gz -L \
@@ -47,7 +49,17 @@ echo "e1a9bc7a3661e06fa0b129d15c2064fe65dc81a431001d8958a9db1409b73769  actions-
 tar xzf ./actions-runner-osx-arm64-2.335.1.tar.gz
 ```
 
-Configure (replace `REPLACE_ME` with the token from the GitHub UI — do not paste tokens into chat/docs/commits):
+**Intel Mac (`osx-x64`):**
+
+```console
+curl -o actions-runner-osx-x64-2.335.1.tar.gz -L \
+  https://github.com/actions/runner/releases/download/v2.335.1/actions-runner-osx-x64-2.335.1.tar.gz
+echo "b2fe57b2ae5b0bc1605f9fc0723c07eedf06167321d3478ce0440f15e5b0a010  actions-runner-osx-x64-2.335.1.tar.gz" | shasum -a 256 -c
+tar xzf ./actions-runner-osx-x64-2.335.1.tar.gz
+```
+
+Configure — URL **must** be Andromeda (not multibrain). Replace `REPLACE_ME` with a fresh token from
+**Andromeda → Settings → Actions → Runners → New self-hosted runner** (never commit tokens):
 
 ```console
 ./config.sh --url https://github.com/Ripnrip/Andromeda \
@@ -56,7 +68,7 @@ Configure (replace `REPLACE_ME` with the token from the GitHub UI — do not pas
   --work _work
 ```
 
-On Darwin this registers labels `self-hosted`, `macOS`, and `ARM64` (or `X64`) automatically — enough for `[self-hosted, macOS]`.
+On Darwin this registers labels `self-hosted`, `macOS`, and `ARM64` or `X64` automatically — enough for `[self-hosted, macOS]` (stricter than GitHub’s bare `self-hosted` snippet, so a Linux box cannot steal the job).
 
 Foreground smoke test:
 
@@ -64,9 +76,9 @@ Foreground smoke test:
 ./run.sh
 ```
 
-Leave that terminal open until GitHub shows the runner **Idle**, then stop with Ctrl+C and install the LaunchAgent (§3) so it survives logout.
+Leave that terminal open until GitHub shows the runner **Idle** under **Ripnrip/Andromeda**, then stop with Ctrl+C and install the LaunchAgent (§3) so it survives logout.
 
-Use the Intel (`osx-x64`) tarball on Intel Macs. Newer pins: https://github.com/actions/runner/releases.
+Newer pins: https://github.com/actions/runner/releases.
 
 ### 3. LaunchAgent (visible status)
 
