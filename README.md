@@ -83,6 +83,7 @@ Point Anthropic clients at `http://127.0.0.1:8080` instead of `https://api.anthr
 
 - [**Control plane — six pillars**](docs/ANDROMEDA-CONTROL-PLANE.md) ← agents: read this first for product scope
 - [**Memory architecture (Anima)**](docs/MEMORY-ARCHITECTURE.md) ← memory vision + website reference: 8 layers, 7 services, the curtain, why graph+vector, proof
+- [**Swift package hierarchy**](docs/SWIFT-PACKAGE-HIERARCHY.md) ← MemoryKit → Anima → Andromeda target tree (BIN-151)
 - [Charter](ANDROMEDA-CHARTER.md)
 - [Roadmap](ROADMAP.md)
 - [Changelog](CHANGELOG.md)
