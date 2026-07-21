@@ -1,6 +1,5 @@
 // swift-tools-version: 6.1
 // Anima — memory subsystem package (Phase 1: Knowledge + Indexing + Core TCA)
-// Depends on MemoryKit hot spine; never imports Andromeda.
 
 import PackageDescription
 
@@ -14,6 +13,7 @@ let package = Package(
         .library(name: "AnimaCore", targets: ["AnimaCore"]),
         .library(name: "AnimaKnowledge", targets: ["AnimaKnowledge"]),
         .library(name: "AnimaIndexing", targets: ["AnimaIndexing"]),
+        .executable(name: "AnimaSample", targets: ["AnimaSample"]),
     ],
     dependencies: [
         .package(path: "../MemoryKit"),
@@ -21,15 +21,10 @@ let package = Package(
         .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.0"),
     ],
     targets: [
-        .target(
-            name: "AnimaIndexing",
-            dependencies: []
-        ),
+        .target(name: "AnimaIndexing", dependencies: []),
         .target(
             name: "AnimaKnowledge",
-            dependencies: [
-                .product(name: "MemoryKit", package: "MemoryKit"),
-            ]
+            dependencies: [.product(name: "MemoryKit", package: "MemoryKit")]
         ),
         .target(
             name: "AnimaCore",
@@ -37,6 +32,17 @@ let package = Package(
                 .product(name: "MemoryKit", package: "MemoryKit"),
                 .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
             ]
+        ),
+        .executableTarget(
+            name: "AnimaSample",
+            dependencies: [
+                "AnimaCore",
+                "AnimaKnowledge",
+                "AnimaIndexing",
+                .product(name: "MemoryKit", package: "MemoryKit"),
+                .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+            ],
+            path: "Sources/AnimaSample"
         ),
         .testTarget(
             name: "AnimaTests",

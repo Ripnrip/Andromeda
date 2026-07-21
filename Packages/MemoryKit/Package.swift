@@ -10,17 +10,18 @@ let package = Package(
         .iOS(.v17)
     ],
     products: [
-        .library(
-            name: "MemoryKit",
-            targets: ["MemoryKit"]),
+        .library(name: "MemoryKit", targets: ["MemoryKit"]),
+        .executable(name: "MemoryKitSample", targets: ["MemoryKitSample"]),
     ],
     dependencies: [
         .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.0"),
     ],
     targets: [
-        .target(
-            name: "MemoryKit",
-            dependencies: []
+        .target(name: "MemoryKit", dependencies: []),
+        .executableTarget(
+            name: "MemoryKitSample",
+            dependencies: ["MemoryKit"],
+            path: "Sources/MemoryKitSample"
         ),
         .testTarget(
             name: "MemoryKitTests",
