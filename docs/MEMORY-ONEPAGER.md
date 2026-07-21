@@ -248,6 +248,7 @@ Canonical matrices and re-audit criteria:
 | Doc | Use |
 |-----|-----|
 | [MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md) | One write / one recall + WriteKind + retrieval ladder |
+| [SWIFT-PACKAGE-HIERARCHY.md](./SWIFT-PACKAGE-HIERARCHY.md) | MemoryKit → Anima → Andromeda package tree (BIN-151) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Multibrain layers as-built |
 | [ANDROMEDA-CONTROL-PLANE.md](ANDROMEDA-CONTROL-PLANE.md) | Six Andromeda pillars + secrets/proxy curtain |
 | [KNOWLEDGE-STACK.md](KNOWLEDGE-STACK.md) | Checkpoint / sync / close |
