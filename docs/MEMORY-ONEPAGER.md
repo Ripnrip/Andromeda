@@ -101,7 +101,7 @@ flowchart LR
 
 | Store | Role | Owner tomorrow |
 |-------|------|----------------|
-| **SwiftData (implemented)** | Hot episodic capture at `~/.multibrain/anima-hot.store` (episodic SoT, transactional, local, returns before projection) | Anima core capture, Layer 01; **Realm is not implemented** |
+| **SwiftData (implemented)** | Hot episodic capture at `~/.multibrain/anima-hot.store` (episodic SoT, transactional, local, returns before projection) | Anima core capture, Layer 01; **Realm not implemented** — see [MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md) for one-HotStore + optional live fanout pivot (not twin SoTs) |
 | **iCloud / CloudKit** | Planned cold replica; engine/agent smoke exists, but end-to-end replication is not declared shipped | Anima core sync |
 | **Obsidian / SecondBrain** | Human-readable substrate (SoT for curated semantic notes) | Semantic + Dream outputs, Layer 02 (Semantic) |
 | **LadybugDB** | Multibrain hub graph+vector index (rebuildable cache, point ID = `content_hash`, thin payload, async-at-materialization, fail-open) | Semantic retrieval backend (or Swift HNSW/USearch peer) |
@@ -195,28 +195,30 @@ NON-GOALS
 
 ## 6. Suggested Swift module → Andromeda capability surface
 
-**Capability hiding (locked 2026-07-15):** clients and satellite agents call stable capability IDs only. Andromeda Observe→Evolve→Execute→Internalize selects providers behind the curtain — same pattern as inference. Never expose Linear/Multica routing, model registries, n8n, or store plumbing in client tool menus. **Full control-plane pillars** (MCP host, skills, LLM proxy, secrets broker, fleet runtime): [ANDROMEDA-CONTROL-PLANE.md](ANDROMEDA-CONTROL-PLANE.md).
+**Capability hiding (locked 2026-07-15):** clients and satellite agents call stable capability IDs only. Andromeda Observe→Evolve→Execute→Internalize selects providers behind the curtain — same pattern as inference. Never expose Linear/Multica routing, model registries, n8n, or store plumbing in client tool menus. **Full control-plane pillars** (MCP host, skills, LLM proxy, secrets broker, fleet runtime): [ANDROMEDA-CONTROL-PLANE.md](ANDROMEDA-CONTROL-PLANE.md). **Write/recall consolidation** (one store verb, WriteKind, retrieval ladder): [MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md).
 
 | Client-facing capability (Swift) | Hides behind the curtain |
 |----------------------------------|--------------------------|
-| `memory.recall` / `memory.store` | ✅ SwiftData hot capture + vault-aware recall |
-| `memory.journal` / `memory.session_dump` | ✅ Home/Bar; ✅ HUD promotion branch with distinct IDs, tags, default bodies, and E2E coverage (main merge/CI pending) |
-| `infer.write` | 🚧 **today: episodic store alias tagged `infer-write`, not LLM inference** |
+| `memory.store` | ✅ **One** write verb → hot CaptureService + `WriteKind` (episodic / journal / session_dump / …) |
+| `memory.recall` | ✅ Hot first; target page/graphify/vector ladder; ripgrep degraded only |
+| `memory.journal` / `memory.session_dump` | ✅ Aliases of `memory.store` with distinct WriteKind (Home/Bar; HUD promotion branch) |
+| `infer.write` | 🚧 **Deprecated client alias** → `WriteKind.inferAliasDeprecated` — **not** LLM |
 | `project.state` CRUD (`list` / `get` / `create` / `update`) | ✅ operator bridge may hide Linear + Multica + Slack fanout |
-| `slack_proxy` / `github_proxy` / `write.too` (📐 secrets broker) | Slack/GitHub/Cerebras (etc.) tokens — **never** raw env keys in client process |
+| `slack_proxy` / `github_proxy` / `write.too` (📐 secrets / LLM proxy) | Tokens + providers — **never** raw env keys; **not** memory writes |
 
 | Anima module | Andromeda capability ID (sketch) | Side effects |
 |--------------|----------------------------------|--------------|
-| `AnimaHotStore` (SwiftData) | `memory.store` / `memory.recall` (also `memory.episodic.*`) | SwiftData local |
-| `Knowledge/` PageIndex | `memory.document` / `memory.semantic.search` | Read vault; optional index rebuild |
-| `VisionEngine` | `memory.photographic.search` | CLIP/MLX local |
+| `AnimaHotStore` (SwiftData today) | `memory.store` / `memory.recall` | Hot local only; brands hidden |
+| `Knowledge/` PageIndex | routed by `memory.recall` (`structured`) | Read vault; optional index rebuild |
+| graphify / vectors | routed by `memory.recall` (`similarity` / graph) | Rebuildable indexes |
+| `VisionEngine` | `memory.photographic.search` (later) | CLIP/MLX local |
 | `MerkleTree` | `memory.integrity.verify` | Proofs; fail closed |
-| `Meditation` | `memory.journal` / `memory.meditation.run` | Journal write |
+| `Meditation` | `memory.journal` → store + WriteKind | Journal write |
 | `Soul` | `memory.soul.context` | Mood/relationship context only |
 | `HeartbeatEngine` | `memory.awareness.pulse` | May notify or return `HEARTBEAT_OK` |
 | `Anima` dream | `memory.dream.run` | Nightly batch; visible job in console |
 | (Andromeda PM fabric) | `project.state.list/get/create/update` | Linear∪Multica∪Slack — **never** exposed as those brands to clients |
-| (Andromeda inference) | `infer.write` | Provider registry + health + fallbacks — **never** Cerebras/OpenRouter IDs on the client menu |
+| (Andromeda LLM proxy) | Autocache / `write.too` / future `infer.generate` | **Not** `infer.write`; never Cerebras/OpenRouter IDs on the client menu |
 
 **`project.state` stub (MemoryKit, 2026-07-15):** `ProjectStateSurface` + `InMemoryProjectStateStore` + `OperatorProjectStateBridge` (protocols for Linear/Multica behind the curtain) + `ProjectStatePanel`. Public fields are id/title/status/items only — optional `provenance` is operator-internal and stripped from Codable. Proof: `Packages/MemoryKit/PROOFS/31-project-state-capability.md`.
 
@@ -245,6 +247,7 @@ Canonical matrices and re-audit criteria:
 
 | Doc | Use |
 |-----|-----|
+| [MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md) | One write / one recall + WriteKind + retrieval ladder |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Multibrain layers as-built |
 | [ANDROMEDA-CONTROL-PLANE.md](ANDROMEDA-CONTROL-PLANE.md) | Six Andromeda pillars + secrets/proxy curtain |
 | [KNOWLEDGE-STACK.md](KNOWLEDGE-STACK.md) | Checkpoint / sync / close |
