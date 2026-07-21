@@ -44,8 +44,8 @@ export const PILLARS: Pillar[] = [
     status: "partial",
     tagline: "Graph-native memory fabric",
     description:
-      "Append-first episodic capture with a curated semantic vault. Recall and store resolve across hot store, vault, and rebuildable indexes — provenance preserved.",
-    capabilities: ["memory.recall", "memory.store", "memory.journal", "infer.write", "project.state.*"],
+      "Append-first into a local hot store; curated vault + rebuildable indexes behind the curtain. Clients call memory.store and memory.recall. Provenance stays; index failure never erases the source.",
+    capabilities: ["memory.recall", "memory.store", "memory.journal", "project.state.*"],
   },
   {
     index: 2,
@@ -81,7 +81,7 @@ export const PILLARS: Pillar[] = [
     tagline: "Capabilities in, providers out",
     description:
       "Clients ask for capabilities, never provider brands. The live Autocache Anthropic surface injects prompt-cache breakpoints and returns ROI analytics.",
-    capabilities: ["infer.write", "route.capability", "usage.metrics"],
+    capabilities: ["write.tool", "route.capability", "usage.metrics"],
   },
   {
     index: 5,
@@ -121,11 +121,7 @@ export const CURTAIN: CurtainRow[] = [
     hides: "SwiftData hot store, vault, Ladybug, Qdrant",
     neverSees: "Store paths, index brands",
   },
-  {
-    id: "infer.write",
-    hides: "Autocache, gateway, model registry, fallbacks",
-    neverSees: "Anthropic, Cerebras, OpenRouter, API keys",
-  },
+
   {
     id: "project.state.*",
     hides: "Linear ∪ Multica ∪ Slack fanout",
@@ -143,8 +139,8 @@ export const CURTAIN: CurtainRow[] = [
   },
   {
     id: "write.tool",
-    hides: "Fast codegen inference via proxy",
-    neverSees: "Provider brand + API key in env",
+    hides: "Cerebras under the hood — Andromeda manages Node compatibility, model changes, system-prompt injection so models know the write format, and a daily health check before any client call that would otherwise fail silently",
+    neverSees: "Cerebras, model names, API keys, raw Node errors",
   },
 ]
 
