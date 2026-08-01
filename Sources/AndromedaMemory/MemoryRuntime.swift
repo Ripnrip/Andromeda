@@ -12,6 +12,7 @@ public actor MemoryRuntime {
     private let classifier: DefaultMemoryClassifier
     private let routingPolicy: DefaultMemoryRoutingPolicy
     private let projectionSinks: [any MemoryProjectionSink]
+    private let retryQueue: (any MemoryProjectionRetryQueue)?
     private let clock: any ClockProviding
     private let uuidProvider: any UUIDProviding
 
@@ -21,6 +22,7 @@ public actor MemoryRuntime {
         classifier: DefaultMemoryClassifier = .init(),
         routingPolicy: DefaultMemoryRoutingPolicy = .init(),
         projectionSinks: [any MemoryProjectionSink] = [],
+        retryQueue: (any MemoryProjectionRetryQueue)? = nil,
         clock: any ClockProviding = LiveClock(),
         uuidProvider: any UUIDProviding = LiveUUIDProvider()
     ) {
@@ -29,6 +31,7 @@ public actor MemoryRuntime {
         self.classifier = classifier
         self.routingPolicy = routingPolicy
         self.projectionSinks = projectionSinks
+        self.retryQueue = retryQueue
         self.clock = clock
         self.uuidProvider = uuidProvider
     }
@@ -148,16 +151,16 @@ public actor MemoryRuntime {
                 sinkReceipts.append(try await sink.write(record: record))
             } catch {
                 warnings.append("Projection sink \(sink.sinkID) failed: \(error.localizedDescription)")
-                sinkReceipts.append(
-                    MemoryWriteReceipt(
-                        memoryID: record.memoryID,
-                        sinkID: sink.sinkID,
-                        schemaVersion: sink.schemaVersion,
-                        checksum: record.checksum,
-                        status: .retryableFailure,
-                        verification: .failed
-                    )
+                let receipt = MemoryWriteReceipt(
+                    memoryID: record.memoryID,
+                    sinkID: sink.sinkID,
+                    schemaVersion: sink.schemaVersion,
+                    checksum: record.checksum,
+                    status: .retryableFailure,
+                    verification: .failed
                 )
+                sinkReceipts.append(receipt)
+                try? await retryQueue?.enqueue(record: record, receipt: receipt)
             }
         }
 

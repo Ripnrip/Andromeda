@@ -19,7 +19,7 @@ public struct AndromedaRuntimeConfiguration: Sendable, Equatable {
         host: String = "0.0.0.0",
         port: Int = 8788,
         serviceName: String = "Andromeda Runtime",
-        version: String = "0.3.0-runtime-v2-m2"
+        version: String = "0.3.0-runtime-v2-m3"
     ) {
         self.host = host
         self.port = port
@@ -63,16 +63,35 @@ public struct AndromedaRuntimeServer: Sendable {
         configuration: AndromedaRuntimeConfiguration = .init(),
         journalFileURL: URL,
         operationalStoreURL: URL? = nil,
+        vaultDirectoryURL: URL? = nil,
+        qdrantBaseURL: URL = URL(string: "http://localhost:6333")!,
         logger: Logger = Logger(label: "andromeda.runtime")
     ) throws {
         let journal = try JSONLineEventJournal(fileURL: journalFileURL)
         let storeURL = operationalStoreURL ?? journalFileURL.deletingPathExtension().appendingPathExtension("sqlite3")
         let operationalStore = try SQLiteMemoryOperationalStore(databaseURL: storeURL)
+        let vaultURL = vaultDirectoryURL ?? journalFileURL.deletingLastPathComponent().appendingPathComponent("vault")
+        let markdownSink = MarkdownVaultProjection(vaultDirectoryURL: vaultURL)
+        let qdrantSink = QdrantProjection(
+            baseURL: qdrantBaseURL,
+            embeddingProvider: HashBagOfWordsEmbeddingProvider()
+        )
+        let projectionRuntime = ProjectionRuntime(
+            sinks: [markdownSink, qdrantSink],
+            queue: DurableRetryQueue(
+                fileURL: journalFileURL.deletingPathExtension().appendingPathExtension("retry.jsonl")
+            )
+        )
         self.init(
             configuration: configuration,
             journal: journal,
-            memoryRuntime: MemoryRuntime(journal: journal, operationalStore: operationalStore),
-            projectionRuntime: ProjectionRuntime(),
+            memoryRuntime: MemoryRuntime(
+                journal: journal,
+                operationalStore: operationalStore,
+                projectionSinks: [markdownSink, qdrantSink],
+                retryQueue: projectionRuntime
+            ),
+            projectionRuntime: projectionRuntime,
             secretsBroker: SecretsBroker(),
             clock: LiveClock(),
             uuidProvider: LiveUUIDProvider(),

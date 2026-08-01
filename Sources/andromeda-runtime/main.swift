@@ -27,6 +27,12 @@ struct Serve: AsyncParsableCommand {
     @Option(name: .long, help: "Path to the canonical JSONL event journal.")
     var journalPath: String
 
+    @Option(name: .long, help: "Directory for the Obsidian-compatible Markdown vault. Defaults to a sibling 'vault' directory next to the journal.")
+    var vaultDir: String?
+
+    @Option(name: .long, help: "Base URL for the Qdrant HTTP API. Defaults to http://localhost:6333.")
+    var qdrantUrl: String = "http://localhost:6333"
+
     func run() async throws {
         LoggingSystem.bootstrap { label in
             var handler = StreamLogHandler.standardOutput(label: label)
@@ -35,9 +41,14 @@ struct Serve: AsyncParsableCommand {
         }
 
         let logger = Logger(label: "andromeda.runtime.cli")
+        guard let qdrantBaseURL = URL(string: qdrantUrl) else {
+            throw ValidationError("Invalid Qdrant URL: \(qdrantUrl)")
+        }
         let server = try AndromedaRuntimeServer(
             configuration: AndromedaRuntimeConfiguration(host: host, port: port),
             journalFileURL: URL(fileURLWithPath: journalPath),
+            vaultDirectoryURL: vaultDir.map { URL(fileURLWithPath: $0) },
+            qdrantBaseURL: qdrantBaseURL,
             logger: logger
         )
         try await server.run()
