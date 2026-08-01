@@ -16,10 +16,10 @@ public struct AndromedaRuntimeConfiguration: Sendable, Equatable {
     public let version: String
 
     public init(
-        host: String = "127.0.0.1",
-        port: Int = 8080,
+        host: String = "0.0.0.0",
+        port: Int = 8788,
         serviceName: String = "Andromeda Runtime",
-        version: String = "0.2.0-runtime-v2"
+        version: String = "0.3.0-runtime-v2-m2"
     ) {
         self.host = host
         self.port = port
@@ -62,13 +62,16 @@ public struct AndromedaRuntimeServer: Sendable {
     public init(
         configuration: AndromedaRuntimeConfiguration = .init(),
         journalFileURL: URL,
+        operationalStoreURL: URL? = nil,
         logger: Logger = Logger(label: "andromeda.runtime")
     ) throws {
         let journal = try JSONLineEventJournal(fileURL: journalFileURL)
+        let storeURL = operationalStoreURL ?? journalFileURL.deletingPathExtension().appendingPathExtension("sqlite3")
+        let operationalStore = try SQLiteMemoryOperationalStore(databaseURL: storeURL)
         self.init(
             configuration: configuration,
             journal: journal,
-            memoryRuntime: MemoryRuntime(journal: journal),
+            memoryRuntime: MemoryRuntime(journal: journal, operationalStore: operationalStore),
             projectionRuntime: ProjectionRuntime(),
             secretsBroker: SecretsBroker(),
             clock: LiveClock(),
@@ -79,7 +82,10 @@ public struct AndromedaRuntimeServer: Sendable {
 
     public func makeApplication() -> Application<RouterResponder<BasicRequestContext>> {
         let app = Application(
-            router: HealthRouter(provider: RuntimeHealthService(server: self)).build(),
+            router: RuntimeRouter(
+                healthProvider: RuntimeHealthService(server: self),
+                memoryRuntime: memoryRuntime
+            ).build(),
             configuration: .init(
                 address: .hostname(configuration.host, port: configuration.port),
                 serverName: configuration.serviceName
@@ -99,6 +105,7 @@ public struct AndromedaRuntimeServer: Sendable {
                 "version": .string(configuration.version),
             ]
         )
+        _ = try await memoryRuntime.rebuildOperationalStoreFromJournal()
         try await makeApplication().runService()
     }
 }

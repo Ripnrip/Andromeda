@@ -7,6 +7,10 @@ public enum AndromedaRuntimeError: Error, Sendable, Equatable {
     case duplicateIdempotencyConflict(key: IdempotencyKey, existingEventID: EventID)
     case journalCorrupted(String)
     case journalIOFailed(String)
+    case invalidMemoryContent(String)
+    case invalidRecallQuery(String)
+    case invalidRuntimeRequest(String)
+    case operationalStoreFailed(String)
 }
 
 extension AndromedaRuntimeError: LocalizedError {
@@ -21,6 +25,14 @@ extension AndromedaRuntimeError: LocalizedError {
         case .journalCorrupted(let detail):
             return detail
         case .journalIOFailed(let detail):
+            return detail
+        case .invalidMemoryContent(let detail):
+            return detail
+        case .invalidRecallQuery(let detail):
+            return detail
+        case .invalidRuntimeRequest(let detail):
+            return detail
+        case .operationalStoreFailed(let detail):
             return detail
         }
     }

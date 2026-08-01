@@ -26,6 +26,15 @@ public struct MemoryID: TypedIdentifier, Equatable {
     }
 }
 
+/// Stable identifier for a repository scope.
+public struct RepositoryID: TypedIdentifier, Equatable {
+    public let rawValue: UUID
+
+    public init(rawValue: UUID) {
+        self.rawValue = rawValue
+    }
+}
+
 /// Stable identifier for a session lifecycle.
 public struct SessionID: TypedIdentifier, Equatable {
     public let rawValue: UUID
@@ -64,6 +73,33 @@ public struct LeaseID: TypedIdentifier, Equatable {
 
 /// Stable identifier for a configured environment.
 public struct EnvironmentID: TypedIdentifier, Equatable {
+    public let rawValue: UUID
+
+    public init(rawValue: UUID) {
+        self.rawValue = rawValue
+    }
+}
+
+/// Stable identifier for a user scope.
+public struct UserID: TypedIdentifier, Equatable {
+    public let rawValue: UUID
+
+    public init(rawValue: UUID) {
+        self.rawValue = rawValue
+    }
+}
+
+/// Stable identifier for a team scope.
+public struct TeamID: TypedIdentifier, Equatable {
+    public let rawValue: UUID
+
+    public init(rawValue: UUID) {
+        self.rawValue = rawValue
+    }
+}
+
+/// Stable identifier for an organization scope.
+public struct OrganizationID: TypedIdentifier, Equatable {
     public let rawValue: UUID
 
     public init(rawValue: UUID) {

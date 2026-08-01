@@ -53,6 +53,7 @@ public struct EventEnvelope<Payload: EventPayload>: Codable, Sendable, Equatable
 public enum CanonicalEventPayload: Codable, Sendable, Equatable, EventPayload {
     case sessionStarted(SessionStartedPayload)
     case memoryNoted(MemoryNotedPayload)
+    case memoryRemembered(MemoryRememberedPayload)
     case checkpointCaptured(CheckpointCapturedPayload)
     case runtimeHeartbeat(RuntimeHeartbeatPayload)
 
@@ -78,6 +79,55 @@ public struct MemoryNotedPayload: Codable, Sendable, Equatable {
     public init(memoryID: MemoryID, summary: String) {
         self.memoryID = memoryID
         self.summary = summary
+    }
+}
+
+public struct MemoryRememberedPayload: Codable, Sendable, Equatable {
+    public let memoryID: MemoryID
+    public let scope: EventScope
+    public let sourceSubsystem: String
+    public let sourceActor: String
+    public let sourceLabel: String
+    public let kind: String
+    public let privacyLevel: String
+    public let summary: String
+    public let content: String
+    public let tags: [String]
+    public let metadata: [String: String]
+    public let relatedContext: [String: [String]]
+    public let checksum: String
+    public let createdAt: Date
+
+    public init(
+        memoryID: MemoryID,
+        scope: EventScope,
+        sourceSubsystem: String,
+        sourceActor: String,
+        sourceLabel: String,
+        kind: String,
+        privacyLevel: String,
+        summary: String,
+        content: String,
+        tags: [String],
+        metadata: [String: String],
+        relatedContext: [String: [String]],
+        checksum: String,
+        createdAt: Date
+    ) {
+        self.memoryID = memoryID
+        self.scope = scope
+        self.sourceSubsystem = sourceSubsystem
+        self.sourceActor = sourceActor
+        self.sourceLabel = sourceLabel
+        self.kind = kind
+        self.privacyLevel = privacyLevel
+        self.summary = summary
+        self.content = content
+        self.tags = tags
+        self.metadata = metadata
+        self.relatedContext = relatedContext
+        self.checksum = checksum
+        self.createdAt = createdAt
     }
 }
 

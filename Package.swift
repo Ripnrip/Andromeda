@@ -21,6 +21,7 @@ let package = Package(
         .library(name: "AndromedaClient", targets: ["AndromedaClient"]),
         .library(name: "AndromedaServer", targets: ["AndromedaServer"]),
         .executable(name: "andromeda", targets: ["AndromedaCLI"]),
+        .executable(name: "andromeda-runtime", targets: ["AndromedaRuntimeCLI"]),
         .executable(name: "AndromedaHome", targets: ["AndromedaHome"]),
         .executable(name: "AndromedaHUD", targets: ["AndromedaHUD"]),
     ],
@@ -35,6 +36,9 @@ let package = Package(
         .package(path: "Packages/Anima"),
     ],
     targets: [
+        .systemLibrary(
+            name: "CSQLite"
+        ),
         .target(
             name: "AndromedaCore",
             dependencies: [
@@ -60,6 +64,7 @@ let package = Package(
         .target(
             name: "AndromedaMemory",
             dependencies: [
+                "CSQLite",
                 "AndromedaDomain",
                 "AndromedaJournal",
             ],
@@ -90,6 +95,7 @@ let package = Package(
             name: "AndromedaHTTP",
             dependencies: [
                 "AndromedaDomain",
+                "AndromedaMemory",
                 .product(name: "Hummingbird", package: "hummingbird"),
             ],
             swiftSettings: [
@@ -100,6 +106,7 @@ let package = Package(
             name: "AndromedaClient",
             dependencies: [
                 "AndromedaDomain",
+                "AndromedaMemory",
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6)
@@ -147,6 +154,18 @@ let package = Package(
                 "AndromedaGateway",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
+            ]
+        ),
+        .executableTarget(
+            name: "AndromedaRuntimeCLI",
+            dependencies: [
+                "AndromedaServer",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "Logging", package: "swift-log"),
+            ],
+            path: "Sources/andromeda-runtime",
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
             ]
         ),
         .target(
@@ -258,7 +277,19 @@ let package = Package(
             dependencies: [
                 "AndromedaDomain",
                 "AndromedaHTTP",
+                "AndromedaMemory",
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .testTarget(
+            name: "AndromedaMemoryTests",
+            dependencies: [
+                "AndromedaDomain",
+                "AndromedaJournal",
+                "AndromedaMemory",
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6)
