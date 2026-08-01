@@ -77,6 +77,7 @@ let package = Package(
             dependencies: [
                 "AndromedaDomain",
                 "AndromedaJournal",
+                "AndromedaMemory",
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6)
@@ -291,6 +292,19 @@ let package = Package(
                 "AndromedaJournal",
                 "AndromedaMemory",
             ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .testTarget(
+            name: "AndromedaProjectionTests",
+            dependencies: [
+                "AndromedaDomain",
+                "AndromedaJournal",
+                "AndromedaMemory",
+                "AndromedaProjections",
+            ],
+            path: "Tests/AndromedaProjectionTests",
             swiftSettings: [
                 .swiftLanguageMode(.v6)
             ]
