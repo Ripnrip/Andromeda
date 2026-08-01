@@ -12,6 +12,14 @@ let package = Package(
         .library(name: "AndromedaGateway", targets: ["AndromedaGateway"]),
         .library(name: "AndromedaHomeCore", targets: ["AndromedaHomeCore"]),
         .library(name: "AndromedaHUDCore", targets: ["AndromedaHUDCore"]),
+        .library(name: "AndromedaDomain", targets: ["AndromedaDomain"]),
+        .library(name: "AndromedaJournal", targets: ["AndromedaJournal"]),
+        .library(name: "AndromedaMemory", targets: ["AndromedaMemory"]),
+        .library(name: "AndromedaProjections", targets: ["AndromedaProjections"]),
+        .library(name: "AndromedaSecrets", targets: ["AndromedaSecrets"]),
+        .library(name: "AndromedaHTTP", targets: ["AndromedaHTTP"]),
+        .library(name: "AndromedaClient", targets: ["AndromedaClient"]),
+        .library(name: "AndromedaServer", targets: ["AndromedaServer"]),
         .executable(name: "andromeda", targets: ["AndromedaCLI"]),
         .executable(name: "AndromedaHome", targets: ["AndromedaHome"]),
         .executable(name: "AndromedaHUD", targets: ["AndromedaHUD"]),
@@ -31,6 +39,86 @@ let package = Package(
             name: "AndromedaCore",
             dependencies: [
                 .product(name: "Logging", package: "swift-log"),
+            ]
+        ),
+        .target(
+            name: "AndromedaDomain",
+            dependencies: [],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .target(
+            name: "AndromedaJournal",
+            dependencies: [
+                "AndromedaDomain",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .target(
+            name: "AndromedaMemory",
+            dependencies: [
+                "AndromedaDomain",
+                "AndromedaJournal",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .target(
+            name: "AndromedaProjections",
+            dependencies: [
+                "AndromedaDomain",
+                "AndromedaJournal",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .target(
+            name: "AndromedaSecrets",
+            dependencies: [
+                "AndromedaDomain",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .target(
+            name: "AndromedaHTTP",
+            dependencies: [
+                "AndromedaDomain",
+                .product(name: "Hummingbird", package: "hummingbird"),
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .target(
+            name: "AndromedaClient",
+            dependencies: [
+                "AndromedaDomain",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .target(
+            name: "AndromedaServer",
+            dependencies: [
+                "AndromedaDomain",
+                "AndromedaJournal",
+                "AndromedaMemory",
+                "AndromedaProjections",
+                "AndromedaSecrets",
+                "AndromedaHTTP",
+                .product(name: "Hummingbird", package: "hummingbird"),
+                .product(name: "Logging", package: "swift-log"),
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
             ]
         ),
         .target(
@@ -144,6 +232,36 @@ let package = Package(
                 "AndromedaGateway",
                 "AndromedaAutoCache",
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
+            ]
+        ),
+        .testTarget(
+            name: "AndromedaDomainTests",
+            dependencies: [
+                "AndromedaDomain",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .testTarget(
+            name: "AndromedaJournalTests",
+            dependencies: [
+                "AndromedaDomain",
+                "AndromedaJournal",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .testTarget(
+            name: "AndromedaHTTPTests",
+            dependencies: [
+                "AndromedaDomain",
+                "AndromedaHTTP",
+                .product(name: "HummingbirdTesting", package: "hummingbird"),
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
             ]
         ),
     ]
