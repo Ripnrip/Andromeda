@@ -100,11 +100,13 @@ public struct AndromedaRuntimeServer: Sendable {
     }
 
     public func makeApplication() -> Application<RouterResponder<BasicRequestContext>> {
+        let router = RuntimeRouter(
+            healthProvider: RuntimeHealthService(server: self),
+            memoryRuntime: memoryRuntime
+        ).build()
+        DashboardRoute(memoryRuntime: memoryRuntime).register(on: router)
         let app = Application(
-            router: RuntimeRouter(
-                healthProvider: RuntimeHealthService(server: self),
-                memoryRuntime: memoryRuntime
-            ).build(),
+            router: router,
             configuration: .init(
                 address: .hostname(configuration.host, port: configuration.port),
                 serverName: configuration.serviceName
