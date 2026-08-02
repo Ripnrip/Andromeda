@@ -97,7 +97,7 @@ public actor CuratedToolBroker {
         // Normalize before allowlist — raw `/repos/../../user` would otherwise bypass the prefix check
         // and be collapsed by URLSession to `/user` (or other out-of-policy endpoints).
         guard let path = Self.normalizedGitHubAPIPath(rawPath) else {
-            throw ToolBrokerError.policyDenied("GitHub path must be absolute without escaping above root.")
+            throw ToolBrokerError.invalidArguments("'path' must be an absolute GitHub API path.")
         }
         guard Self.githubReadMethods.contains(method) || Self.githubWriteMethods.contains(method) else {
             throw ToolBrokerError.policyDenied("GitHub method '\(method)' is not allowed.")
@@ -124,7 +124,7 @@ public actor CuratedToolBroker {
         return try githubResult(response, token: token)
     }
 
-    /// Collapses `.` / `..` segments and rejects paths that escape above `/`.
+    /// Collapses `.` / `..` segments the same way URLSession resolves paths (clamp at `/`).
     /// Query strings are preserved after the normalized path.
     public static func normalizedGitHubAPIPath(_ raw: String) -> String? {
         let pathOnly: String
@@ -142,8 +142,10 @@ public actor CuratedToolBroker {
         for segment in pathOnly.split(separator: "/", omittingEmptySubsequences: true).map(String.init) {
             if segment == "." { continue }
             if segment == ".." {
-                guard !segments.isEmpty else { return nil }
-                segments.removeLast()
+                // Match URL path resolution: `..` at root stays at root (does not error).
+                if !segments.isEmpty {
+                    segments.removeLast()
+                }
                 continue
             }
             segments.append(segment)

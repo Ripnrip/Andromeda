@@ -207,18 +207,28 @@ struct CuratedToolBrokerTests {
 
         let aboveRoot = await broker.callTool(name: "andromeda_github_request", arguments: [
             "method": .string("GET"),
-            "path": .string("/repos/foo/../../../user"),
+            "path": .string("/repos/foo/../../../gists"),
         ])
         #expect(aboveRoot.isError == true)
+        #expect(aboveRoot.content.first?.text.contains("/repos/") == true)
 
         let sent = await upstream.requests
         #expect(sent.isEmpty)
 
         #expect(CuratedToolBroker.normalizedGitHubAPIPath("/repos/a/b/../c") == "/repos/a/c")
         #expect(CuratedToolBroker.normalizedGitHubAPIPath("/repos/../../user") == "/user")
-        #expect(CuratedToolBroker.normalizedGitHubAPIPath("/repos/foo/../../../user") == nil)
+        #expect(CuratedToolBroker.normalizedGitHubAPIPath("/repos/foo/../../../gists") == "/gists")
         #expect(CuratedToolBroker.isAllowedGitHubPath("/user", method: "GET"))
         #expect(!CuratedToolBroker.isAllowedGitHubPath("/gists", method: "GET"))
+        // Traversal that lands on GET /user is allowed after normalize — policy still holds.
+        #expect(CuratedToolBroker.isAllowedGitHubPath(
+            CuratedToolBroker.normalizedGitHubAPIPath("/repos/../../user")!,
+            method: "GET"
+        ))
+        #expect(!CuratedToolBroker.isAllowedGitHubPath(
+            CuratedToolBroker.normalizedGitHubAPIPath("/repos/../../gists")!,
+            method: "GET"
+        ))
     }
 
     @Test("github_request validates required arguments")
