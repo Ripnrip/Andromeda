@@ -7,9 +7,9 @@ import Testing
 
 @Suite("AndromedaProjections.QdrantProjection")
 struct QdrantProjectionTests {
-    @Test("upserts a memory to live localhost:6333", .tags(.qdrant))
+    @Test("upserts a memory to the configured live Qdrant endpoint", .tags(.qdrant))
     func upsertsToLiveQdrant() async throws {
-        let baseURL = URL(string: "http://localhost:6333")!
+        let baseURL = testQdrantBaseURL
         try await skipUnlessQdrantReachable(baseURL: baseURL)
 
         let projectID = ProjectID(rawValue: UUID())
@@ -93,6 +93,12 @@ struct QdrantProjectionTests {
         )
     }
 }
+
+private let testQdrantBaseURL: URL = {
+    let value = ProcessInfo.processInfo.environment["ANDROMEDA_TEST_QDRANT_URL"]
+        ?? "http://localhost:6333"
+    return URL(string: value)!
+}()
 
 private func skipUnlessQdrantReachable(baseURL: URL) async throws {
     guard let url = URL(string: "/collections", relativeTo: baseURL)?.absoluteURL else {
