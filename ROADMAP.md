@@ -84,6 +84,11 @@ This roadmap is outcome-driven. Gates advance when exit criteria are met, not wh
 **Deliverables**
 - Bidirectional MCP hub, stdio and Streamable HTTP transports, tool registry, deny-by-default permission policy, explicit expiring approvals, process supervision, timeouts, cancellation, trace propagation, and structured command results.
 
+**Progress**
+- MCP shim MVP (`AndromedaMCP`): host-brokered `slack_proxy` + `github_proxy` over Hummingbird `POST /v1/mcp` (option-2 wrapper; starter allowlists).
+- Guest mcp.json generator + secret scrubber; `andromeda setup` / `andromeda doctor` checklists (BIN-207 / BIN-208).
+- Remaining: real upstream Streamable HTTP soak, curated slim tool menus (option 1), approval expiry records, stdio transport, process containment.
+
 **Exit criteria**
 - Tool failures cannot crash the control plane.
 - Privileged actions require authorization.

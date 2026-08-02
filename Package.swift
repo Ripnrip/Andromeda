@@ -9,6 +9,7 @@ let package = Package(
     products: [
         .library(name: "AndromedaCore", targets: ["AndromedaCore"]),
         .library(name: "AndromedaAutoCache", targets: ["AndromedaAutoCache"]),
+        .library(name: "AndromedaMCP", targets: ["AndromedaMCP"]),
         .library(name: "AndromedaGateway", targets: ["AndromedaGateway"]),
         .executable(name: "andromeda", targets: ["AndromedaCLI"]),
     ],
@@ -34,10 +35,18 @@ let package = Package(
             ]
         ),
         .target(
+            name: "AndromedaMCP",
+            dependencies: [
+                "AndromedaCore",
+                .product(name: "Logging", package: "swift-log"),
+            ]
+        ),
+        .target(
             name: "AndromedaGateway",
             dependencies: [
                 "AndromedaCore",
                 "AndromedaAutoCache",
+                "AndromedaMCP",
                 .product(name: "Hummingbird", package: "hummingbird"),
                 .product(name: "Logging", package: "swift-log"),
                 .product(name: "NIOCore", package: "swift-nio"),
@@ -50,6 +59,7 @@ let package = Package(
             dependencies: [
                 "AndromedaCore",
                 "AndromedaGateway",
+                "AndromedaMCP",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
             ]
@@ -62,10 +72,18 @@ let package = Package(
             ]
         ),
         .testTarget(
+            name: "AndromedaMCPTests",
+            dependencies: [
+                "AndromedaMCP",
+                "AndromedaCore",
+            ]
+        ),
+        .testTarget(
             name: "AndromedaGatewayTests",
             dependencies: [
                 "AndromedaGateway",
                 "AndromedaAutoCache",
+                "AndromedaMCP",
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
             ]
         ),

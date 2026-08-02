@@ -1,9 +1,10 @@
 import Foundation
 
-/// Runtime configuration for the Hummingbird gateway Autocache surface.
+/// Runtime configuration for the Hummingbird gateway Autocache + MCP surfaces.
 ///
 /// Secrets may arrive via environment; only ports, host, strategy, and feature
-/// flags are intended as bounded operational overrides.
+/// flags are intended as bounded operational overrides. Upstream Slack/GitHub
+/// tokens stay host-side (`SecretVault`); guests use `brokerToken` only.
 public struct GatewayConfig: Sendable, Equatable {
     public var host: String
     public var port: Int
@@ -15,6 +16,11 @@ public struct GatewayConfig: Sendable, Equatable {
     public var maxCacheBreakpoints: Int
     public var savingsHistorySize: Int
     public var logLevel: String
+    /// Guest broker credential for `/v1/mcp` — not a Slack/GitHub token.
+    public var brokerToken: String?
+    public var enableMCPShim: Bool
+    public var slackUpstreamMCPURL: String?
+    public var githubUpstreamMCPURL: String?
 
     public static let `default` = GatewayConfig(
         host: "127.0.0.1",
@@ -26,7 +32,11 @@ public struct GatewayConfig: Sendable, Equatable {
         enableDetailedROI: true,
         maxCacheBreakpoints: 4,
         savingsHistorySize: 100,
-        logLevel: "info"
+        logLevel: "info",
+        brokerToken: nil,
+        enableMCPShim: true,
+        slackUpstreamMCPURL: nil,
+        githubUpstreamMCPURL: nil
     )
 
     public init(
@@ -39,7 +49,11 @@ public struct GatewayConfig: Sendable, Equatable {
         enableDetailedROI: Bool,
         maxCacheBreakpoints: Int,
         savingsHistorySize: Int,
-        logLevel: String
+        logLevel: String,
+        brokerToken: String? = nil,
+        enableMCPShim: Bool = true,
+        slackUpstreamMCPURL: String? = nil,
+        githubUpstreamMCPURL: String? = nil
     ) {
         self.host = host
         self.port = port
@@ -51,6 +65,10 @@ public struct GatewayConfig: Sendable, Equatable {
         self.maxCacheBreakpoints = maxCacheBreakpoints
         self.savingsHistorySize = savingsHistorySize
         self.logLevel = logLevel
+        self.brokerToken = brokerToken
+        self.enableMCPShim = enableMCPShim
+        self.slackUpstreamMCPURL = slackUpstreamMCPURL
+        self.githubUpstreamMCPURL = githubUpstreamMCPURL
     }
 
     /// Loads configuration from process environment with Autocache-compatible keys.
@@ -78,6 +96,18 @@ public struct GatewayConfig: Sendable, Equatable {
             config.savingsHistorySize = history
         }
         if let level = environment["LOG_LEVEL"], !level.isEmpty { config.logLevel = level }
+        if let broker = environment["ANDROMEDA_BROKER_TOKEN"], !broker.isEmpty {
+            config.brokerToken = broker
+        }
+        if let mcp = environment["ENABLE_MCP_SHIM"] {
+            config.enableMCPShim = parseBool(mcp, default: true)
+        }
+        if let slackURL = environment["SLACK_UPSTREAM_MCP_URL"], !slackURL.isEmpty {
+            config.slackUpstreamMCPURL = slackURL
+        }
+        if let githubURL = environment["GITHUB_UPSTREAM_MCP_URL"], !githubURL.isEmpty {
+            config.githubUpstreamMCPURL = githubURL
+        }
         try config.validate()
         return config
     }
