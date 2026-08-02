@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+/* Explicit content sources — required because this app lives in web/ inside a
+   larger Swift monorepo, where Tailwind v4's automatic detection (relative to
+   the git root) can miss these files and emit empty CSS. */
+@source "../app";
+@source "../components";
+@source "../lib";
+
+/*
+  ANDROMEDA DESIGN SYSTEM
+  -----------------------
+  Derived from the logo: a glowing teal/cyan trefoil suspended in deep space.
+  Palette (5 total): void black, panel slate, hairline border, cyan glow, foreground light.
+*/
+
+@theme inline {
+  /* Core surfaces */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  /* Brand */
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  /* Neutrals */
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Status */
+  --color-shipped: var(--shipped);
+  --color-partial: var(--partial);
+  --color-spec: var(--spec);
+  --color-signal: var(--signal);
+
+  --font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.875rem;
+
+  --background: oklch(0.16 0.018 210);
+  --foreground: oklch(0.95 0.012 200);
+
+  --card: oklch(0.19 0.02 210);
+  --card-foreground: oklch(0.95 0.012 200);
+
+  --popover: oklch(0.18 0.02 210);
+  --popover-foreground: oklch(0.95 0.012 200);
+
+  --primary: oklch(0.83 0.14 190);
+  --primary-foreground: oklch(0.16 0.03 210);
+
+  --accent: oklch(0.66 0.12 196);
+  --accent-foreground: oklch(0.98 0.01 200);
+
+  --secondary: oklch(0.24 0.022 210);
+  --secondary-foreground: oklch(0.92 0.012 200);
+
+  --muted: oklch(0.24 0.02 210);
+  --muted-foreground: oklch(0.68 0.02 205);
+
+  --border: oklch(0.32 0.03 200);
+  --input: oklch(0.28 0.025 205);
+  --ring: oklch(0.83 0.14 190);
+
+  --shipped: oklch(0.83 0.14 190);
+  --partial: oklch(0.82 0.13 90);
+  --spec: oklch(0.62 0.02 220);
+  --signal: oklch(0.8 0.19 150);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Dotted-grid canvas used behind the living floating bar */
+@utility bg-dotgrid {
+  background-image: radial-gradient(oklch(0.55 0.04 200 / 0.22) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+}
+
+/* Orbital core: a slow breathing pulse for the bar's living center */
+@keyframes andromeda-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.83 0.14 190 / 0.55);
+    opacity: 1;
+  }
+  50% {
+    box-shadow: 0 0 0 6px oklch(0.83 0.14 190 / 0);
+    opacity: 0.82;
+  }
+}
+@utility animate-orbital {
+  animation: andromeda-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes andromeda-drift {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(360deg);
+  }
+}
+@utility animate-drift {
+  animation: andromeda-drift 14s linear infinite;
+}
+
+/* Seamless editorial ticker */
+@keyframes andromeda-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@utility animate-marquee {
+  animation: andromeda-marquee 32s linear infinite;
+}
+
+/* Slow-panning starfield for the manifesto */
+@keyframes andromeda-pan {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -600px -200px;
+  }
+}
+@utility animate-pan {
+  animation: andromeda-pan 90s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .animate-drift,
+  .animate-orbital,
+  .animate-pan {
+    animation: none !important;
+  }
+}
+
+/* Reusable atmosphere: faint starfield + aurora glow anchored to brand cyan */
+@utility bg-starfield {
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, oklch(0.83 0.14 190 / 0.5), transparent),
+    radial-gradient(1px 1px at 70% 60%, oklch(0.83 0.14 190 / 0.35), transparent),
+    radial-gradient(1px 1px at 40% 80%, oklch(0.9 0.05 200 / 0.4), transparent),
+    radial-gradient(1.5px 1.5px at 85% 20%, oklch(0.83 0.14 190 / 0.4), transparent),
+    radial-gradient(1px 1px at 55% 15%, oklch(0.9 0.05 200 / 0.3), transparent),
+    radial-gradient(1px 1px at 10% 65%, oklch(0.83 0.14 190 / 0.3), transparent);
+}
