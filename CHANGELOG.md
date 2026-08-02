@@ -13,6 +13,11 @@ All notable changes to Andromeda will be documented here.
 - `andromeda-runtime setup` / `andromeda-runtime doctor` with `--dry-run`, `--yes`, `--fix`.
 - `docs/SETUP-DOCTOR.md`, demo transcript notes, HostOps unit tests.
 - `vercel.json` with GitHub deployments disabled so Vercel is not a CI gate.
+- Agent merge gate documented (BIN-218): no merge with unresolved substantive review comments.
+
+### Fixed (Codex on merged PR #30)
+- P1: End-to-end Qdrant projection uses a per-run project/collection ID so concurrent CI cannot delete a shared Studio collection.
+- P2: CI skips Tailscale/live Qdrant when `TS_AUTHKEY` is absent (fork PRs); build + unit tests still run.
 
 ### Changed
 - Runtime CLI subcommands: `serve` (default), `setup`, `doctor`.
