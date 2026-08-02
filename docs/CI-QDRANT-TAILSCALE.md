@@ -4,16 +4,17 @@ description: Run Andromeda's live Qdrant projection tests from GitHub Actions th
 
 # CI Qdrant over Tailscale
 
-GitHub-hosted macOS runners do not have Qdrant, and `localhost:6333` is the
-runner itself. The CI workflow therefore joins an ephemeral tagged Tailscale
-node and calls the Studio-owned Qdrant instance through a tailnet-only
-Tailscale Serve listener:
+GitHub-hosted macOS runners do not have Qdrant, and their queue can be slow.
+The CI workflow therefore runs on the self-hosted `studio` macOS runner,
+which is the Studio machine that owns Qdrant. The runner is registered to this
+repository and calls Qdrant over loopback:
 
 ```text
-GitHub macOS runner --ephemeral Tailscale node--> Studio:8447
-                                                  Tailscale Serve TCP
-                                                  -> 127.0.0.1:6333
+GitHub Actions -> Studio self-hosted runner -> 127.0.0.1:6333
 ```
+
+The tailnet TCP listener remains available for non-runner verification:
+`http://studio.capybara-loggerhead.ts.net:8447` -> `127.0.0.1:6333`.
 
 ## Studio setup
 
@@ -32,14 +33,13 @@ The port is intentionally separate from the existing Serve listeners.
 
 ## GitHub setup
 
-Create an **ephemeral, tagged** Tailscale auth key whose ACL tag is allowed to
-reach Studio's tailnet-only Serve endpoint. Store the key as the repository
-secret `TS_AUTHKEY`. Do not put a reusable operator key in the repository.
+The repository has a self-hosted runner named `studio-andromeda` with labels
+`self-hosted`, `macOS`, and `studio`. Keep the runner process under launchd so
+it reconnects after reboot. No GitHub-hosted macOS capacity or Tailscale auth
+key is needed for the CI job itself.
 
-The workflow uses the immutable commit of `tailscale/github-action` and then
-sets `ANDROMEDA_TEST_QDRANT_URL` for the root Swift test process. The workflow
-also curls `/collections` before compiling, so a missing key, ACL, listener,
-or Qdrant service fails with an explicit connectivity error instead of a
+The workflow curls `/collections` before compiling, so a missing runner or
+Qdrant service fails with an explicit connectivity error instead of a
 misleading projection assertion.
 
 ## Local verification
