@@ -1,0 +1,87 @@
+import Foundation
+import Testing
+
+@Suite("Repository policy")
+struct RepositoryPolicyTests {
+    /// Verifies that operational behavior remains Swift-native instead of quietly growing a shell surface.
+    ///
+    /// The scan intentionally checks the repository rather than a curated file list so a newly added script
+    /// fails loudly. Build products, dependency checkouts, Git internals, and frontend dependencies are excluded
+    /// because they are not project-maintained source files.
+    @Test("project-maintained shell automation is forbidden")
+    func rejectsProjectMaintainedShellAutomation() throws {
+        let repositoryRoot = repositoryRootURL()
+        let shellFiles = try projectFiles(in: repositoryRoot).filter { try isShellAutomation($0) }
+        let allowlisted = allowlistedShellPaths(in: repositoryRoot)
+        let violations = shellFiles.filter { !allowlisted.contains($0.path) }
+
+        #expect(
+            violations.isEmpty,
+            """
+            Shell automation is a hard policy violation. Implement this behavior in Swift instead:\n\
+            \(violations.map(\.path).joined(separator: "\n"))
+            """
+        )
+    }
+
+    /// Resolves the package root from this test source location without relying on the caller's working directory.
+    private func repositoryRootURL() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
+    /// Enumerates project-maintained files while pruning generated and externally maintained directories.
+    private func projectFiles(in repositoryRoot: URL) throws -> [URL] {
+        let excludedDirectoryNames: Set<String> = [
+            ".build", ".git", ".letta", ".swiftpm", "DerivedData", "node_modules", "vendor",
+        ]
+        guard let enumerator = FileManager.default.enumerator(
+            at: repositoryRoot,
+            includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey],
+            options: []
+        ) else {
+            throw RepositoryPolicyError.cannotEnumerate(repositoryRoot)
+        }
+
+        var files: [URL] = []
+        for case let fileURL as URL in enumerator {
+            let values = try fileURL.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey])
+            if values.isDirectory == true, excludedDirectoryNames.contains(fileURL.lastPathComponent) {
+                enumerator.skipDescendants()
+            } else if values.isRegularFile == true {
+                files.append(fileURL)
+            }
+        }
+        return files
+    }
+
+    /// Identifies shell automation by extension or interpreter directive, including extensionless hook files.
+    private func isShellAutomation(_ fileURL: URL) throws -> Bool {
+        let forbiddenExtensions: Set<String> = ["bash", "command", "sh", "zsh"]
+        if forbiddenExtensions.contains(fileURL.pathExtension.lowercased()) {
+            return true
+        }
+
+        let prefix = try Data(contentsOf: fileURL, options: [.mappedIfSafe]).prefix(128)
+        guard let firstLine = String(data: prefix, encoding: .utf8)?.split(separator: "\n").first else {
+            return false
+        }
+        let shellInterpreters = ["/bash", "/sh", "/zsh", "env bash", "env sh", "env zsh"]
+        return firstLine.hasPrefix("#!") && shellInterpreters.contains { firstLine.contains($0) }
+    }
+
+    /// Returns the set of repository-relative paths for shell scripts that are grandfathered.
+    /// New entries here require explicit approval in the PR review — this is not a way to bypass the policy.
+    private func allowlistedShellPaths(in repositoryRoot: URL) -> Set<String> {
+        [
+            // macOS code signing wrapper — Xcode toolchain doesn't expose signing via Swift CLI yet
+            repositoryRoot.appendingPathComponent("scripts/install-and-sign.sh").path,
+        ]
+    }
+}
+
+private enum RepositoryPolicyError: Error {
+    case cannotEnumerate(URL)
+}
