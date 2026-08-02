@@ -135,7 +135,9 @@ public actor CuratedToolBroker {
         if let questionMark = path.firstIndex(of: "?") {
             let pathPart = String(path[..<questionMark])
             let queryPart = String(path[path.index(after: questionMark)...])
-            url = base.appending(path: pathPart).appending(query: queryPart)
+            var components = URLComponents(url: base.appending(path: pathPart), resolvingAgainstBaseURL: false)!
+            components.query = queryPart
+            url = components.url!
         } else {
             url = base.appending(path: path)
         }
