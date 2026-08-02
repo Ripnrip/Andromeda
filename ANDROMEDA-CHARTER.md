@@ -13,7 +13,7 @@ Andromeda is a local-first, Swift-native control plane for multi-agent engineeri
 
 ## Non-Negotiables
 
-1. **No Bash implementation surface.** Operational behavior must live in Swift modules, typed CLIs, launchable app components, or explicitly documented external tools. Shell snippets may appear only as documentation examples, not as project-maintained automation files.
+1. **No Bash implementation surface.** Operational behavior must live in Swift modules, typed CLIs, launchable app components, or explicitly documented external tools. Shell snippets may appear only as documentation examples, not as project-maintained automation files. Enforcement: `config/shell-allowlist.txt` + Swift policy tests + CI (`docs/NO-BASH-SURFACE.md`, BIN-219).
 2. **No invisible launch agents, watchdogs, or hidden daemons.** Background work must be represented in the command bar, menu bar, console, or another observable control surface.
 3. **Everything important is observable.** Every meaningful operation must produce structured logs, metrics, trace/span context, status, owner, failure classification, and privacy classification.
 4. **Append before processing.** Accepted observations are durably journaled before enrichment, projection, embedding, routing, or remote delivery.

@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+"""Pre-commit hook: reject commits that introduce disallowed shell automation.
+
+Enable with:
+  git config core.hooksPath .githooks
+
+This file is Python on purpose — a shell pre-commit hook would violate the
+rule it is meant to enforce (BIN-219).
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+GATE = ROOT / "Tools" / "no_bash_surface_gate.py"
+
+
+def main() -> int:
+    if not GATE.is_file():
+        print(f"pre-commit: missing gate at {GATE}", file=sys.stderr)
+        return 1
+    result = subprocess.run([sys.executable, str(GATE), "--root", str(ROOT)], check=False)
+    if result.returncode != 0:
+        print(
+            "pre-commit: blocked by No-Bash surface policy. "
+            "Use Swift / Actions YAML; do not add new .sh files.",
+            file=sys.stderr,
+        )
+    return result.returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())

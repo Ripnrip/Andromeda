@@ -55,6 +55,12 @@ let package = Package(
             ]
         ),
         .testTarget(
+            name: "AndromedaCoreTests",
+            dependencies: [
+                "AndromedaCore",
+            ]
+        ),
+        .testTarget(
             name: "AndromedaAutoCacheTests",
             dependencies: [
                 "AndromedaAutoCache",

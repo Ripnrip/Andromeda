@@ -1,0 +1,41 @@
+# No Bash implementation surface (BIN-219)
+#
+# Fails the PR when project-maintained shell automation appears outside
+# config/shell-allowlist.txt. Gate is Python + GitHub Actions YAML — not a .sh
+# linter script.
+
+name: no-bash-surface
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  no-bash-surface:
+    name: No Bash surface gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run No-Bash surface gate
+        run: python3 Tools/no_bash_surface_gate.py --root "${GITHUB_WORKSPACE}"
+
+      - name: Canary — scripts/oops.sh must not be allowlisted
+        run: python3 Tools/no_bash_surface_gate.py --root "${GITHUB_WORKSPACE}" --canary
+
+      - name: Prove gate rejects a synthetic .sh file
+        run: |
+          mkdir -p "${RUNNER_TEMP}/canary-repo/config" "${RUNNER_TEMP}/canary-repo/scripts"
+          cp config/shell-allowlist.txt "${RUNNER_TEMP}/canary-repo/config/shell-allowlist.txt"
+          printf '%s\n' '#!/usr/bin/env bash' 'echo oops' > "${RUNNER_TEMP}/canary-repo/scripts/oops.sh"
+          if python3 Tools/no_bash_surface_gate.py --root "${RUNNER_TEMP}/canary-repo"; then
+            echo "CANARY FAIL: gate accepted scripts/oops.sh" >&2
+            exit 1
+          fi
+          echo "CANARY OK: gate rejected scripts/oops.sh"
