@@ -1,22 +1,26 @@
 import AndromedaAutoCache
 import AndromedaCore
+import AndromedaMCP
 import Foundation
 import HTTPTypes
 import Hummingbird
 import Logging
 import NIOCore
 
-/// Builds the Hummingbird router exposing Autocache-compatible Anthropic routes.
+/// Builds the Hummingbird router exposing Autocache + MCP shim routes.
 public struct GatewayRouter: Sendable {
     public let controller: AutocacheController
+    public let mcpHub: MCPShimHub?
 
-    public init(controller: AutocacheController) {
+    public init(controller: AutocacheController, mcpHub: MCPShimHub? = nil) {
         self.controller = controller
+        self.mcpHub = mcpHub
     }
 
     public func build() -> Router<BasicRequestContext> {
         let router = Router(context: BasicRequestContext.self)
         let controller = self.controller
+        let mcpHub = self.mcpHub
 
         router.get("/") { _, _ -> Response in
             try Self.encodeJSON(controller.healthPayload())
@@ -42,7 +46,42 @@ public struct GatewayRouter: Sendable {
             try await Self.handleMessages(controller: controller, request: request)
         }
 
+        if let mcpHub {
+            router.get("/v1/mcp/health") { _, _ -> Response in
+                let data = await mcpHub.healthPayload()
+                var headers = HTTPFields()
+                headers[.contentType] = "application/json"
+                return Response(
+                    status: .ok,
+                    headers: headers,
+                    body: .init(byteBuffer: ByteBuffer(data: data))
+                )
+            }
+            router.post("/v1/mcp") { request, _ -> Response in
+                try await Self.handleMCP(hub: mcpHub, request: request)
+            }
+        }
+
         return router
+    }
+
+    private static func handleMCP(hub: MCPShimHub, request: Request) async throws -> Response {
+        let body = try await request.body.collect(upTo: 2 * 1024 * 1024)
+        let data = Data(body.readableBytesView)
+        let decoder = JSONDecoder()
+        let rpc: MCPJSONRPCRequest
+        do {
+            rpc = try decoder.decode(MCPJSONRPCRequest.self, from: data)
+        } catch {
+            let err = MCPJSONRPCResponse(
+                id: nil,
+                error: MCPJSONRPCError(code: -32700, message: "Parse error")
+            )
+            return try encodeJSON(err)
+        }
+        let auth = request.headers[.authorization]
+        let response = await hub.handle(request: rpc, authorizationHeader: auth)
+        return try encodeJSON(response)
     }
 
     private static func handleMessages(

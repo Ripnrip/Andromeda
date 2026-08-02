@@ -66,6 +66,26 @@ public struct AnthropicProxyClient: @unchecked Sendable {
         let urlRequest = try makeMessagesRequest(request, headers: headers)
         logger.debug("Forwarding Anthropic SSE stream model=\(request.model)")
 
+        #if canImport(FoundationNetworking)
+        // Linux FoundationNetworking lacks URLSession.bytes — buffer then stream once.
+        let (data, response) = try await session.data(for: urlRequest)
+        guard let http = response as? HTTPURLResponse else {
+            throw AndromedaError.upstreamFailure(status: 502, message: "Invalid upstream response")
+        }
+        let statusCode = http.statusCode
+        let responseHeaders = headerMap(from: http)
+        let stream = AsyncThrowingStream<ByteBuffer, Error> { continuation in
+            var buffer = ByteBufferAllocator().buffer(capacity: data.count)
+            buffer.writeBytes(data)
+            continuation.yield(buffer)
+            continuation.finish()
+        }
+        return UpstreamStreamResponse(
+            statusCode: statusCode,
+            headers: responseHeaders,
+            body: stream
+        )
+        #else
         let (bytes, response) = try await session.bytes(for: urlRequest)
         guard let http = response as? HTTPURLResponse else {
             throw AndromedaError.upstreamFailure(status: 502, message: "Invalid upstream response")
@@ -105,6 +125,7 @@ public struct AnthropicProxyClient: @unchecked Sendable {
             headers: responseHeaders,
             body: stream
         )
+        #endif
     }
 
     public func getModels(headers: [String: String]) async throws -> UpstreamResponse {

@@ -2,6 +2,27 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-08-02 — MCP Shim (Slack + GitHub) + setup/doctor
+
+**Tone hat:** Vault keeper 🔐
+**Commit message of the day:** `feat: broker Slack/GitHub MCP through Andromeda without guest secrets`
+**Steps taken:** Landed the option-2 auth-preserving MCP wrapper, guest config generator, and interactive `setup` / `doctor` checklists for the tools + secrets pillars.
+
+### Added
+- New `AndromedaMCP` module: JSON-RPC MCP models, `SecretVault`, allowlists, `MCPShimHub`, guest mcp.json renderer, doctor/setup diagnostics.
+- Hummingbird routes `POST /v1/mcp` and `GET /v1/mcp/health` with broker-token auth.
+- CLI commands `andromeda setup` and `andromeda doctor` (idempotent checklists; `--dry-run` / guest config write).
+- Docs: `docs/MCP-SHIM.md`, `docs/demo/mcp-shim-demo.md`.
+- Tests for allowlist deny, secret scrubbing, guest config purity, and HTTP MCP routes.
+- Linear: BIN-207, BIN-208 (under BIN-102).
+
+### Security
+- Upstream Slack/GitHub tokens remain host-only; guests use `ANDROMEDA_BROKER_TOKEN`.
+- Responses and audit details pass through `SecretScrubber` before leaving the hub.
+
+### Reflection
+- Three pillars now have MVPs on the board: memory, secrets/vault, and tools/MCP. 🧰
+
 ## 2026-07-15 — Hummingbird Autocache Gateway
 
 **Tone hat:** Thrifty engineer 🪙
