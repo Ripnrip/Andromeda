@@ -13,12 +13,14 @@ struct QdrantProjectionTests {
         try await skipUnlessQdrantReachable(baseURL: baseURL)
 
         let projectID = ProjectID(rawValue: UUID())
+        // Collection name is derived from projectID; a unique ID keeps concurrent
+        // CI runs from deleting each other's Studio collections (Codex P1 / BIN-218).
         let collectionName = "andromeda-memories-\(projectID.description)"
-       let projection = QdrantProjection(
-           baseURL: baseURL,
+        let projection = QdrantProjection(
+            baseURL: baseURL,
             embeddingProvider: HashBagOfWordsEmbeddingProvider(),
             urlSession: testQdrantURLSession
-       )
+        )
         let record = makeRecord(projectID: projectID, privacy: .project)
 
         let receipt = try await projection.write(record: record)

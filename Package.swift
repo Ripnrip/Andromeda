@@ -17,6 +17,7 @@ let package = Package(
         .library(name: "AndromedaMemory", targets: ["AndromedaMemory"]),
         .library(name: "AndromedaProjections", targets: ["AndromedaProjections"]),
         .library(name: "AndromedaSecrets", targets: ["AndromedaSecrets"]),
+        .library(name: "AndromedaHostOps", targets: ["AndromedaHostOps"]),
         .library(name: "AndromedaTools", targets: ["AndromedaTools"]),
         .library(name: "AndromedaHTTP", targets: ["AndromedaHTTP"]),
         .library(name: "AndromedaClient", targets: ["AndromedaClient"]),
@@ -88,6 +89,15 @@ let package = Package(
             name: "AndromedaSecrets",
             dependencies: [
                 "AndromedaDomain",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .target(
+            name: "AndromedaHostOps",
+            dependencies: [
+                "AndromedaSecrets",
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6)
@@ -173,6 +183,7 @@ let package = Package(
         .executableTarget(
             name: "AndromedaRuntimeCLI",
             dependencies: [
+                "AndromedaHostOps",
                 "AndromedaSecrets",
                 "AndromedaServer",
                 "AndromedaTools",
@@ -293,6 +304,16 @@ let package = Package(
             dependencies: [
                 "AndromedaSecrets",
                 "AndromedaTools",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .testTarget(
+            name: "AndromedaHostOpsTests",
+            dependencies: [
+                "AndromedaHostOps",
+                "AndromedaSecrets",
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6)

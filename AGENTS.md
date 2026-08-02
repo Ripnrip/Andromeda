@@ -62,3 +62,10 @@ cd Packages/MemoryKit && swift test
 - Keep retries bounded, cancellation respected, operations idempotent where replay is possible, and failures observable.
 - Never silently change schemas or configuration formats; add ADRs and migrations.
 - Never generate destructive code such as dropping databases or wiping remote data without triple explicit confirmation and backups in a `legacy/` area.
+
+## Agent merge gate (BIN-218)
+
+Agents **must not merge** a PR while **unresolved substantive review comments** remain.
+
+- Not keyed off GitHub "Changes requested" alone — COMMENTED reviews with real findings (e.g. Codex P1/P2) also block.
+- Merge only when: CI green + no unresolved substantive comments + required milestone proofs present.
