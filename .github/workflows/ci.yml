@@ -1,8 +1,13 @@
 name: CI
 
 on:
-  push:
   pull_request:
+  # Only run on push for the default branch (main) to catch direct merges.
+  # Feature-branch pushes are validated via the pull_request trigger above;
+  # this prevents merge-triggered CI reruns from clogging the queue.
+  push:
+    branches:
+      - main
 
 # Cancel superseded runs for the same ref (e.g. new push to an open PR).
 concurrency:
