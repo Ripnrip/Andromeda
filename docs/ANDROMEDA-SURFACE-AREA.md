@@ -1,6 +1,7 @@
 # Andromeda × Anima — Total Control / Observability Surface Area
 
-> **Inventory date:** 2026-07-15  
+> **Inventory date:** 2026-07-15 (pillars pointer 2026-07-19)  
+> **Product identity:** six control-plane pillars — [ANDROMEDA-CONTROL-PLANE.md](./ANDROMEDA-CONTROL-PLANE.md) (Memory, MCP host, Skills, LLM proxy, Secrets broker, Fleet runtime).  
 > **Scope:** Make every invisible/scattered control surface a **visible Swift entity**, optionally orchestrable via **n8n**, without creating a second source of truth.  
 > **Sources:** `~/Developer/multibrain` (ops/, bin/, docs/, Packages/), `~/Developer/Andromeda`, `~/Library/LaunchAgents`, `~/Developer/multibrain-bar`, live ports on Studio.  
 > **Rule:** Docs only — no code changes in this inventory pass.
@@ -71,6 +72,11 @@ flowchart TB
 
 Phases: **0** = visible now (file/API/plist) · **1** = Anima MemoryKit · **2** = Andromeda unify · **later** = Pet / photographic / n8n-deep.
 
+The `store.*`, `svc.*`, `job.*`, `river.*`, and `index.*` names below are
+**operator-internal entity IDs**, not client capabilities. Clients receive only
+stable curtain IDs such as `memory.*`, current `infer.write`, and
+`project.state.*`; tracker/provider/store brands stay behind the curtain.
+
 | Entity ID | Kind | Current home | Visibility today | Target Swift entity | n8n role | Phase |
 |-----------|------|--------------|------------------|---------------------|----------|-------|
 | `store.anima.hot` | Store | MemoryKit `SwiftDataContainer` / `AnimaEpisodicRecord` (`Andromeda` + `multibrain/Packages/MemoryKit`) | hidden (in-process) | `AnimaHotStore` | webhook (store) / poll (count) | 1 |
@@ -107,7 +113,7 @@ Phases: **0** = visible now (file/API/plist) · **1** = Anima MemoryKit · **2**
 | `cli.graphify_merge` | CLI | `bin/graphify_merge.py` | CLI | `GraphifyMerge` | trigger | 0 |
 | `cli.index_ladybug` | CLI | `bin/index_ladybug.py` | CLI | `LadybugRebuild` | trigger | 0 |
 | `cli.daily_brief` | CLI | `bin/daily_brief.py` | CLI+vault | `Meditation.DailyBrief` | trigger / poll brief file | 0→1 |
-| `job.weekly_retro` | Cron | `ops/com.multibrain.retro.plist` Mon 08:00 — **template only, not installed** | file (ops) / missing live | `ScheduledJob.WeeklyRetro` | trigger | 0 |
+| `job.weekly_retro` | Cron | `com.multibrain.retro` Mon 08:00 — installed on Studio | LaunchAgent + vault output | `ScheduledJob.WeeklyRetro` | trigger | 0 |
 | `cli.weekly_retro` | CLI | `bin/weekly_retro.py` | CLI | `Meditation.WeeklyRetro` | trigger | 0 |
 | `layer.anima.dream` | Service | maps to nightly today | hidden (concept) | `AnimaDreamEngine` | trigger | 1→2 |
 | `layer.anima.meditation` | Service | Daily Brief / morning | hidden | `AnimaMeditation` | trigger | 1 |
@@ -133,6 +139,8 @@ Phases: **0** = visible now (file/API/plist) · **1** = Anima MemoryKit · **2**
 | `telemetry.health_json` | Telemetry | `~/.multibrain/health.json` (9 checks) | file | `HealthSnapshot` | poll | 0 |
 | `telemetry.last_success` | Telemetry | `~/.multibrain/last_success` | file | `NightlyDeadMan` | poll | 0 |
 | `telemetry.logs` | Telemetry | `~/.multibrain/logs/*` | file | `FleetLogTail` | none | 0 |
+| `telemetry.otlp_local` | Telemetry | OTLP HTTP `127.0.0.1:4318` (+ gRPC `:4317`) | otel-collector | `OTLPHTTPExporter` | push | 0 |
+| `telemetry.jsonl` | Telemetry | `~/.multibrain/telemetry/*.jsonl` | file | `FileJSONLTelemetryClient` | append | 0 |
 | `watchdog.router` | Watchdog | `ai.router-watchdog` every 300s | LaunchAgent | `Watchdog.Router` (adjacent) | poll | later |
 | `watchdog.cloak` | Watchdog | `com.gurinder.cloakwatch` every 300s | LaunchAgent | `Watchdog.Cloak` (adjacent) | poll | later |
 | `job.fleet_heal` | Cron | `com.chezmoi.fleet-heal` Sun 09:17 | LaunchAgent | `ScheduledJob.FleetHeal` | none | later |
@@ -184,19 +192,19 @@ Eight Anima layers ↔ fleet: Episodic←claude-mem; Semantic←vault/graphify/L
 - **Hermes local + VM** — FTS5 extractors; VM via habitat SSH / tunnel.
 - **Multica** — Postgres task queue extract; daemon+stack LaunchAgents.
 - **Kimi bridge** — SessionEnd → claude-mem.
-- **Dreamcatcher** — every 30m census of tmux/herdr/ttys/agent procs → dream journal + optional claude-mem obs (uses Haiku path — OpenRouter spend risk).
+- **Dreamcatcher** — every 30m census of tmux/herdr/ttys/agent procs → dream journal + optional claude-mem obs; installed with `--no-llm` and paid LLM disabled.
 - Extractors are **read-only** against sources.
 
 ### C. Nightly / Dream / consolidate
 
 As-built sequence (`run-nightly.sh`): ingest_staged → extract_claudemem → **consolidate.py** → index_ladybug → graphify_merge → git vault → daily_brief → healthcheck `--mark-success`.  
 Studio 02:30 / Book 03:00. Catch-up if `last_success` >20h.  
-**Letta does not own the batch.** Weekly retro plist exists in `ops/` but is **not loaded** on Studio today.
+**Letta does not own the batch.** Weekly retro is installed on Studio for Monday 08:00.
 
 ### D. Hub services
 
-Studio-only: Letta + shim + bridge, Ladybug index-server, Qdrant, Multica stack, weekly retro (when installed).  
-Book/Mini satellite: nightly + health (+ optional claude-mem worker). Hub checks return `n/a` on satellites.
+Studio-only: Letta + shim + bridge, Ladybug index-server, Qdrant, Multica stack, weekly retro.
+Book is the Phase-1 satellite (current live status unverified); Mini stays isolated. Hub checks return `n/a` on satellites.
 
 ### E. Health / alerts / telemetry
 
@@ -204,6 +212,7 @@ Book/Mini satellite: nightly + health (+ optional claude-mem worker). Hub checks
 - Dead-man’s switch on stale nightly.
 - multibrain-bar file-watches `health.json` + 30s poll.
 - Adjacent watchdogs (router, cloakwatch, fleet-heal) are visible LaunchAgents but out of hive SoT.
+- **Day-1 observability spine (2026-07-15):** OpenTelemetry → local collector (OTLP HTTP `:4318`) with FileJSONL fallback at `~/.multibrain/telemetry/`. Phoenix/“optic” **not** installed on Studio — do not block on it. Canon: `docs/OBSERVABILITY.md` in the multibrain repo · ops: `ops/observability/` · Swift: `TelemetryClient` + `HealthSnapshotLoader` emit `health.snapshot.load`. Proof: `Packages/MemoryKit/PROOFS/30-observability-spine.md`. Alpha SLOs: registry scan latency, `health.json` freshness, MCP duplicate count.
 
 ### F. Skills + MCP + CLI
 
@@ -231,7 +240,7 @@ Book/Mini satellite: nightly + health (+ optional claude-mem worker). Hub checks
 | `com.qdrant.server` | KeepAlive | Vectors |
 | `com.multica.{daemon,stack}` | KeepAlive | Multica |
 | `com.binarybros.hermes-tunnel` | KeepAlive | VM tunnel |
-| `com.multibrain.retro` | Mon 08:00 | **ops only — not installed** |
+| `com.multibrain.retro` | Mon 08:00 | installed on Studio; vault-only/no-LLM |
 | crontab | empty/none observed | Cron section in bar stays spare |
 
 ### H. UI surfaces
@@ -252,9 +261,9 @@ Book/Mini satellite: nightly + health (+ optional claude-mem worker). Hub checks
 3. **Visibility before control.** Register and observe first (read `launchctl` / `health.json` / ports). Mutations (kickstart/bootstrap) only via explicit user or signed capability — same as multibrain-bar.
 4. **n8n never writes SoT.** Allowed: trigger `run-nightly --force`, kickstart a labeled agent, poll `health.json` / `:8283/health`, receive webhooks from Andromeda after Internalize. Forbidden: direct vault writes, direct Qdrant as SoT, parallel “n8n memory.”
 5. **Capability wrapper.** `Andromeda.observe(entity)` → event log; `Andromeda.execute(capability)` → runs CLI/service; `Andromeda.internalize(result)` → Anima seal + optional vault materialize.
-6. **Satellite honesty.** Book/Mini entities for Letta/Ladybug stay `status: n/a`, not red.
+6. **Fleet honesty.** Book entities for Letta/Ladybug stay `status: n/a`, not red; Mini is isolated, not an automatic satellite.
 7. **No silent watchdogs.** Dreamcatcher, claude-mem-worker, router-watchdog must appear in the console roster with last-run + purpose.
-8. **Spend gates.** Dreamcatcher Haiku / Book OpenRouter / Letta paid paths must be killable entities (preference: kill OpenRouter/Haiku on cron ASAP).
+8. **Spend gates.** Dreamcatcher is no-LLM by default; Book OpenRouter and Letta paid paths remain explicit, killable exceptions.
 
 ---
 
@@ -295,7 +304,7 @@ Book/Mini satellite: nightly + health (+ optional claude-mem worker). Hub checks
 
 ## Related docs
 
-- [MEMORY-ONEPAGER.md](MEMORY-ONEPAGER.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [FLEET.md](FLEET.md) · [RUNBOOK.md](RUNBOOK.md) · [PLAN.md](PLAN.md) · [DATA-CONTRACTS.md](DATA-CONTRACTS.md) · [KNOWLEDGE-STACK.md](KNOWLEDGE-STACK.md) · [UI.md](UI.md)
+- [MEMORY-ONEPAGER.md](MEMORY-ONEPAGER.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [FLEET.md](FLEET.md) · [RUNBOOK.md](RUNBOOK.md) · [PLAN.md](PLAN.md) · [DATA-CONTRACTS.md](DATA-CONTRACTS.md) · [KNOWLEDGE-STACK.md](KNOWLEDGE-STACK.md) · [UI.md](UI.md) · `docs/OBSERVABILITY.md` (multibrain repo)
 
 ---
 
@@ -347,4 +356,4 @@ Broader inventory outside the table: **~113** skills, **~16–19** MCP servers, 
 - Install/load `com.multibrain.retro`  
 - Skill/MCP registries as read-only inventory  
 - Ladybug/Qdrant indexer fail-open hardening  
-- Book/Mini satellite honesty in health UI
+- Book satellite honesty and Mini-isolated status in health UI

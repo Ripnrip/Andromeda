@@ -65,7 +65,7 @@ public enum SyncError: Error, Sendable, LocalizedError, Equatable {
         case .missingContentHash:
             return "🔏 Record lacks contentHash seal material; refusing celestial export."
         case .sealVerificationFailed(let message):
-            return "🔏 AnimaSeal gate refused export: \(message)"
+            return "🔏 Andromeda seal gate refused export: \(message)"
         }
     }
 }

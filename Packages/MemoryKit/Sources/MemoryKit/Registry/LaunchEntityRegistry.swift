@@ -19,7 +19,7 @@ public protocol LaunchctlObserving: Sendable {
 }
 
 /// 🌙 Default observer that refuses live launchctl — keeps unit tests hermetic.
-/// Wire a real adapter at the Andromeda console boundary later.
+/// Production Observe uses `LiveLaunchctlObserver` (see `FleetObserveComposer.observeLive`).
 public struct NullLaunchctlObserver: LaunchctlObserving {
     public init() {}
 
@@ -74,7 +74,7 @@ public struct LaunchEntityRegistry: Sendable {
 
     // MARK: Catalog
 
-    /// 📜 Canonical seed list from ANDROMEDA-SURFACE-AREA §G + Mini isolated lane.
+    /// 📜 Canonical seed list from ANDROMEDA-SURFACE-AREA §G + HAB-42 habitat ghosts + Mini isolated lane.
     public static func catalogSeeds(
         launchAgentsDirectory: String = ("~/Library/LaunchAgents" as NSString).expandingTildeInPath,
         opsDirectory: String = "/Users/admin/Developer/multibrain/ops"
@@ -94,7 +94,7 @@ public struct LaunchEntityRegistry: Sendable {
                 plistPath: live("com.multibrain.nightly"),
                 schedule: .calendar(hour: 2, minute: 30, weekday: nil),
                 hostRole: .hub,
-                purpose: "Dream batch — consolidate.py via run-nightly.sh"
+                purpose: "Dream batch — nightly consolidate @ 02:30"
             ),
             LaunchEntity(
                 slug: "job.health",
@@ -169,6 +169,62 @@ public struct LaunchEntityRegistry: Sendable {
                 hostRole: .hub,
                 purpose: "Weekly retro Mon 08:00 — ops template, not installed",
                 isOpsOnly: true
+            ),
+            // 👻 HAB-42 — habitat / Multica ghosts (observe-only; no kickstart).
+            // Host hub Multica runtime + agent-habitat VM plumbing that used to be raw plist/socat.
+            LaunchEntity(
+                slug: "svc.multica.daemon",
+                label: "com.multica.daemon",
+                kind: .service,
+                plistPath: live("com.multica.daemon"),
+                schedule: .keepAlive,
+                hostRole: .hub,
+                purpose: "Canonical Multica daemon (host hub KeepAlive)"
+            ),
+            LaunchEntity(
+                slug: "svc.multica.stack",
+                label: "com.multica.stack",
+                kind: .service,
+                plistPath: live("com.multica.stack"),
+                schedule: .keepAlive,
+                hostRole: .hub,
+                purpose: "Canonical Multica stack (host hub KeepAlive)"
+            ),
+            LaunchEntity(
+                slug: "svc.habitat.boot",
+                label: "dev.agent-habitat.boot",
+                kind: .service,
+                plistPath: live("dev.agent-habitat.boot"),
+                schedule: .keepAlive,
+                hostRole: .hub,
+                purpose: "Cold-boot autostart of agent-habitat VM (RunAtLoad+KeepAlive)"
+            ),
+            LaunchEntity(
+                slug: "svc.multica.host_forwarder",
+                label: "com.local.multica-host-forwarder",
+                kind: .tunnel,
+                plistPath: live("com.local.multica-host-forwarder"),
+                schedule: .keepAlive,
+                hostRole: .hub,
+                purpose: "socat 127.0.0.1:3636 → host Multica; agent-habitat.*/ without duplicate Multica"
+            ),
+            LaunchEntity(
+                slug: "svc.tailscale.serve_reassert",
+                label: "com.tailscale.serve.hermes",
+                kind: .cron,
+                plistPath: live("com.tailscale.serve.hermes"),
+                schedule: .interval(seconds: 300),
+                hostRole: .hub,
+                purpose: "Re-assert tailscale serve paths every 300s (agent-habitat VM)"
+            ),
+            LaunchEntity(
+                slug: "watchdog.fix_default_route",
+                label: "com.local.fix-default-route",
+                kind: .watchdog,
+                plistPath: live("com.local.fix-default-route"),
+                schedule: .interval(seconds: 30),
+                hostRole: .hub,
+                purpose: "Keep agent-habitat VM default gateway alive (30s poll)"
             ),
             // 🛰️ Isolated lane — do NOT hive. Mac Mini VNC tunnel stays off the hive mind.
             LaunchEntity(

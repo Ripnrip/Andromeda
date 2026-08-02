@@ -1,0 +1,160 @@
+name: CI
+
+on:
+  pull_request:
+  # Only run on push for the default branch (main) to catch direct merges.
+  # Feature-branch pushes are validated via the pull_request trigger above;
+  # this prevents merge-triggered CI reruns from clogging the queue.
+  push:
+    branches:
+      - main
+
+# Cancel superseded runs for the same ref (e.g. new push to an open PR).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build & Test (macOS)
+    # macOS runner is required: the snapshot suite is AppKit-guarded and would be
+    # silently skipped on Linux, hiding red snapshots.
+    # Snapshot PNGs are tied to this image (re-record with [record-snapshots] if changed).
+    # Hosted macOS preserves the pinned snapshot toolchain. Qdrant is reached
+    # through the ephemeral Tailscale node below; Studio remains a secondary
+    # self-hosted fallback runner.
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        # Pin to immutable SHA (v4.3.1); mutable @v4 tags are a supply-chain risk.
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Select Xcode 16.4 (Swift 6.1)
+        # Package.swift requires swift-tools-version 6.1; pin Xcode so the toolchain
+        # does not drift when the hosted runner default changes.
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+
+      - name: Swift version
+        run: swift --version
+
+      # Fork PRs do not receive repository secrets (Codex P2 / BIN-218). Gate live
+      # Qdrant so ordinary build+unit tests still run without TS_AUTHKEY.
+      - name: Detect live Qdrant availability
+        id: qdrant
+        env:
+          TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+        run: |
+          if [ -n "$TS_AUTHKEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "url=http://100.89.167.39:8447" >> "$GITHUB_OUTPUT"
+            echo "Live Qdrant enabled (TS_AUTHKEY present)"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "url=" >> "$GITHUB_OUTPUT"
+            echo "TS_AUTHKEY absent — skipping Tailscale/live Qdrant; unit tests still run"
+          fi
+
+      - name: Connect to Studio tailnet
+        if: steps.qdrant.outputs.enabled == 'true'
+        uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Verify Studio Qdrant
+        if: steps.qdrant.outputs.enabled == 'true'
+        env:
+          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant.outputs.url }}
+        run: |
+          tailscale status
+          tailscale ping --c 3 studio || true
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+            --retry 5 --retry-delay 2 \
+            "$ANDROMEDA_TEST_QDRANT_URL/collections" >/dev/null
+          echo "Studio Qdrant reachable over tailnet"
+
+      - name: Build
+        run: swift build
+
+      # Baselines must be recorded on macos-14 + Xcode 16.4 (this job). Local macOS 26 /
+      # Xcode 26 PNGs will not pixel-match the runner. Tip a commit with [record-snapshots]
+      # to rewrite **/__Snapshots__ here, then download the artifact and commit.
+      - name: Detect snapshot record mode
+        id: snapshots
+        run: |
+          MSG="$(git log -1 --pretty=%B)"
+          if printf '%s' "$MSG" | grep -q '\[record-snapshots\]'; then
+            echo "record=true" >> "$GITHUB_OUTPUT"
+            echo "SNAPSHOT_TESTING_RECORD enabled for this commit"
+          else
+            echo "record=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test (root package)
+        if: steps.snapshots.outputs.record != 'true'
+        env:
+          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant.outputs.url }}
+        # Single worker: AppKit snapshot + MainActor HUD tests contend under default
+        # Swift Testing parallelism and flake debounce / project.state timeouts on CI.
+        # IMPORTANT: do not set SNAPSHOT_TESTING_RECORD="" — empty still counts as set
+        # in ProcessInfo.environment and forces Point-Free record=.all (always fails).
+        # When url is empty, live Qdrant tests fall back to localhost and skip if down.
+        run: swift test --parallel --num-workers 1
+
+      - name: Test (root package, record snapshots)
+        if: steps.snapshots.outputs.record == 'true'
+        env:
+          SNAPSHOT_TESTING_RECORD: "1"
+          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant.outputs.url }}
+        run: swift test --parallel --num-workers 1
+        continue-on-error: true
+
+      # Nested SPM package — root `swift test` does not discover MemoryKitTests.
+      - name: Test MemoryKit (nested package)
+        if: steps.snapshots.outputs.record != 'true'
+        working-directory: Packages/MemoryKit
+        run: swift test --parallel --num-workers 1
+
+      - name: Test MemoryKit (nested package, record snapshots)
+        if: steps.snapshots.outputs.record == 'true'
+        working-directory: Packages/MemoryKit
+        env:
+          SNAPSHOT_TESTING_RECORD: "1"
+        run: swift test --parallel --num-workers 1
+        continue-on-error: true
+
+      - name: Test Anima (nested package, Phase 1)
+        if: steps.snapshots.outputs.record != 'true'
+        working-directory: Packages/Anima
+        run: swift test --parallel --num-workers 1
+
+      - name: Upload CI snapshot baselines
+        # SnapshotTesting .all records PNGs then fails on purpose ("Record mode is on").
+        # Always upload after a record tip so we can commit the rewritten baselines.
+        if: ${{ always() && steps.snapshots.outputs.record == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ci-snapshot-baselines-${{ github.sha }}
+          path: |
+            Tests/AndromedaHUDTests/__Snapshots__/
+            Tests/AndromedaHomeTests/__Snapshots__/
+            Packages/MemoryKit/Tests/MemoryKitTests/__Snapshots__/
+            Packages/MemoryKit/Tests/MemoryKitTests/Snapshots/__Snapshots__/
+          if-no-files-found: error
+
+      # Explicit e2e gate (also covered by MemoryKit suite). Skips cleanly when
+      # ~/Developer/SecondBrain or /opt/homebrew/bin/rg are absent on the runner.
+      - name: E2E · live-vault recall (RetrievalServiceVaultLiveTests)
+        if: steps.snapshots.outputs.record != 'true'
+        working-directory: Packages/MemoryKit
+        run: swift test --filter RetrievalServiceVaultLiveTests --parallel --num-workers 1
+
+      # Full-pipeline HUD e2e (store → recall → render). Only present once
+      # AndromedaHUDTests is wired in Package.swift (HUD promote PR).
+      - name: E2E · HUD store→recall→render snapshots
+        if: steps.snapshots.outputs.record != 'true'
+        run: |
+          if swift package dump-package 2>/dev/null | grep -q '"AndromedaHUDTests"'; then
+            swift test --filter HUDRecallE2ESnapshotTests --parallel --num-workers 1
+          else
+            echo "AndromedaHUDTests not in Package.swift yet — skipping HUD e2e (lands with HUD promote)"
+          fi

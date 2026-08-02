@@ -1,5 +1,5 @@
 // swift-tools-version: 6.0
-// The swift-tools-version declares the minimum version of Swift required to build this package.
+// MemoryKit — hot episodic spine (capture, recall, seal). Indexing/Knowledge/TCA → Anima package.
 
 import PackageDescription
 
@@ -10,20 +10,18 @@ let package = Package(
         .iOS(.v17)
     ],
     products: [
-        .library(
-            name: "MemoryKit",
-            targets: ["MemoryKit"]),
+        .library(name: "MemoryKit", targets: ["MemoryKit"]),
+        .executable(name: "MemoryKitSample", targets: ["MemoryKitSample"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.15.0"),
         .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.0"),
     ],
     targets: [
-        .target(
-            name: "MemoryKit",
-            dependencies: [
-                .product(name: "ComposableArchitecture", package: "swift-composable-architecture")
-            ]
+        .target(name: "MemoryKit", dependencies: []),
+        .executableTarget(
+            name: "MemoryKitSample",
+            dependencies: ["MemoryKit"],
+            path: "Sources/MemoryKitSample"
         ),
         .testTarget(
             name: "MemoryKitTests",
