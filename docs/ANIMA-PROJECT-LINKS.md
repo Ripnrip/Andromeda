@@ -58,6 +58,7 @@ Never triple-duplicate the same write-up across all three. Cross-link IDs.
 - **Issues:** BIN-21 … BIN-27 (canonical tracker); **BIN-29** MCP registry+telemetry
 - **Wave — Andromeda Visible Alpha (2026-07-15):** BIN-29…BIN-35 (all In Progress) — previews+snapshots+telemetry day-1
 - **MCP shim + setup/doctor (2026-08-02):** [BIN-207](https://linear.app/binary-bros/issue/BIN-207/mcp-shim-mvp-slack-github-auth-preserving-proxy-option-2) (Slack/GitHub auth-preserving MCP proxy), [BIN-208](https://linear.app/binary-bros/issue/BIN-208/andromeda-setup-doctor-interactive-cli) (`andromeda setup` + `doctor`) — parent [BIN-102](https://linear.app/binary-bros/issue/BIN-102/andromeda-control-plane-pillars-mcp-host-skills-llm-proxy-secrets). Multica HAB cross-link pending Studio reachability from cloud agent.
+- **Osaurus leverage spike (2026-08-02):** [BIN-216](https://linear.app/binary-bros/issue/BIN-216/spike-leverage-osaurus-tools-osauruscorenetworking-for-andromeda-mcp) — verdict: learn, do not port; write-up `docs/spikes/OSAURUS-LEVERAGE.md`.
 
 ## Multica (Studio-local)
 
