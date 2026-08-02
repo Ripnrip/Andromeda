@@ -39,6 +39,9 @@ public struct AndromedaRuntimeServer: Sendable {
     public let uuidProvider: any UUIDProviding
     public let logger: Logger
 
+    /// Interval between periodic projection retry drains while serving.
+    private static let retryDrainInterval: Duration = .seconds(60)
+
     public init(
         configuration: AndromedaRuntimeConfiguration,
         journal: any EventJournal,
@@ -127,7 +130,53 @@ public struct AndromedaRuntimeServer: Sendable {
             ]
         )
         _ = try await memoryRuntime.rebuildOperationalStoreFromJournal()
-        try await makeApplication().runService()
+        // Drain any projection retries that survived a previous run.
+        await drainProjectionRetries(reason: "startup")
+        return try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                try await self.makeApplication().runService()
+            }
+            group.addTask {
+                try await self.projectionRetryLoop()
+            }
+            defer { group.cancelAll() }
+            try await group.next()
+        }
+    }
+
+    /// Periodically re-drives failed projection writes from the durable retry
+    /// queue for as long as the server is running.
+    private func projectionRetryLoop() async throws {
+        while !Task.isCancelled {
+            try await Task.sleep(for: Self.retryDrainInterval)
+            if Task.isCancelled { break }
+            await drainProjectionRetries(reason: "periodic")
+        }
+    }
+
+    private func drainProjectionRetries(reason: String) async {
+        do {
+            let outcomes = try await projectionRuntime.retryPending()
+            if !outcomes.isEmpty {
+                let recovered = outcomes.filter { $0.newReceipt.status == .committed }.count
+                logger.info(
+                    "Drained projection retry queue",
+                    metadata: [
+                        "reason": .string(reason),
+                        "attempted": .stringConvertible(outcomes.count),
+                        "recovered": .stringConvertible(recovered),
+                    ]
+                )
+            }
+        } catch {
+            logger.warning(
+                "Projection retry drain failed",
+                metadata: [
+                    "reason": .string(reason),
+                    "error": .string(error.localizedDescription),
+                ]
+            )
+        }
     }
 }
 
