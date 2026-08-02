@@ -31,7 +31,13 @@ public protocol UpstreamHTTPExecuting: Sendable {
 }
 
 public struct URLSessionUpstreamHTTP: UpstreamHTTPExecuting {
-    public init() {}
+    /// Maximum bytes to download from the upstream before stopping. Bounds host
+    /// memory when an authenticated VM requests a very large resource.
+    public let maxDownloadBytes: Int
+
+    public init(maxDownloadBytes: Int = 8 * 1_024 * 1_024) {
+        self.maxDownloadBytes = maxDownloadBytes
+    }
 
     public func execute(_ request: UpstreamHTTPRequest) async throws -> UpstreamHTTPResponse {
         var urlRequest = URLRequest(url: request.url)
@@ -40,8 +46,24 @@ public struct URLSessionUpstreamHTTP: UpstreamHTTPExecuting {
             urlRequest.setValue(value, forHTTPHeaderField: field)
         }
         urlRequest.httpBody = request.body
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+        // Stream the response body with an early-exit once the configured limit
+        // is reached. Prevents a large GitHub resource from buffering fully
+        // in host memory before bodyText applies maxResponseBytes.
+        let (asyncBytes, response) = try await URLSession.shared.bytes(for: urlRequest)
         let status = (response as? HTTPURLResponse)?.statusCode ?? -1
-        return UpstreamHTTPResponse(status: status, body: data)
+
+        var collected = Data()
+        collected.reserveCapacity(min(maxDownloadBytes, 64 * 1_024))
+        do {
+            for try await byte in asyncBytes {
+                collected.append(byte)
+                if collected.count >= maxDownloadBytes { break }
+            }
+        } catch {
+            // Network errors mid-stream are non-fatal for partial reads.
+        }
+
+        return UpstreamHTTPResponse(status: status, body: collected)
     }
 }
