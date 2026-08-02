@@ -4,9 +4,24 @@ import AndromedaJournal
 import AndromedaMemory
 import AndromedaProjections
 import AndromedaSecrets
+import AndromedaTools
 import Foundation
 import Hummingbird
 import Logging
+
+/// Opt-in tools/MCP broker configuration. When present, the server exposes
+/// POST /mcp (bearer-gated) backed by the curated tools broker.
+public struct MCPConfiguration: Sendable, Equatable {
+    /// Token VM agents present as `Authorization: Bearer <token>`. This is the
+    /// VM↔Andromeda credential — upstream tokens never leave the host.
+    public let bearerToken: String
+    public let tools: ToolsBrokerConfiguration
+
+    public init(bearerToken: String, tools: ToolsBrokerConfiguration) {
+        self.bearerToken = bearerToken
+        self.tools = tools
+    }
+}
 
 /// Launch configuration for the additive Andromeda Runtime v2 server surface.
 public struct AndromedaRuntimeConfiguration: Sendable, Equatable {
@@ -14,17 +29,20 @@ public struct AndromedaRuntimeConfiguration: Sendable, Equatable {
     public let port: Int
     public let serviceName: String
     public let version: String
+    public let mcp: MCPConfiguration?
 
     public init(
         host: String = "0.0.0.0",
         port: Int = 8788,
         serviceName: String = "Andromeda Runtime",
-        version: String = "0.3.0-runtime-v2-m3"
+        version: String = "0.3.0-runtime-v2-m3",
+        mcp: MCPConfiguration? = nil
     ) {
         self.host = host
         self.port = port
         self.serviceName = serviceName
         self.version = version
+        self.mcp = mcp
     }
 }
 
@@ -108,6 +126,18 @@ public struct AndromedaRuntimeServer: Sendable {
             memoryRuntime: memoryRuntime
         ).build()
         DashboardRoute(memoryRuntime: memoryRuntime).register(on: router)
+        if let mcp = configuration.mcp {
+            let broker = CuratedToolBroker(
+                configuration: mcp.tools,
+                secrets: MacOSKeychainSecretProvider(),
+                http: URLSessionUpstreamHTTP()
+            )
+            MCPRoute(
+                broker: broker,
+                auth: MCPBearerAuth(token: mcp.bearerToken),
+                serverVersion: configuration.version
+            ).register(on: router)
+        }
         let app = Application(
             router: router,
             configuration: .init(
