@@ -1,0 +1,18 @@
+Andromeda doctor
+
+[pass] Runtime HTTP health — reachable
+[pass] MCP bearer token — configured
+[pass] Keychain github — present (andromeda.github/token)
+[pass] Keychain slack — present (andromeda.slack/token)
+[pass] Qdrant projection — reachable
+[pass] Journal path — exists
+[pass] Vault directory — exists
+[pass] Guest MCP config scrub — no upstream secrets detected
+[pass] Curated tools/list — exactly 4 curated andromeda_* tools
+[pass] Guest VM signal — VM/guest signal detected
+[pass] Visible status surface — menubar/floating bar available
+
+summary: 0 fail, 0 warn, 11 checks
+
+capabilities (curtain): andromeda_github_*, andromeda_slack_*
+pillars: memory + secrets/vault + tools/mcp
