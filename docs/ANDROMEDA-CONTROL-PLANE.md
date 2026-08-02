@@ -97,7 +97,7 @@ store brands, ports, and credentials are operator implementation details.
 | `memory.session_dump` | ✅ Home/Bar; ✅ HUD promotion branch | Alias of `memory.store` + `WriteKind.sessionDump` | Merge/CI on Andromeda main still gates shipped status |
 | `infer.write` | 🚧 **deprecated client alias** | Maps to `memory.store` + `WriteKind.inferAliasDeprecated` (tag `infer-write`) | **Not** LLM inference; do not put on new client menus |
 | `project.state.list/get/create/update` | ✅ | Stable project-state CRUD; operator bridge may route to Linear/Multica/Slack | Clients never see tracker brands |
-| `slack_proxy`, `github_proxy`, `write.too` | 📐 | Secrets broker / fast codegen inference — **not** memory writes | No broker runtime or secret injection is shipped |
+| `slack_proxy`, `github_proxy`, `write.too` | ✅ / 📐 | M4 curated `andromeda_*` tools + Keychain broker shipped on runtime v2 (`POST /mcp`); `write.too` still charter | M5 `setup`/`doctor` land host-first wiring; live e2e gate on BIN-210 |
 
 Real LLM generation stays under the LLM-proxy pillar (Autocache / `write.too` /
 future `infer.generate`). Never recycle `infer.write` for inference until memory
@@ -234,13 +234,13 @@ dependency or required pillar.
 
 ## What is NOT claimed shipped
 
-- Secrets broker / `slack_proxy` / `github_proxy` / `write.too` runtime
-- MCP consolidate (one shared host replacing per-TTY npm sprawl)
-- `SkillRegistry` product surface
+- Secrets broker / `slack_proxy` / `github_proxy` — **partially shipped** as curated M4 tools on runtime v2; Autocache-main env-vault prototype is superseded
+- `write.too` runtime
+- MCP consolidate (one shared host replacing per-TTY npm sprawl) beyond the curated `/mcp` door
 - Full multi-provider LLM gateway beyond Autocache Anthropic
 - Fleet plist SoT + typed mutate replacing `install-and-sign.sh`
 - Workspace flip to Andromeda as default Cursor root
-
+- Interactive VM getting-started webpage with live checklist (BIN-212 stretch)
 ---
 
 ## Related docs

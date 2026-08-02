@@ -1,0 +1,26 @@
+Andromeda setup
+
+[pass] Host entrypoint — setup starts on host (not guest)
+[pass] Guest VM signal — VM/guest signal detected
+[pass] MCP bearer token — configured
+[pass] Host Keychain github — configured (andromeda.github/token)
+[warn] Host Keychain slack — missing — run with --fix to seed from env (never printed)
+[pass] Journal path — ready
+[pass] Vault directory — ready
+[pass] Visible status — menubar/floating bar path available
+[pass] Emit guest MCP config — http://studio.capybara-loggerhead.ts.net:8788/mcp
+[pass] Start runtime — next: run `andromeda-runtime serve` in the foreground (visible)
+
+Guest MCP endpoint: http://studio.capybara-loggerhead.ts.net:8788/mcp
+Guest note: Host Andromeda keeps Slack/GitHub tokens in Keychain. Guest configs must not contain SLACK_* or GITHUB_* secrets.
+
+{
+  "mcpServers" : {
+    "andromeda" : {
+      "headers" : {
+        "Authorization" : "Bearer ${ANDROMEDA_MCP_BEARER_TOKEN}"
+      },
+      "url" : "http:\/\/studio.capybara-loggerhead.ts.net:8788\/mcp"
+    }
+  }
+}

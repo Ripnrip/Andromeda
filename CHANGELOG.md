@@ -2,6 +2,24 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-08-02 — M5 setup + doctor on runtime v2 (BIN-212 / BIN-213)
+
+**Tone hat:** Host mechanic
+**Commit message of the day:** `feat: andromeda-runtime setup + doctor (BIN-212/213)`
+**Steps taken:** Ported checklist UX from the Autocache MCP prototype onto Letta’s M4 Keychain curated broker.
+
+### Added
+- `AndromedaHostOps` — checklist models, guest `/mcp` config (no upstream secrets), Keychain presence/seed helpers, runtime probes.
+- `andromeda-runtime setup` / `andromeda-runtime doctor` with `--dry-run`, `--yes`, `--fix`.
+- `docs/SETUP-DOCTOR.md`, demo transcript notes, HostOps unit tests.
+- `vercel.json` with GitHub deployments disabled so Vercel is not a CI gate.
+
+### Changed
+- Runtime CLI subcommands: `serve` (default), `setup`, `doctor`.
+
+### Security
+- Guest mcp.json only references `ANDROMEDA_MCP_BEARER_TOKEN`; Keychain seed never prints token values; presence checks use `security` without `-w`.
+
 ## 2026-07-19 — Six Control-Plane Pillars Locked
 
 **Tone hat:** Cartographer 🗺️
