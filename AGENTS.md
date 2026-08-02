@@ -4,7 +4,19 @@ Until MemoryKit is battle-tested against live multibrain stores, day-to-day flee
 
 ## Capability hiding
 
-Clients and satellite agents see stable IDs only (`memory.*`, `infer.write`, `project.state.*`) — never Linear/Multica, providers, or n8n. Andromeda owns provider selection behind the curtain.
+Clients and satellite agents see stable IDs only (`memory.*`, `infer.write`, `project.state.*`, and later secrets/proxy IDs like `slack_proxy` / `github_proxy` / `write.too`) — never Linear/Multica, providers, n8n, or raw API keys in process env. Andromeda owns provider selection and secret injection behind the curtain.
+
+## Six control-plane pillars (do not lose sight)
+
+Andromeda is **Memory + MCP host + Skills + LLM proxy + Secrets broker + Fleet runtime** — not HUD/memory alone. Read `docs/ANDROMEDA-CONTROL-PLANE.md`. Mark 🚧/📐 honestly; do not claim secrets broker or MCP consolidate shipped. Fleet: observe via `LaunchEntity` / `FleetObserveReport`; mutate via typed Swift install (BIN-101), not bash.
+
+Behind the curtain, fleet clocks, host/store ownership, privacy egress, graph/index
+brands, Letta/Python services, trackers, and secrets are operator internals.
+`infer.write` is currently an episodic-store alias, not LLM inference; SwiftData is
+the only implemented hot store; missing visibility is private and cloak/credential
+content is internal. Context7 has no implementation/code presence; documentation
+references are non-prescriptive. It may only be an optional future MCP/skill adapter,
+never a core dependency.
 
 ## Project tracking
 
@@ -50,3 +62,10 @@ cd Packages/MemoryKit && swift test
 - Keep retries bounded, cancellation respected, operations idempotent where replay is possible, and failures observable.
 - Never silently change schemas or configuration formats; add ADRs and migrations.
 - Never generate destructive code such as dropping databases or wiping remote data without triple explicit confirmation and backups in a `legacy/` area.
+
+## Agent merge gate (BIN-218)
+
+Agents **must not merge** a PR while **unresolved substantive review comments** remain.
+
+- Not keyed off GitHub "Changes requested" alone — COMMENTED reviews with real findings (e.g. Codex P1/P2) also block.
+- Merge only when: CI green + no unresolved substantive comments + required milestone proofs present.

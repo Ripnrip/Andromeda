@@ -2,6 +2,55 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-08-02 — M5 setup + doctor on runtime v2 (BIN-212 / BIN-213)
+
+**Tone hat:** Host mechanic
+**Commit message of the day:** `feat: andromeda-runtime setup + doctor (BIN-212/213)`
+**Steps taken:** Ported checklist UX from the Autocache MCP prototype onto Letta’s M4 Keychain curated broker.
+
+### Added
+- `AndromedaHostOps` — checklist models, guest `/mcp` config (no upstream secrets), Keychain presence/seed helpers, runtime probes.
+- `andromeda-runtime setup` / `andromeda-runtime doctor` with `--dry-run`, `--yes`, `--fix`.
+- `docs/SETUP-DOCTOR.md`, demo transcript notes, HostOps unit tests.
+- `vercel.json` with GitHub deployments disabled so Vercel is not a CI gate.
+- Agent merge gate documented (BIN-218): no merge with unresolved substantive review comments.
+
+### Fixed (Codex on merged PR #30)
+- P1: End-to-end Qdrant projection uses a per-run project/collection ID so concurrent CI cannot delete a shared Studio collection.
+- P2: CI skips Tailscale/live Qdrant when `TS_AUTHKEY` is absent (fork PRs); build + unit tests still run.
+
+### Fixed (Codex on PR #31)
+- P1: Normalize GitHub broker paths before allowlist (reject `/repos/../..` traversal).
+- P1: Remove `scripts/e2e-tools-broker-gate.sh` (no project-maintained Bash automation; live proof via Swift `setup`/`doctor` on Studio).
+- P1: Control-plane status for `slack_proxy`/`github_proxy` restored to 🚧 (curtain IDs ≠ guest MCP names yet).
+- P2: Doctor health/Qdrant probes require HTTP 2xx; `/health` also requires `status=healthy` JSON.
+
+### Changed
+- Runtime CLI subcommands: `serve` (default), `setup`, `doctor`.
+
+### Security
+- Guest mcp.json only references `ANDROMEDA_MCP_BEARER_TOKEN`; Keychain seed never prints token values; presence checks use `security` without `-w`.
+- Broker GitHub path allowlist runs on normalized paths only.
+
+## 2026-07-19 — Six Control-Plane Pillars Locked
+
+**Tone hat:** Cartographer 🗺️
+**Commit message of the day:** `docs: lock six Andromeda control-plane pillars`
+**Steps taken:** Encoded Memory + MCP host + Skills + LLM proxy + Secrets broker + Fleet runtime as permanent product identity; honesty table so agents do not greenwash.
+
+### Added
+- `docs/ANDROMEDA-CONTROL-PLANE.md` — six pillars, capability curtain examples (`slack_proxy`, `github_proxy`, `write.too`), Fleet runtime observe-vs-mutate.
+- `PROOFS/45-andromeda-control-plane-pillars-2026-07-19.md`
+
+### Changed
+- README big-picture section; ROADMAP pillar horizons; AGENTS + Charter product identity; WORKSPACE-READINESS product-scope note (flip still NO-GO); SURFACE-AREA + MEMORY-ONEPAGER pointers.
+
+### Security
+- Documented secrets-broker rule: never raw API key values in client/agent process env; UI agents stay HOME+PATH scrubbed.
+
+### Reflection
+- The constellation finally has six named stars instead of “HUD and maybe gateway.” 🛰️
+
 ## 2026-07-15 — Hummingbird Autocache Gateway
 
 **Tone hat:** Thrifty engineer 🪙

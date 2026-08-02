@@ -2,6 +2,21 @@
 
 This roadmap is outcome-driven. Gates advance when exit criteria are met, not when a calendar says they should.
 
+## Six control-plane pillars (product horizons — locked 2026-07-19)
+
+Canonical honesty table: [docs/ANDROMEDA-CONTROL-PLANE.md](docs/ANDROMEDA-CONTROL-PLANE.md). Gates below remain the engineering spine; pillars are the **product identity** agents must not lose.
+
+| Pillar | Near horizon | Honesty |
+|--------|--------------|---------|
+| Memory (Anima) | Battle-test dual-home; Letta WS; CloudKit GUI | 🚧 |
+| MCP home | Shared `MCPServerRegistry` lifecycle + dedupe (BIN-41 lineage → Gate F) | 🚧 observe; consolidate 📐 |
+| Skills home | `SkillRegistry` inventory → invoke surface (HAB-39) | 📐 |
+| LLM proxy | Autocache → multi-provider / OpenAI-compat / breakers (Gate D) | 🚧 Autocache only |
+| Secrets broker | Keychain vault + capability IDs (`slack_proxy`, `github_proxy`, `write.too`, …) | 📐 |
+| Fleet runtime | Plist SoT + FleetObserve/Telemetry pulse + Swift mutate (BIN-101) | 🚧 observe; mutate 📐 |
+
+**Not a flip claim:** documenting these pillars does **not** ship secrets broker or MCP consolidate, and does **not** clear workspace promotion.
+
 ## Gate A — Measured Baseline
 
 **Deliverables**

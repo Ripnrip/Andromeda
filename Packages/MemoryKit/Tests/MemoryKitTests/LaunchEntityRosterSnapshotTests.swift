@@ -148,7 +148,7 @@ final class LaunchEntityRosterSnapshotTests: XCTestCase {
 
         // 🌙 Record when SNAPSHOT_TESTING_RECORD is set; otherwise compare against catalog.
         let recordMode: SnapshotTestingConfiguration.Record =
-            ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"] != nil ? .all : .missing
+            (ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"].map { !$0.isEmpty } ?? false) ? .all : .missing
 
         assertSnapshot(
             of: hosting,

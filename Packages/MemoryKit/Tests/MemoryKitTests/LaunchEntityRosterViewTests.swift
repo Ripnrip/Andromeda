@@ -49,7 +49,7 @@ struct LaunchEntityRosterViewTests {
         model.apply(registry: registry)
 
         #expect(model.state == .hubFull)
-        #expect(model.entities.count == 10)
+        #expect(model.entities.count == 16) // 9 multibrain + 6 HAB-42 + Mini
         #expect(model.entities.contains { $0.hostRole == .isolated })
         #expect(model.lastTelemetry?.isolatedMiniFlagged == true)
     }

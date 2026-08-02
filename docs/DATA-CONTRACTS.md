@@ -97,6 +97,8 @@ project: <name>
 observation_types: [discovery, feature, bugfix]
 concepts: [gotcha, pattern]
 source: claude-mem
+visibility: private              # optional during migration; missing means private
+content_hash: sha256:...         # optional deterministic join/dedup key
 community: null                # graphify fills on --update
 tags: [session/claude-code, project/<name>, insight/discovery, community/<label>]
 confidence: synthesized        # synthesized | verbatim
@@ -105,6 +107,11 @@ confidence: synthesized        # synthesized | verbatim
 Body sections (fixed order): `## Key Insights` (each `[[wikilink]]`), `## What Changed`, `## Problem → Solution`, `## Files Touched`, `## Connections`, then an attribution footer.
 
 **Tags use bare frontmatter form** (no `#`) to match Obsidian-native behavior and the newest real note; axes: `session/<agent>`, `project/<name>`, `insight/<obs-type>`, `concept/<concept>`, `community/<label>`.
+
+`visibility` and `content_hash` are optional for backward-compatible materialized
+notes. Readers MUST treat missing/unknown visibility as `private`; cloak, secret,
+credential, token, password, or key markers force `internal`. Python writers do not
+yet enforce this field consistently, so local success is not proof of safe egress.
 
 ## 7. Deposit: daily digest block (appended to `02-Daily/YYYY-MM-DD.md`)
 
@@ -167,9 +174,11 @@ baselines(metric TEXT, value REAL, updated_epoch INT)
 alerts(fingerprint TEXT, state TEXT, first_epoch INT, last_epoch INT)   -- alert dedup
 ```
 
-## 12. Anima Hot Capture Store (SwiftData / Realm)
+## 12. Anima Hot Capture Store (SwiftData)
 
-The local hot storage of record for episodic capture before it is consolidated or projected downstream. Fully ACID-compliant, transactional, designed for sub-ms execution directly on threads.
+The implemented local hot storage of record for episodic capture is SwiftData at
+`~/.multibrain/anima-hot.store`. Realm is not implemented. Capture is transactional
+and returns before downstream projection.
 
 ### SwiftData Schema
 
@@ -233,4 +242,19 @@ Do not store heavy raw text bodies inside vector indexes. Store only the metadat
 1. **Async-at-Materialization:** Index upsert is triggered by the Dream/consolidation loop, never by the hot capture `store_memory` callsite.
 2. **Fail-Open:** Index down/timed out MUST NOT throw or halt. The failure is logged, and the index is flagged as "stale" or "dirty" for a background repair/rebuild later.
 3. **Visibility Gate:** If `visibility` is `private` or `internal`, the point payload MUST carry `visibility` accordingly, and any export/sharing script must explicitly filter these points out.
+
+## 14. Source-of-truth and retention contract
+
+| Data | Authority | Retention / deletion rule |
+|------|-----------|---------------------------|
+| episodic records | SwiftData hot store | retain until an explicit, audited retention policy migrates/deletes them |
+| curated semantic notes | SecondBrain vault | durable semantic SoT; git history is the audit path |
+| operational metadata | `state.db` | retain according to dedup/baseline/alert needs; never present as user memory |
+| conversational state | Letta/Postgres | Librarian state; not a replacement for episodic/semantic SoTs |
+| Ladybug/Qdrant/graphify | derived indexes | safe to rebuild; index acceptance never authorizes source deletion |
+| CloudKit | planned replica | public/friends only when proven; not a current authority |
+
+Materialization and index updates are asynchronous and fail-open. Cloud/vector
+egress MUST select only `public` or `friends`; `private`, `internal`, missing, and
+unknown visibility stay local.
 

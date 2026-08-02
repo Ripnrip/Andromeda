@@ -1,7 +1,7 @@
 # Anima Memory / Andromeda — Project Links
 
 Short link map for the Anima memory + Andromeda control-plane workstream.
-Updated: 2026-07-15 (operator routing vs client capabilities). No secrets in this file.
+Updated: 2026-07-16 (operator MCP for Multica + Linear). No secrets in this file.
 
 > **Operator routing vs client capabilities (locked 2026-07-15)**  
 > This file’s Linear ∪ Multica ∪ Slack routing tables are for **fabric operators and meta-agents** — humans and agents that maintain the hive tracker fabric.  
@@ -55,8 +55,9 @@ Never triple-duplicate the same write-up across all three. Cross-link IDs.
 - **Project:** [Anima Memory / Andromeda](https://linear.app/binary-bros/project/anima-memory-andromeda-24f49e6f052c)
 - **Project ID:** `df11aac0-8284-48ac-b2b8-b85838123938`
 - **Team:** Binary-bros (`BIN`)
-- **Issues:** BIN-21 … BIN-27 (canonical tracker); **BIN-29** MCP registry+telemetry
-- **Wave — Andromeda Visible Alpha (2026-07-15):** BIN-29…BIN-35 (all In Progress) — previews+snapshots+telemetry day-1
+- **Issues:** BIN-21 … BIN-27 (canonical tracker); **BIN-29** MCP registry+telemetry; **BIN-41** / HAB-64 MCP sprawl bent (shared lifecycle → Gate F / BIN-102); **BIN-32** / HAB-46 observability spine (OTLP/local); **BIN-33** / HAB-47 LaunchEntity roster UI + snapshots; **BIN-36** OpenRouter/Haiku spend kill (Studio nightly + dreamcatcher; supersedes planning note BIN-35/HAB-49); **BIN-39** live `project.state` → Linear∪Multica bridge (HAB-56)
+- **Wave — Andromeda Visible Alpha (2026-07-15):** BIN-29…BIN-38 shipped; Phase 2 follow-ups BIN-39 + E2E smoke proofs 32/33
+- **Workspace flip:** gated — see `docs/ANDROMEDA-WORKSPACE-READINESS.md` (do not force Cursor → Andromeda yet)
 
 ## Multica (Studio-local)
 
@@ -66,6 +67,7 @@ Never triple-duplicate the same write-up across all three. Cross-link IDs.
 - **Project ID:** `17237130-3eef-4562-89dd-9269caa371ba`
 - **Workspace:** Habitat (`5bc5bd70-8e83-41db-8a5b-46ccfc8b5422`, slug `habitat`)
 - **CLI:** `multica project get 17237130` / `multica issue list --project 17237130`
+- **Operator MCP:** local stdio server `ops/mcp/multica/server.py` (wraps CLI; auth `~/.multica`). Wire once per host — see [`MCP-OPERATOR-TRACKERS.md`](./MCP-OPERATOR-TRACKERS.md). **Not** for Andromeda client menus (`project.state.*` only).
 
 ### Multica issues (index → Linear, not duplicates)
 
@@ -81,12 +83,33 @@ Never triple-duplicate the same write-up across all three. Cross-link IDs.
 | HAB-41 | NEXT: multibrain-bar integration | (follow-on → BIN-30) |
 | HAB-42 | Invisible launchd/socat/serve → LaunchEntities | (adjacent BIN-33) |
 | HAB-43 | Wave: MCP registry + telemetry | **BIN-29** |
+| HAB-64 | MCP dedupe / registry cleanup (sprawl bent 55→37; shared lifecycle → Gate F / BIN-102) | **BIN-41** |
 | HAB-44 | Wave: Bar MemoryKit live + SnapshotTesting | **BIN-30** |
 | HAB-45 | Wave: MemoryKit UI snapshot catalog | **BIN-31** |
 | HAB-46 | Wave: Observability spine OTLP/local | **BIN-32** |
 | HAB-47 | Wave: LaunchEntity roster UI + snapshots | **BIN-33** |
 | HAB-48 | Wave: project.state capability curtain | **BIN-34** |
-| HAB-49 | Wave: Spend kill OpenRouter nightly | **BIN-35** |
+| HAB-49 | Wave: Spend kill OpenRouter nightly (planning) | **BIN-35** → see **BIN-36** |
+| HAB-50 | Spend kill shipped: no OpenRouter on Studio nightly + dreamcatcher | **BIN-36** |
+| HAB-53 | Bar × MemoryKit live (E2E smoke PASS 2026-07-15) | **BIN-30** / **BIN-38** |
+| HAB-56 | Live `project.state` → Linear∪Multica bridge | **BIN-39** |
+| HAB-71 | Operator Multica + Linear MCP (Cursor/Claude/Codex) | **BIN-51** |
+| HAB-66 | Rotate Telegram bot token (human-only) | **BIN-43** |
+| HAB-76 | Epic: Andromeda HUD floating control surface | **BIN-55** |
+| HAB-80 | HUD SwiftUI polish + SnapshotTesting | **BIN-58** |
+| HAB-83 | HUD snapshot baseline re-record | **BIN-83** |
+| HAB-84 | Andromeda HUD dogfood proof | **BIN-69** |
+| HAB-86 | CloudKit path smoke (HUMAN) | **BIN-79** |
+| HAB-104 | ALL SWIFT `andromeda-install` (delete install-and-sign.sh) | **BIN-101** |
+| HAB-105 | Andromeda six control-plane pillars (docs lock) | **BIN-102** |
+| HAB-117 | Epic: MemoryKit live-store hardening vs Studio (thin index) | **BIN-70** |
+| HAB-118 | Epic: Deprecate MultibrainBar; HUD daily surface (thin index) | **BIN-71** |
+| HAB-120 | Book.local live schedule + tunnel verify (`host=satellite`; unverified 2026-07-19) | **BIN-115** |
+| HAB-115 | Andromeda brand assets (HUD glyph, app icon, Home splash) | **BIN-112** |
+| HAB-114 | Python materialized notes: optional visibility + content_hash (missing→private) | **BIN-111** |
+| HAB-116 | PROOF 47 HUD curtain journal + VisibilityFilter (promotion branch) | **BIN-114** |
+| HAB-119 | `infer.write` honesty: versioned rename or real LLM routing (no caller break) | **BIN-113** |
+| HAB-121 | CloudKit/vector egress proofs: public/friends only (VisibilityFilter) | **BIN-116** |
 
 ### Multica resources
 
@@ -121,10 +144,39 @@ There is **no native Linear sync** in Multica on this stack — keep Linear as s
 
 `anima-memory` retained in both repos for the next wave.
 
+## Operator MCP (Cursor / Claude Code / Codex)
+
+| Tracker | Cursor | Claude Code | Codex |
+|---------|--------|-------------|-------|
+| **Linear** | ✅ plugin `plugin-linear-linear` | `npx -y linear-mcp` via `ops/mcp/with-dotenv.sh` | same launcher in `~/.codex/config.toml` |
+| **Multica Habitat** | `uv run --script …/ops/mcp/multica/server.py` | same | same |
+
+Full connect guide + curtain rules: [`MCP-OPERATOR-TRACKERS.md`](./MCP-OPERATOR-TRACKERS.md).
+
 ## Related docs
 
 - `docs/ANDROMEDA-SURFACE-AREA.md`
+- `docs/MCP-OPERATOR-TRACKERS.md` — Multica + Linear MCP wiring (operator-only)
 - `docs/MCP-SPRAWL-PROBLEM.md` — Activity Monitor evidence + host inventory (THE MCP problem)
 - `docs/assets/mcp-sprawl-activity-monitor-2026-07-15.png`
 - `docs/FLEET.md`
 - `docs/MEMORY-ONEPAGER.md`
+- `docs/ANDROMEDA-CONTROL-PLANE.md` — six pillars (Memory, MCP, Skills, LLM proxy, Secrets, Fleet)
+
+---
+
+## ScrollTracker (separate product)
+
+Not Andromeda/Anima — own boards. Do not file ScrollTracker eng work under Anima Memory project.
+
+| Layer | Link |
+|-------|------|
+| **Linear** | [ScrollTracker](https://linear.app/binary-bros/project/scrolltracker-fb3634cdb07d) · epic [BIN-84](https://linear.app/binary-bros/issue/BIN-84) |
+| **Multica** | project `28f019ba-65a9-4b6b-9cda-42cf57d9b6aa` · parent HAB-87 |
+| **Canonical map** | `~/Developer/ScrollTracker/Docs/PROJECT-LINKS.md` |
+| **Standing orders** | `~/Developer/ScrollTracker/AGENTS.md` § Standing orders (ship scripts, claim honesty, G1–G8) |
+| **Audit baseline** | `~/Developer/ScrollTracker/Artifacts/adversarial-ship-audit-2026-07-19.BASELINE.md` |
+| **Re-audit** | BIN-96 / HAB-99 · `Artifacts/REAUDIT-PROTOCOL.md` |
+| **Last TF** | 0.1.2 build **25** (2026-07-19) — text dogfood; widget in IPA |
+| **Next** | BIN-103 device smoke · BIN-104 widget profile · BIN-105 build 26 pipeline |
+

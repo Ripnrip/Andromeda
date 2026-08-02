@@ -74,17 +74,29 @@ public final class LaunchEntityRosterModel {
     public var lastTelemetry: LaunchEntityRefreshTelemetry?
     /// 🌊 When true, status chips skip pulse chrome (static still life).
     public var reduceMotion: Bool
+    /// 🔗 slug → operator why (from FleetObserveReport join).
+    public var rowReasons: [String: String]
+    /// 🔗 slug → attention posture.
+    public var rowAttentions: [String: LaunchEntityAttention]
+    /// 📜 Hive headline why (first critical / degraded).
+    public var headlineWhy: String?
 
     public init(
         state: LaunchEntityRosterState = .loading,
         entities: [LaunchEntity] = [],
         lastTelemetry: LaunchEntityRefreshTelemetry? = nil,
-        reduceMotion: Bool = false
+        reduceMotion: Bool = false,
+        rowReasons: [String: String] = [:],
+        rowAttentions: [String: LaunchEntityAttention] = [:],
+        headlineWhy: String? = nil
     ) {
         self.state = state
         self.entities = entities
         self.lastTelemetry = lastTelemetry
         self.reduceMotion = reduceMotion
+        self.rowReasons = rowReasons
+        self.rowAttentions = rowAttentions
+        self.headlineWhy = headlineWhy
     }
 
     /// ♿ Combined announcement for the roster chrome.
@@ -95,6 +107,9 @@ public final class LaunchEntityRosterModel {
         } else {
             parts.append("\(entities.count) entities")
         }
+        if let headlineWhy {
+            parts.append(headlineWhy)
+        }
         return parts.joined(separator: ". ")
     }
 
@@ -103,6 +118,9 @@ public final class LaunchEntityRosterModel {
         let roster = registry.all()
         lastTelemetry = registry.lastTelemetry
         entities = roster
+        rowReasons = [:]
+        rowAttentions = [:]
+        headlineWhy = nil
         if roster.isEmpty {
             state = .empty
             return
@@ -116,15 +134,48 @@ public final class LaunchEntityRosterModel {
         print("🌐 ✨ LAUNCH ENTITY ROSTER AWAKENS! → \(state.rawValue) (\(roster.count) rows)")
     }
 
+    /// 🌟 Apply LaunchEntity × health join — shows *why* yellow/red on each row.
+    public func apply(report: FleetObserveReport) {
+        entities = report.rows.map(\.entity)
+        lastTelemetry = report.telemetry
+        rowReasons = Dictionary(
+            uniqueKeysWithValues: report.rows.compactMap { row in
+                guard let why = row.why else { return nil }
+                return (row.entity.slug, why)
+            }
+        )
+        rowAttentions = Dictionary(
+            uniqueKeysWithValues: report.rows.map { ($0.entity.slug, $0.attention) }
+        )
+        headlineWhy = report.headlineWhy
+        if entities.isEmpty {
+            state = .empty
+            return
+        }
+        switch report.observingHostRole {
+        case .hub:
+            state = .hubFull
+        case .satellite, .isolated:
+            state = .satelliteNA
+        }
+        print("🌐 ✨ FLEET OBSERVE ROSTER! → \(state.rawValue) attentions=\(report.attentionRows.count)")
+    }
+
     /// 🌙 Force a named state with optional fixture entities (previews / snapshots).
     public func present(
         _ state: LaunchEntityRosterState,
         entities: [LaunchEntity] = [],
-        telemetry: LaunchEntityRefreshTelemetry? = nil
+        telemetry: LaunchEntityRefreshTelemetry? = nil,
+        rowReasons: [String: String] = [:],
+        rowAttentions: [String: LaunchEntityAttention] = [:],
+        headlineWhy: String? = nil
     ) {
         self.state = state
         self.entities = entities
         self.lastTelemetry = telemetry
+        self.rowReasons = rowReasons
+        self.rowAttentions = rowAttentions
+        self.headlineWhy = headlineWhy
     }
 }
 
@@ -228,6 +279,30 @@ public enum LaunchEntityRosterFixtures {
         )
     }
 
+    /// 🔴 Hub roster with dead_man + ladybug why (snapshot / preview).
+    @MainActor
+    public static func degradedWhyModel(reduceMotion: Bool = false) -> LaunchEntityRosterModel {
+        let entities = hubFullEntities()
+        let model = LaunchEntityRosterModel(
+            state: .hubFull,
+            entities: entities,
+            lastTelemetry: hubFullTelemetry(),
+            reduceMotion: reduceMotion,
+            rowReasons: [
+                "job.nightly": "job.nightly: dead_man — last success 165h ago",
+                "svc.letta": "svc.letta: KeepAlive not running",
+            ],
+            rowAttentions: [
+                "job.nightly": .critical,
+                "svc.letta": .critical,
+                "river.dreamcatcher": .ok,
+                "tunnel.mac-mini-vnc": .idle,
+            ],
+            headlineWhy: "job.nightly: dead_man — last success 165h ago"
+        )
+        return model
+    }
+
     @MainActor
     public static func model(
         _ state: LaunchEntityRosterState,
@@ -271,10 +346,17 @@ public struct LaunchEntityRosterView: View {
 
     /// 🌟 When true, Environment reduce-motion merges into the model each body pass.
     private let honorSystemReduceMotion: Bool
+    /// 📐 Compact chrome for MultibrainBar (narrower frame + shorter list).
+    private let compact: Bool
 
-    public init(model: LaunchEntityRosterModel, honorSystemReduceMotion: Bool = true) {
+    public init(
+        model: LaunchEntityRosterModel,
+        honorSystemReduceMotion: Bool = true,
+        compact: Bool = false
+    ) {
         self.model = model
         self.honorSystemReduceMotion = honorSystemReduceMotion
+        self.compact = compact
     }
 
     public var body: some View {
@@ -282,14 +364,19 @@ public struct LaunchEntityRosterView: View {
             ? (model.reduceMotion || systemReduceMotion)
             : model.reduceMotion
 
-        return VStack(alignment: .leading, spacing: 12) {
+        return VStack(alignment: .leading, spacing: compact ? 8 : 12) {
             marquee
             telemetryStrip
             Divider()
             content(effectiveReduceMotion: effectiveReduce)
         }
-        .padding(16)
-        .frame(minWidth: 420, idealWidth: 460, maxWidth: 520, minHeight: 280)
+        .padding(compact ? 10 : 16)
+        .frame(
+            minWidth: compact ? 340 : 420,
+            idealWidth: compact ? 360 : 460,
+            maxWidth: compact ? 380 : 520,
+            minHeight: compact ? 160 : 280
+        )
         .background(RosterBackdrop(state: model.state))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(model.accessibilityLabel)
@@ -340,7 +427,7 @@ public struct LaunchEntityRosterView: View {
     }
 
     private var telemetryStrip: some View {
-        Group {
+        VStack(alignment: .leading, spacing: 6) {
             if let pulse = model.lastTelemetry {
                 HStack(spacing: 10) {
                     telemetryChip("run", value: "\(pulse.running)", tint: .green)
@@ -363,6 +450,13 @@ public struct LaunchEntityRosterView: View {
                     .font(.caption.monospaced())
                     .foregroundStyle(.tertiary)
                     .accessibilityIdentifier("launchEntityRoster.telemetry.none")
+            }
+            if let why = model.headlineWhy {
+                Text("⚠️ \(why)")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .lineLimit(2)
+                    .accessibilityIdentifier("launchEntityRoster.headlineWhy")
             }
         }
     }
@@ -435,12 +529,14 @@ public struct LaunchEntityRosterView: View {
                 ForEach(model.entities) { entity in
                     LaunchEntityRowView(
                         entity: entity,
-                        reduceMotion: effectiveReduceMotion
+                        reduceMotion: effectiveReduceMotion,
+                        attention: model.rowAttentions[entity.slug],
+                        why: model.rowReasons[entity.slug]
                     )
                 }
             }
         }
-        .frame(maxHeight: 320)
+        .frame(maxHeight: compact ? 200 : 320)
         .accessibilityIdentifier("launchEntityRoster.list")
     }
 
@@ -461,10 +557,19 @@ public struct LaunchEntityRosterView: View {
 public struct LaunchEntityRowView: View {
     public let entity: LaunchEntity
     public let reduceMotion: Bool
+    public let attention: LaunchEntityAttention?
+    public let why: String?
 
-    public init(entity: LaunchEntity, reduceMotion: Bool = false) {
+    public init(
+        entity: LaunchEntity,
+        reduceMotion: Bool = false,
+        attention: LaunchEntityAttention? = nil,
+        why: String? = nil
+    ) {
         self.entity = entity
         self.reduceMotion = reduceMotion
+        self.attention = attention
+        self.why = why
     }
 
     public var body: some View {
@@ -477,6 +582,13 @@ public struct LaunchEntityRowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                if let why {
+                    Text(why)
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .lineLimit(2)
+                        .accessibilityIdentifier("launchEntityRoster.row.\(entity.slug).why")
+                }
                 HStack(spacing: 8) {
                     metaChip(entity.kind.rawValue)
                     metaChip(entity.schedule.displaySummary)
@@ -508,6 +620,15 @@ public struct LaunchEntityRowView: View {
     }
 
     private var statusLabel: String {
+        if let attention {
+            switch attention {
+            case .ok: return entity.status == .running ? "RUNNING" : "OK"
+            case .idle: return "IDLE"
+            case .degraded: return "DEGRADED"
+            case .critical: return "CRITICAL"
+            case .notApplicable: return "N/A"
+            }
+        }
         switch entity.status {
         case .running: return "RUNNING"
         case .stopped: return "STOPPED"
@@ -516,6 +637,15 @@ public struct LaunchEntityRowView: View {
     }
 
     private var statusColor: Color {
+        if let attention {
+            switch attention {
+            case .ok: return .green
+            case .idle: return .secondary
+            case .degraded: return .orange
+            case .critical: return .red
+            case .notApplicable: return .orange
+            }
+        }
         switch entity.status {
         case .running: return .green
         case .stopped: return .secondary
@@ -649,6 +779,22 @@ private struct RosterBackdrop: View {
         honorSystemReduceMotion: false
     )
     .preferredColorScheme(.light)
+}
+
+#Preview("Roster · Degraded Why · Light") {
+    LaunchEntityRosterView(
+        model: LaunchEntityRosterFixtures.degradedWhyModel(),
+        honorSystemReduceMotion: false
+    )
+    .preferredColorScheme(.light)
+}
+
+#Preview("Roster · Degraded Why · Dark · Reduce Motion") {
+    LaunchEntityRosterView(
+        model: LaunchEntityRosterFixtures.degradedWhyModel(reduceMotion: true),
+        honorSystemReduceMotion: false
+    )
+    .preferredColorScheme(.dark)
 }
 
 #Preview("Roster · Loading · Reduce Motion · Dark") {

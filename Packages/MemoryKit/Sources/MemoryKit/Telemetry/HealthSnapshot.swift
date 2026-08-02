@@ -129,6 +129,19 @@ public struct HealthSnapshot: Sendable, Codable, Equatable {
             .sorted()
     }
 
+    /// 🔍 Lookup one lantern by name (`dead_man`, `ladybug_query`, …).
+    public func check(_ name: String) -> HealthCheck? {
+        checks[name]
+    }
+
+    /// 📜 Structured failing why lines — name + detail for hive chrome / roster join.
+    public var failureSummaries: [(name: String, detail: String)] {
+        failingCheckNames.map { name in
+            let detail = checks[name]?.detail ?? name
+            return (name: name, detail: detail)
+        }
+    }
+
     /// 💚 True only for an explicitly green headline (never for unknown).
     public var isGreen: Bool { status == .green }
 
