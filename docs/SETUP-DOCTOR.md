@@ -37,7 +37,11 @@ On the **VM** (agent-habitat / Tom’s guest):
 
 ## Capability curtain
 
-Guests see: `andromeda_github_get_me`, `andromeda_github_request`, `andromeda_slack_post_message`, `andromeda_slack_request`.
+**Stable curtain IDs** (control plane): `github_proxy`, `slack_proxy` — clients never see Linear/Multica/n8n brands.
+
+**Guest MCP tool names** (M4 curated surface, still intentional for M5): `andromeda_github_get_me`, `andromeda_github_request`, `andromeda_slack_post_message`, `andromeda_slack_request`.
+
+These MCP names are the brokered implementation behind the curtain IDs; renaming `tools/list` 1:1 onto `github_proxy`/`slack_proxy` is a follow-up once VM configs and the live e2e proof are retargeted. Until then, status stays 🚧 in `ANDROMEDA-CONTROL-PLANE.md`.
 
 Operators track work in Linear / Multica / Slack — those brands never appear in the tool menu.
 

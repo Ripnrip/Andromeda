@@ -11,7 +11,23 @@ public struct RuntimeProbes: Sendable {
         self.session = session
     }
 
-    /// GET health endpoint; true when any HTTP response arrives (2xx–4xx).
+    /// True only for successful 2xx responses — 4xx/5xx must not count as reachable.
+    public static func isSuccessfulHTTPStatus(_ statusCode: Int) -> Bool {
+        (200..<300).contains(statusCode)
+    }
+
+    /// True when a health JSON body reports `status == "healthy"`. Missing/empty body is not healthy.
+    public static func isHealthyPayload(_ data: Data) -> Bool {
+        guard
+            let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let status = root["status"] as? String
+        else {
+            return false
+        }
+        return status == "healthy"
+    }
+
+    /// GET endpoint; true only on HTTP 2xx (wrong path / auth failures fail closed).
     public func isReachable(url: URL, timeout: TimeInterval = 2) async -> Bool {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -19,13 +35,28 @@ public struct RuntimeProbes: Sendable {
         do {
             let (_, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { return false }
-            return (200..<500).contains(http.statusCode)
+            return Self.isSuccessfulHTTPStatus(http.statusCode)
         } catch {
             return false
         }
     }
 
-    /// GET Qdrant `/collections` (or configured base).
+    /// GET runtime `/health`; requires 2xx plus a healthy JSON payload.
+    public func isHealthy(url: URL, timeout: TimeInterval = 2) async -> Bool {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeout
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return false }
+            guard Self.isSuccessfulHTTPStatus(http.statusCode) else { return false }
+            return Self.isHealthyPayload(data)
+        } catch {
+            return false
+        }
+    }
+
+    /// GET Qdrant `/collections` (or configured base); requires HTTP 2xx.
     public func isQdrantReachable(baseURL: URL, timeout: TimeInterval = 2) async -> Bool {
         let url = baseURL.appending(path: "collections")
         return await isReachable(url: url, timeout: timeout)

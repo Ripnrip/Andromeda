@@ -19,11 +19,18 @@ All notable changes to Andromeda will be documented here.
 - P1: End-to-end Qdrant projection uses a per-run project/collection ID so concurrent CI cannot delete a shared Studio collection.
 - P2: CI skips Tailscale/live Qdrant when `TS_AUTHKEY` is absent (fork PRs); build + unit tests still run.
 
+### Fixed (Codex on PR #31)
+- P1: Normalize GitHub broker paths before allowlist (reject `/repos/../..` traversal).
+- P1: Remove `scripts/e2e-tools-broker-gate.sh` (no project-maintained Bash automation; live proof via Swift `setup`/`doctor` on Studio).
+- P1: Control-plane status for `slack_proxy`/`github_proxy` restored to 🚧 (curtain IDs ≠ guest MCP names yet).
+- P2: Doctor health/Qdrant probes require HTTP 2xx; `/health` also requires `status=healthy` JSON.
+
 ### Changed
 - Runtime CLI subcommands: `serve` (default), `setup`, `doctor`.
 
 ### Security
 - Guest mcp.json only references `ANDROMEDA_MCP_BEARER_TOKEN`; Keychain seed never prints token values; presence checks use `security` without `-w`.
+- Broker GitHub path allowlist runs on normalized paths only.
 
 ## 2026-07-19 — Six Control-Plane Pillars Locked
 

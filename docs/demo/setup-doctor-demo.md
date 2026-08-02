@@ -2,7 +2,7 @@
 
 ## CLI checklist demos (generated from `AndromedaHostOps`)
 
-These prove the checklist + guest config shape. **Live Keychain + VM screen recordings** still need to be captured on Studio once `andromeda-runtime serve` is up (same fleet path as `scripts/e2e-tools-broker-gate.sh`).
+These prove the checklist + guest config shape. **Live Keychain + VM screen recordings** still need to be captured on Studio once `andromeda-runtime serve` is up (Swift CLI: `setup --fix` → `serve` → `doctor`, no bash gate).
 
 Artifacts (agent run):
 - `/opt/cursor/artifacts/demos/andromeda-setup-demo.mp4`

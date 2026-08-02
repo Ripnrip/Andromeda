@@ -182,3 +182,25 @@ struct GuestSignalDetectorTests {
         #expect(GuestSignalDetector.detect(environment: ["ANDROMEDA_VM_SSH_HOST": "agent-habitat"]))
     }
 }
+
+@Suite("RuntimeProbes")
+struct RuntimeProbesTests {
+    /// Doctor must not treat 4xx as a healthy runtime / projection.
+    @Test("successful probe statuses are 2xx only")
+    func successfulStatusIs2xxOnly() {
+        #expect(RuntimeProbes.isSuccessfulHTTPStatus(200))
+        #expect(RuntimeProbes.isSuccessfulHTTPStatus(204))
+        #expect(!RuntimeProbes.isSuccessfulHTTPStatus(401))
+        #expect(!RuntimeProbes.isSuccessfulHTTPStatus(404))
+        #expect(!RuntimeProbes.isSuccessfulHTTPStatus(500))
+    }
+
+    /// Health payload must explicitly report healthy — empty or wrong JSON fails closed.
+    @Test("healthy payload requires status=healthy")
+    func healthyPayloadRequiresStatus() {
+        #expect(RuntimeProbes.isHealthyPayload(Data(#"{"status":"healthy","service":"andromeda"}"#.utf8)))
+        #expect(!RuntimeProbes.isHealthyPayload(Data(#"{"status":"degraded"}"#.utf8)))
+        #expect(!RuntimeProbes.isHealthyPayload(Data(#"{"ok":true}"#.utf8)))
+        #expect(!RuntimeProbes.isHealthyPayload(Data()))
+    }
+}

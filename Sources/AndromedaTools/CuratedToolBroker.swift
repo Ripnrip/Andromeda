@@ -91,13 +91,18 @@ public actor CuratedToolBroker {
         guard let method = arguments["method"]?.stringValue?.uppercased(), !method.isEmpty else {
             throw ToolBrokerError.invalidArguments("'method' is required (GET, POST, PATCH, PUT, DELETE).")
         }
-        guard let path = arguments["path"]?.stringValue, path.hasPrefix("/") else {
+        guard let rawPath = arguments["path"]?.stringValue, rawPath.hasPrefix("/") else {
             throw ToolBrokerError.invalidArguments("'path' is required and must start with '/'.")
+        }
+        // Normalize before allowlist — raw `/repos/../../user` would otherwise bypass the prefix check
+        // and be collapsed by URLSession to `/user` (or other out-of-policy endpoints).
+        guard let path = Self.normalizedGitHubAPIPath(rawPath) else {
+            throw ToolBrokerError.policyDenied("GitHub path must be absolute without escaping above root.")
         }
         guard Self.githubReadMethods.contains(method) || Self.githubWriteMethods.contains(method) else {
             throw ToolBrokerError.policyDenied("GitHub method '\(method)' is not allowed.")
         }
-        guard path.hasPrefix("/repos/") || (path == "/user" && Self.githubReadMethods.contains(method)) else {
+        guard Self.isAllowedGitHubPath(path, method: method) else {
             throw ToolBrokerError.policyDenied("GitHub paths must start with '/repos/' (only GET /user is allowed outside that).")
         }
         if Self.githubWriteMethods.contains(method), !configuration.automationAllowed {
@@ -117,6 +122,48 @@ public actor CuratedToolBroker {
             body: body
         ))
         return try githubResult(response, token: token)
+    }
+
+    /// Collapses `.` / `..` segments and rejects paths that escape above `/`.
+    /// Query strings are preserved after the normalized path.
+    public static func normalizedGitHubAPIPath(_ raw: String) -> String? {
+        let pathOnly: String
+        let querySuffix: String
+        if let questionMark = raw.firstIndex(of: "?") {
+            pathOnly = String(raw[..<questionMark])
+            querySuffix = String(raw[questionMark...])
+        } else {
+            pathOnly = raw
+            querySuffix = ""
+        }
+        guard pathOnly.hasPrefix("/") else { return nil }
+
+        var segments: [String] = []
+        for segment in pathOnly.split(separator: "/", omittingEmptySubsequences: true).map(String.init) {
+            if segment == "." { continue }
+            if segment == ".." {
+                guard !segments.isEmpty else { return nil }
+                segments.removeLast()
+                continue
+            }
+            segments.append(segment)
+        }
+        let normalized = "/" + segments.joined(separator: "/")
+        return normalized + querySuffix
+    }
+
+    /// Allowlist check on an already-normalized path (query stripped).
+    public static func isAllowedGitHubPath(_ path: String, method: String) -> Bool {
+        let pathOnly: String
+        if let questionMark = path.firstIndex(of: "?") {
+            pathOnly = String(path[..<questionMark])
+        } else {
+            pathOnly = path
+        }
+        if pathOnly.hasPrefix("/repos/") {
+            return true
+        }
+        return pathOnly == "/user" && githubReadMethods.contains(method)
     }
 
     private func githubContext() async throws -> (ToolsBrokerConfiguration.GitHub, String) {

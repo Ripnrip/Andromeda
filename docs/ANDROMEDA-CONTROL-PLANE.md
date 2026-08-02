@@ -97,7 +97,7 @@ store brands, ports, and credentials are operator implementation details.
 | `memory.session_dump` | ✅ Home/Bar; ✅ HUD promotion branch | Alias of `memory.store` + `WriteKind.sessionDump` | Merge/CI on Andromeda main still gates shipped status |
 | `infer.write` | 🚧 **deprecated client alias** | Maps to `memory.store` + `WriteKind.inferAliasDeprecated` (tag `infer-write`) | **Not** LLM inference; do not put on new client menus |
 | `project.state.list/get/create/update` | ✅ | Stable project-state CRUD; operator bridge may route to Linear/Multica/Slack | Clients never see tracker brands |
-| `slack_proxy`, `github_proxy`, `write.too` | ✅ / 📐 | M4 curated `andromeda_*` tools + Keychain broker shipped on runtime v2 (`POST /mcp`); `write.too` still charter | M5 `setup`/`doctor` land host-first wiring; live e2e gate on BIN-210 |
+| `slack_proxy`, `github_proxy`, `write.too` | 🚧 / 📐 | M4 curated `andromeda_*` MCP tools + Keychain injection on runtime v2 (`POST /mcp`) — curtain IDs `github_proxy`/`slack_proxy` not yet the guest-facing names; `write.too` still charter | M5 `setup`/`doctor` land host-first wiring; live e2e gate on BIN-210 |
 
 Real LLM generation stays under the LLM-proxy pillar (Autocache / `write.too` /
 future `infer.generate`). Never recycle `infer.write` for inference until memory

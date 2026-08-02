@@ -385,7 +385,7 @@ struct Doctor: AsyncParsableCommand {
         }
 
         let probes = RuntimeProbes()
-        let runtimeReachable = await probes.isReachable(url: health)
+        let runtimeReachable = await probes.isHealthy(url: health)
 
         let qdrantString = qdrantURL
             ?? HostDefaults.env("ANDROMEDA_TEST_QDRANT_URL")
