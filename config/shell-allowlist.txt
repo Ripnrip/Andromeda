@@ -1,0 +1,12 @@
+# Andromeda shell-surface allowlist (BIN-219)
+#
+# Default: NO project-maintained shell automation.
+# Paths listed here (one per line, repo-relative) are the only committed
+# `*.sh` / bash-shebang scripts permitted to remain. Adding a path requires
+# explicit human approval in the PR and should include an ADR when the file
+# carries operational/security logic.
+#
+# Do NOT add new entries to "fix" a missing Swift CLI. Prefer Swift modules,
+# typed CLIs, or GitHub Actions YAML.
+#
+# This file intentionally has no allowlisted paths today.

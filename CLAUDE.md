@@ -18,5 +18,5 @@ Clients and satellite agents see `memory.*`, `infer.write`, `project.state.*` on
 2. Prefer Swift-native patterns and strict concurrency.
 3. Update docs in the same change when behavior, schema, or ops expectations change.
 4. Run targeted tests before broad tests.
-5. Avoid Bash automation files or hidden launch/watchdog behavior.
+5. **Swift-first / No Bash surface (enforced):** Never add `.sh` / bash-shebang automation. Shell only via `config/shell-allowlist.txt`. Prefer Swift or Actions YAML. Gate: `python3 Tools/no_bash_surface_gate.py`. See `docs/NO-BASH-SURFACE.md`. Also avoid hidden launch/watchdog behavior.
 6. Surface background operations through visible status plus telemetry.

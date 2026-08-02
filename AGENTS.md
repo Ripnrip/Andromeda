@@ -21,7 +21,7 @@ Examples: Andromeda overall → Multica+Linear; Slack issue → Linear first the
 
 ## Repository Rules
 
-- Do not add project-maintained Bash automation files.
+- **Swift-first / No Bash surface (enforced):** Do not add project-maintained Bash automation files (`.sh`, `.bash`, or bash-shebang scripts). Shell is allowed only via paths listed in `config/shell-allowlist.txt` (empty by default). Prefer Swift modules, typed CLIs, or GitHub Actions YAML. Never add a new `.sh` to enforce or work around this rule. See `docs/NO-BASH-SURFACE.md`. Local gate: `python3 Tools/no_bash_surface_gate.py` or `swift test --filter NoBashSurfacePolicy`.
 - Do not add invisible `launchctl` jobs, hidden watchdogs, or unsurfaced background daemons.
 - Any background behavior must have visible status, telemetry, ownership, and controls.
 - Do not overwrite unrelated work or reset the repository to hide conflicts.

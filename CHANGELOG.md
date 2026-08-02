@@ -2,6 +2,20 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-08-02 — No Bash surface gate (BIN-219)
+
+**Steps taken:** Made the charter “No Bash implementation surface” rule mechanically unskippable with an empty allowlist, Swift policy tests, a Python CI/pre-commit gate (not a `.sh` linter), and agent-facing docs.
+
+### Added
+- `config/shell-allowlist.txt` — grandfather list (empty; no shell automation permitted by default).
+- `NoBashSurfacePolicy` in `AndromedaCore` plus `AndromedaCoreTests` canary coverage.
+- `Tools/no_bash_surface_gate.py` and `.github/workflows/no-bash-surface.yml` required CI check.
+- `.githooks/pre-commit` (Python) and PR template checkbox for Swift-first compliance.
+- `docs/NO-BASH-SURFACE.md` agent/operator policy.
+
+### Changed
+- Hardened wording in `AGENTS.md`, `CLAUDE.md`, and `ANDROMEDA-CHARTER.md` so agents cannot treat the rule as advisory.
+
 ## 2026-07-15 — Hummingbird Autocache Gateway
 
 **Tone hat:** Thrifty engineer 🪙

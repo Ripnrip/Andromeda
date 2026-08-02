@@ -19,7 +19,7 @@ This roadmap is outcome-driven. Gates advance when exit criteria are met, not wh
 
 **Deliverables**
 - Swift package, module boundaries, typed identifiers, typed errors, OSLog bootstrap, OpenTelemetry bootstrap, CLI skeleton, CI verification.
-- No Bash implementation files.
+- No Bash implementation files (`docs/NO-BASH-SURFACE.md`, CI gate).
 
 **Progress**
 - Package bootstrapped with `AndromedaCore`, `AndromedaAutoCache`, `AndromedaGateway`, and `andromeda` CLI.
