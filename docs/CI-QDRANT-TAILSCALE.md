@@ -4,16 +4,16 @@ description: Run Andromeda's live Qdrant projection tests from GitHub Actions th
 
 # CI Qdrant over Tailscale
 
-GitHub-hosted macOS runners do not have Qdrant, and their queue can be slow.
-The CI workflow therefore runs on the self-hosted `studio` macOS runner,
-which is the Studio machine that owns Qdrant. The runner is registered to this
-repository and calls Qdrant over loopback:
+GitHub-hosted macOS runners do not have Qdrant. The CI workflow preserves the
+hosted Xcode 16.4 snapshot environment and joins the runner to the tailnet,
+then calls the Studio-owned Qdrant instance through the tailnet TCP listener:
 
 ```text
-GitHub Actions -> Studio self-hosted runner -> 127.0.0.1:6333
+GitHub macOS runner --Tailscale--> Studio:8447 -> 127.0.0.1:6333
 ```
 
-The tailnet TCP listener remains available for non-runner verification:
+The Studio self-hosted runner is installed as a secondary fallback. The
+tailnet TCP listener is also available for non-runner verification:
 `http://studio.capybara-loggerhead.ts.net:8447` -> `127.0.0.1:6333`.
 
 ## Studio setup
@@ -35,8 +35,8 @@ The port is intentionally separate from the existing Serve listeners.
 
 The repository has a self-hosted runner named `studio-andromeda` with labels
 `self-hosted`, `macOS`, and `studio`. Keep the runner process under launchd so
-it reconnects after reboot. No GitHub-hosted macOS capacity or Tailscale auth
-key is needed for the CI job itself.
+it can be selected as a manual fallback. The normal PR job uses GitHub-hosted
+macOS plus the repository's ephemeral `TS_AUTHKEY`.
 
 The workflow curls `/collections` before compiling, so a missing runner or
 Qdrant service fails with an explicit connectivity error instead of a
