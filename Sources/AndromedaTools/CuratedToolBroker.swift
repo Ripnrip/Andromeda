@@ -1,5 +1,8 @@
 import AndromedaSecrets
 import Foundation
+#if canImport(OSLog)
+import OSLog
+#endif
 
 /// Curated tools broker: the third Andromeda pillar (tools/MCP).
 ///
@@ -8,6 +11,11 @@ import Foundation
 /// call time. Resolved secrets are used only for the upstream Authorization
 /// header and are scrubbed from anything returned to the caller.
 public actor CuratedToolBroker {
+
+    #if canImport(OSLog)
+    private let logger = Logger(subsystem: "com.andromeda.tools-broker", category: "broker")
+    #endif
+
     public static let githubGetMeTool = "andromeda_github_get_me"
     public static let githubRequestTool = "andromeda_github_request"
     public static let slackPostMessageTool = "andromeda_slack_post_message"
@@ -120,9 +128,20 @@ public actor CuratedToolBroker {
     }
 
     private func githubRequest(base: URL, method: String, path: String, token: String, body: Data? = nil) -> UpstreamHTTPRequest {
-        UpstreamHTTPRequest(
+        // Parse path and query separately — URL.appending(path:) would
+        // percent-encode ? in /repos/org/repo?state=open, breaking
+        // pagination and filtering.
+        let url: URL
+        if let questionMark = path.firstIndex(of: "?") {
+            let pathPart = String(path[..<questionMark])
+            let queryPart = String(path[path.index(after: questionMark)...])
+            url = base.appending(path: pathPart).appending(query: queryPart)
+        } else {
+            url = base.appending(path: path)
+        }
+        return UpstreamHTTPRequest(
             method: method,
-            url: base.appending(path: path),
+            url: url,
             headers: [
                 "Authorization": "Bearer \(token)",
                 "Accept": "application/vnd.github+json",
