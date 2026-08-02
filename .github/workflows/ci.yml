@@ -19,15 +19,17 @@ jobs:
     # instance. This avoids depending on GitHub-hosted runner capacity and keeps
     # the live projection test on the machine that actually hosts Qdrant.
     runs-on: [self-hosted, macOS, studio]
+    env:
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
     steps:
       - name: Checkout
         # Pin to immutable SHA (v4.3.1); mutable @v4 tags are a supply-chain risk.
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Select Xcode 16.4 (Swift 6.1)
-        # Package.swift requires swift-tools-version 6.1; pin Xcode so the toolchain
-        # does not drift when the runner default changes.
-        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+      - name: Select Xcode toolchain
+        # Package.swift requires swift-tools-version 6.1; DEVELOPER_DIR above
+        # selects the installed toolchain without requiring sudo.
+        run: xcodebuild -version
 
       - name: Swift version
         run: swift --version
