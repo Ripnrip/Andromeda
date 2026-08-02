@@ -25,7 +25,9 @@ tailscale serve --bg --tcp=8447 tcp://127.0.0.1:6333
 curl --fail --silent http://studio.capybara-loggerhead.ts.net:8447/collections
 ```
 
-The current Studio listener is `http://studio.capybara-loggerhead.ts.net:8447`.
+The current Studio listener is `http://studio.capybara-loggerhead.ts.net:8447`
+(`100.89.167.39:8447` from the GitHub runner; using the tailnet IP avoids a
+MagicDNS resolution mismatch on GitHub-hosted runners).
 The port is intentionally separate from the existing Serve listeners.
 
 ## GitHub setup

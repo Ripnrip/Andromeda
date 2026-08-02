@@ -40,10 +40,10 @@ jobs:
 
       - name: Verify Studio Qdrant
         env:
-          ANDROMEDA_TEST_QDRANT_URL: http://studio.capybara-loggerhead.ts.net:8447
+          ANDROMEDA_TEST_QDRANT_URL: http://100.89.167.39:8447
         run: |
           tailscale status
-          tailscale ping --c 3 studio.capybara-loggerhead.ts.net || true
+          tailscale ping --c 3 studio || true
           curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
             --retry 5 --retry-delay 2 \
             "$ANDROMEDA_TEST_QDRANT_URL/collections" >/dev/null
@@ -69,7 +69,7 @@ jobs:
       - name: Test (root package)
         if: steps.snapshots.outputs.record != 'true'
         env:
-          ANDROMEDA_TEST_QDRANT_URL: http://studio.capybara-loggerhead.ts.net:8447
+          ANDROMEDA_TEST_QDRANT_URL: http://100.89.167.39:8447
         # Single worker: AppKit snapshot + MainActor HUD tests contend under default
         # Swift Testing parallelism and flake debounce / project.state timeouts on CI.
         # IMPORTANT: do not set SNAPSHOT_TESTING_RECORD="" — empty still counts as set
@@ -80,7 +80,7 @@ jobs:
         if: steps.snapshots.outputs.record == 'true'
         env:
           SNAPSHOT_TESTING_RECORD: "1"
-          ANDROMEDA_TEST_QDRANT_URL: http://studio.capybara-loggerhead.ts.net:8447
+          ANDROMEDA_TEST_QDRANT_URL: http://100.89.167.39:8447
         run: swift test --parallel --num-workers 1
         continue-on-error: true
 
