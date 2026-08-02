@@ -14,10 +14,11 @@ struct QdrantProjectionTests {
 
         let projectID = ProjectID(rawValue: UUID())
         let collectionName = "andromeda-memories-\(projectID.description)"
-        let projection = QdrantProjection(
-            baseURL: baseURL,
-            embeddingProvider: HashBagOfWordsEmbeddingProvider()
-        )
+       let projection = QdrantProjection(
+           baseURL: baseURL,
+            embeddingProvider: HashBagOfWordsEmbeddingProvider(),
+            urlSession: testQdrantURLSession
+       )
         let record = makeRecord(projectID: projectID, privacy: .project)
 
         let receipt = try await projection.write(record: record)
@@ -93,6 +94,14 @@ struct QdrantProjectionTests {
         )
     }
 }
+
+private let testQdrantURLSession: URLSession = {
+    let config = URLSessionConfiguration.default
+    // CI reaches Qdrant over Tailscale TCP; give writes enough headroom.
+    config.timeoutIntervalForRequest = 120
+    config.timeoutIntervalForResource = 180
+    return URLSession(configuration: config)
+}()
 
 private let testQdrantBaseURL: URL = {
     let value = ProcessInfo.processInfo.environment["ANDROMEDA_TEST_QDRANT_URL"]

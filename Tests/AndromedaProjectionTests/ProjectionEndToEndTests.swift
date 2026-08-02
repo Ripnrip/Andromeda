@@ -17,9 +17,18 @@ struct ProjectionEndToEndTests {
         let markdownSink = MarkdownVaultProjection(vaultDirectoryURL: vaultURL)
 
         let qdrantBaseURL = projectionTestQdrantBaseURL
+        let qdrantSession = URLSession(configuration: {
+            let config = URLSessionConfiguration.default
+            // CI reaches Qdrant over Tailscale TCP, which adds latency to the
+            // sustained PUT writes. Give the full round-trip enough headroom.
+            config.timeoutIntervalForRequest = 120
+            config.timeoutIntervalForResource = 180
+            return config
+        }())
         let qdrantSink = QdrantProjection(
             baseURL: qdrantBaseURL,
-            embeddingProvider: HashBagOfWordsEmbeddingProvider()
+            embeddingProvider: HashBagOfWordsEmbeddingProvider(),
+            urlSession: qdrantSession
         )
         let projectionRuntime = ProjectionRuntime(
             sinks: [markdownSink, qdrantSink],
