@@ -51,7 +51,9 @@ struct ProjectionEndToEndTests {
             )
         )
 
-        let projectID = ProjectID(rawValue: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!)
+        // Unique project ID → unique Qdrant collection on shared Studio.
+        // Fixed UUIDs let concurrent CI refs delete each other's collections (Codex P1).
+        let projectID = ProjectID(rawValue: UUID())
         let response = try await runtime.remember(
             RememberIntent(
                 scope: EventScope(
@@ -76,6 +78,7 @@ struct ProjectionEndToEndTests {
         if qdrantReachable {
             let qdrantReceipt = response.sinkReceipts.first { $0.sinkID == qdrantSink.sinkID }
             #expect(qdrantReceipt?.status == .committed)
+            // Delete only the collection this run created.
             try? await deleteQdrantCollection(
                 baseURL: qdrantBaseURL,
                 name: "andromeda-memories-\(projectID.description)"

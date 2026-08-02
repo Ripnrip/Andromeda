@@ -32,14 +32,33 @@ jobs:
       - name: Swift version
         run: swift --version
 
+      # Fork PRs do not receive repository secrets (Codex P2 / BIN-218). Gate live
+      # Qdrant so ordinary build+unit tests still run without TS_AUTHKEY.
+      - name: Detect live Qdrant availability
+        id: qdrant
+        env:
+          TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+        run: |
+          if [ -n "$TS_AUTHKEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "url=http://100.89.167.39:8447" >> "$GITHUB_OUTPUT"
+            echo "Live Qdrant enabled (TS_AUTHKEY present)"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "url=" >> "$GITHUB_OUTPUT"
+            echo "TS_AUTHKEY absent — skipping Tailscale/live Qdrant; unit tests still run"
+          fi
+
       - name: Connect to Studio tailnet
+        if: steps.qdrant.outputs.enabled == 'true'
         uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
 
       - name: Verify Studio Qdrant
+        if: steps.qdrant.outputs.enabled == 'true'
         env:
-          ANDROMEDA_TEST_QDRANT_URL: http://100.89.167.39:8447
+          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant.outputs.url }}
         run: |
           tailscale status
           tailscale ping --c 3 studio || true
@@ -68,18 +87,19 @@ jobs:
       - name: Test (root package)
         if: steps.snapshots.outputs.record != 'true'
         env:
-          ANDROMEDA_TEST_QDRANT_URL: http://100.89.167.39:8447
+          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant.outputs.url }}
         # Single worker: AppKit snapshot + MainActor HUD tests contend under default
         # Swift Testing parallelism and flake debounce / project.state timeouts on CI.
         # IMPORTANT: do not set SNAPSHOT_TESTING_RECORD="" — empty still counts as set
         # in ProcessInfo.environment and forces Point-Free record=.all (always fails).
+        # When url is empty, live Qdrant tests fall back to localhost and skip if down.
         run: swift test --parallel --num-workers 1
 
       - name: Test (root package, record snapshots)
         if: steps.snapshots.outputs.record == 'true'
         env:
           SNAPSHOT_TESTING_RECORD: "1"
-          ANDROMEDA_TEST_QDRANT_URL: http://100.89.167.39:8447
+          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant.outputs.url }}
         run: swift test --parallel --num-workers 1
         continue-on-error: true
 
