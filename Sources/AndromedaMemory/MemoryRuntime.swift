@@ -352,6 +352,8 @@ public actor MemoryRuntime {
                 result += 1
             }
         }
+        // No lexical match means no hit — recency must never admit records on its own.
+        guard matchCount > 0 else { return 0 }
         let ageDays = max(0, now.timeIntervalSince(record.createdAt) / 86_400)
         let recencyBonus = 1.0 / (1.0 + ageDays)
         return Double(matchCount) * 10.0 + recencyBonus

@@ -240,6 +240,34 @@ struct MemoryRuntimeTests {
         }
     }
 
+    @Test("recall with zero matching query terms returns no records")
+    func recallZeroMatchReturnsNothing() async throws {
+        let context = try TestContext()
+        let runtime = try makeRuntime(context: context)
+
+        _ = try await runtime.remember(
+            RememberIntent(
+                scope: EventScope(projectID: projectID, sessionID: sessionID),
+                source: MemorySource(subsystem: "tests", actor: "memory", label: "recall"),
+                content: "Deployment runbook for the autocache gateway.",
+                kind: .note,
+                privacyLevel: .project,
+                idempotencyKey: "recall-zero-match-1"
+            )
+        )
+
+        let response = try await runtime.recall(
+            RecallRequest(
+                query: "zqxwv frabjous snickerdoodle",
+                scope: EventScope(projectID: projectID),
+                privacyCeiling: .project
+            )
+        )
+
+        #expect(response.records.isEmpty)
+        #expect(response.synthesizedContext == "No matching memory records were found for the requested scope.")
+    }
+
     private func makeRuntime(
         context: TestContext,
         sinks: [any MemoryProjectionSink] = []
