@@ -336,5 +336,14 @@ let package = Package(
                 .swiftLanguageMode(.v6)
             ]
         ),
+        .testTarget(
+            name: "AndromedaSecretsTests",
+            dependencies: [
+                "AndromedaSecrets",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
     ]
 )
