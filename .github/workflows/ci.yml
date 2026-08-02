@@ -15,6 +15,9 @@ jobs:
     # macOS runner is required: the snapshot suite is AppKit-guarded and would be
     # silently skipped on Linux, hiding red snapshots.
     # Snapshot PNGs are tied to this image (re-record with [record-snapshots] if changed).
+    # Hosted macOS preserves the pinned snapshot toolchain. Qdrant is reached
+    # through the ephemeral Tailscale node below; Studio remains a secondary
+    # self-hosted fallback runner.
     runs-on: macos-15
     steps:
       - name: Checkout
@@ -23,11 +26,27 @@ jobs:
 
       - name: Select Xcode 16.4 (Swift 6.1)
         # Package.swift requires swift-tools-version 6.1; pin Xcode so the toolchain
-        # does not drift when the runner default changes.
+        # does not drift when the hosted runner default changes.
         run: sudo xcode-select -s /Applications/Xcode_16.4.app
 
       - name: Swift version
         run: swift --version
+
+      - name: Connect to Studio tailnet
+        uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Verify Studio Qdrant
+        env:
+          ANDROMEDA_TEST_QDRANT_URL: http://100.89.167.39:8447
+        run: |
+          tailscale status
+          tailscale ping --c 3 studio || true
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+            --retry 5 --retry-delay 2 \
+            "$ANDROMEDA_TEST_QDRANT_URL/collections" >/dev/null
+          echo "Studio Qdrant reachable over tailnet"
 
       - name: Build
         run: swift build
@@ -48,6 +67,8 @@ jobs:
 
       - name: Test (root package)
         if: steps.snapshots.outputs.record != 'true'
+        env:
+          ANDROMEDA_TEST_QDRANT_URL: http://100.89.167.39:8447
         # Single worker: AppKit snapshot + MainActor HUD tests contend under default
         # Swift Testing parallelism and flake debounce / project.state timeouts on CI.
         # IMPORTANT: do not set SNAPSHOT_TESTING_RECORD="" — empty still counts as set
@@ -58,6 +79,7 @@ jobs:
         if: steps.snapshots.outputs.record == 'true'
         env:
           SNAPSHOT_TESTING_RECORD: "1"
+          ANDROMEDA_TEST_QDRANT_URL: http://100.89.167.39:8447
         run: swift test --parallel --num-workers 1
         continue-on-error: true
 

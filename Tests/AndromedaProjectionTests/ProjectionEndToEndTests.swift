@@ -16,10 +16,19 @@ struct ProjectionEndToEndTests {
         let vaultURL = directory.appendingPathComponent("vault")
         let markdownSink = MarkdownVaultProjection(vaultDirectoryURL: vaultURL)
 
-        let qdrantBaseURL = URL(string: "http://localhost:6333")!
+        let qdrantBaseURL = projectionTestQdrantBaseURL
+        let qdrantSession = URLSession(configuration: {
+            let config = URLSessionConfiguration.default
+            // CI reaches Qdrant over Tailscale TCP, which adds latency to the
+            // sustained PUT writes. Give the full round-trip enough headroom.
+            config.timeoutIntervalForRequest = 120
+            config.timeoutIntervalForResource = 180
+            return config
+        }())
         let qdrantSink = QdrantProjection(
             baseURL: qdrantBaseURL,
-            embeddingProvider: HashBagOfWordsEmbeddingProvider()
+            embeddingProvider: HashBagOfWordsEmbeddingProvider(),
+            urlSession: qdrantSession
         )
         let projectionRuntime = ProjectionRuntime(
             sinks: [markdownSink, qdrantSink],
@@ -84,6 +93,12 @@ struct ProjectionEndToEndTests {
         return directory
     }
 }
+
+private let projectionTestQdrantBaseURL: URL = {
+    let value = ProcessInfo.processInfo.environment["ANDROMEDA_TEST_QDRANT_URL"]
+        ?? "http://localhost:6333"
+    return URL(string: value)!
+}()
 
 private func isQdrantReachable(baseURL: URL) async -> Bool {
     guard let url = URL(string: "/collections", relativeTo: baseURL)?.absoluteURL else {
