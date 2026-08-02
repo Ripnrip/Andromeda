@@ -7,17 +7,18 @@ import Testing
 
 @Suite("AndromedaProjections.QdrantProjection")
 struct QdrantProjectionTests {
-    @Test("upserts a memory to live localhost:6333", .tags(.qdrant))
+    @Test("upserts a memory to the configured live Qdrant endpoint", .tags(.qdrant))
     func upsertsToLiveQdrant() async throws {
-        let baseURL = URL(string: "http://localhost:6333")!
+        let baseURL = testQdrantBaseURL
         try await skipUnlessQdrantReachable(baseURL: baseURL)
 
         let projectID = ProjectID(rawValue: UUID())
         let collectionName = "andromeda-memories-\(projectID.description)"
-        let projection = QdrantProjection(
-            baseURL: baseURL,
-            embeddingProvider: HashBagOfWordsEmbeddingProvider()
-        )
+       let projection = QdrantProjection(
+           baseURL: baseURL,
+            embeddingProvider: HashBagOfWordsEmbeddingProvider(),
+            urlSession: testQdrantURLSession
+       )
         let record = makeRecord(projectID: projectID, privacy: .project)
 
         let receipt = try await projection.write(record: record)
@@ -93,6 +94,20 @@ struct QdrantProjectionTests {
         )
     }
 }
+
+private let testQdrantURLSession: URLSession = {
+    let config = URLSessionConfiguration.default
+    // CI reaches Qdrant over Tailscale TCP; give writes enough headroom.
+    config.timeoutIntervalForRequest = 120
+    config.timeoutIntervalForResource = 180
+    return URLSession(configuration: config)
+}()
+
+private let testQdrantBaseURL: URL = {
+    let value = ProcessInfo.processInfo.environment["ANDROMEDA_TEST_QDRANT_URL"]
+        ?? "http://localhost:6333"
+    return URL(string: value)!
+}()
 
 private func skipUnlessQdrantReachable(baseURL: URL) async throws {
     guard let url = URL(string: "/collections", relativeTo: baseURL)?.absoluteURL else {
