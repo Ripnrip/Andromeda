@@ -17,6 +17,7 @@ let package = Package(
         .library(name: "AndromedaMemory", targets: ["AndromedaMemory"]),
         .library(name: "AndromedaProjections", targets: ["AndromedaProjections"]),
         .library(name: "AndromedaSecrets", targets: ["AndromedaSecrets"]),
+        .library(name: "AndromedaTools", targets: ["AndromedaTools"]),
         .library(name: "AndromedaHTTP", targets: ["AndromedaHTTP"]),
         .library(name: "AndromedaClient", targets: ["AndromedaClient"]),
         .library(name: "AndromedaServer", targets: ["AndromedaServer"]),
@@ -93,10 +94,21 @@ let package = Package(
             ]
         ),
         .target(
+            name: "AndromedaTools",
+            dependencies: [
+                "AndromedaDomain",
+                "AndromedaSecrets",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .target(
             name: "AndromedaHTTP",
             dependencies: [
                 "AndromedaDomain",
                 "AndromedaMemory",
+                "AndromedaTools",
                 .product(name: "Hummingbird", package: "hummingbird"),
             ],
             swiftSettings: [
@@ -121,6 +133,7 @@ let package = Package(
                 "AndromedaMemory",
                 "AndromedaProjections",
                 "AndromedaSecrets",
+                "AndromedaTools",
                 "AndromedaHTTP",
                 .product(name: "Hummingbird", package: "hummingbird"),
                 .product(name: "Logging", package: "swift-log"),
@@ -160,7 +173,9 @@ let package = Package(
         .executableTarget(
             name: "AndromedaRuntimeCLI",
             dependencies: [
+                "AndromedaSecrets",
                 "AndromedaServer",
+                "AndromedaTools",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
             ],
@@ -274,11 +289,23 @@ let package = Package(
             ]
         ),
         .testTarget(
+            name: "AndromedaToolsTests",
+            dependencies: [
+                "AndromedaSecrets",
+                "AndromedaTools",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .testTarget(
             name: "AndromedaHTTPTests",
             dependencies: [
                 "AndromedaDomain",
                 "AndromedaHTTP",
                 "AndromedaMemory",
+                "AndromedaSecrets",
+                "AndromedaTools",
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
             ],
             swiftSettings: [
