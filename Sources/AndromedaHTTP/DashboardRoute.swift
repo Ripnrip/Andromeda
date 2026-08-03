@@ -142,12 +142,19 @@ public struct DashboardRoute: Sendable {
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Andromeda — Runtime Memory Console</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
   @keyframes dsPulse{0%,100%{opacity:1;box-shadow:0 0 6px 1px rgba(62,224,140,.85)}50%{opacity:.5;box-shadow:0 0 13px 4px rgba(62,224,140,.35)}}
   @keyframes dsBreathe{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:.9;transform:scale(1.22)}}
   @keyframes dsOrbit{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+
+  /* Honor reduced-motion preferences — suppress all animations */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
   :root {
     --bg: #030b0c;
     --panel: #040d0e;
@@ -235,12 +242,12 @@ public struct DashboardRoute: Sendable {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     font-size: 0.82rem;
-    color: var(--muted);
+    color: var(--mut);
     box-shadow: var(--shadow);
   }
   .health-dot {
     width: 8px; height: 8px; border-radius: 50%;
-    background: var(--muted);
+    background: var(--mut);
     box-shadow: 0 0 0 0 transparent;
   }
   .health-dot.ok {
@@ -252,7 +259,7 @@ public struct DashboardRoute: Sendable {
     background: var(--alert);
     box-shadow: 0 0 10px rgba(255, 157, 148, 0.55);
   }
-  .health-version { font-family: var(--mono); font-size: 0.78rem; color: var(--text); }
+  .health-version { font-family: var(--mono); font-size: 0.78rem; color: var(--ink); }
 
   /* Grid */
   .grid {
@@ -295,7 +302,7 @@ public struct DashboardRoute: Sendable {
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--muted);
+    color: var(--mut);
     margin-bottom: 6px;
   }
   input[type="text"], textarea {
@@ -303,7 +310,7 @@ public struct DashboardRoute: Sendable {
     background: rgba(0,0,0,0.28);
     border: 1px solid var(--glass-border);
     border-radius: 10px;
-    color: var(--text);
+    color: var(--ink);
     padding: 10px 12px;
     font-family: inherit;
     font-size: 0.95rem;
@@ -323,14 +330,14 @@ public struct DashboardRoute: Sendable {
   .segmented button {
     background: rgba(0,0,0,0.25);
     border: 1px solid var(--glass-border);
-    color: var(--muted);
+    color: var(--mut);
     border-radius: 8px;
     padding: 6px 11px;
     font-size: 0.78rem;
     cursor: pointer;
     transition: all 0.12s ease;
   }
-  .segmented button:hover { background: var(--glass-hover); color: var(--text); }
+  .segmented button:hover { background: var(--glass-hover); color: var(--ink); }
   .segmented button.active {
     color: var(--glow);
     border-color: rgba(52,232,220,0.45);
@@ -357,19 +364,19 @@ public struct DashboardRoute: Sendable {
   }
   .privacy-option input { margin-top: 3px; accent-color: var(--teal); }
   .privacy-option strong { display: block; font-size: 0.88rem; }
-  .privacy-option small { color: var(--muted); font-size: 0.78rem; }
+  .privacy-option small { color: var(--mut); font-size: 0.78rem; }
 
   .demo-scope {
     font-family: var(--mono);
     font-size: 0.72rem;
-    color: var(--muted);
+    color: var(--mut);
     background: rgba(0,0,0,0.25);
     border-radius: 8px;
     padding: 8px 10px;
     margin-bottom: 14px;
     word-break: break-all;
   }
-  .demo-scope b { color: var(--text); font-weight: 500; }
+  .demo-scope b { color: var(--ink); font-weight: 500; }
 
   .btn-commit {
     width: 100%;
@@ -407,7 +414,7 @@ public struct DashboardRoute: Sendable {
     font-size: 0.85rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--mut);
   }
   .badge {
     display: inline-flex;
@@ -429,7 +436,7 @@ public struct DashboardRoute: Sendable {
   .badge.kind-issue { background: rgba(255,157,148,0.10); color: var(--alert); }
   .badge.kind-checkpoint { background: rgba(143,251,239,0.08); color: var(--mut); }
   .badge.kind-note { background: rgba(127,163,158,0.12); color: var(--mut); }
-  .badge.privacy { background: rgba(255,255,255,0.06); color: var(--muted); border: 1px solid var(--glass-border); }
+  .badge.privacy { background: rgba(255,255,255,0.06); color: var(--mut); border: 1px solid var(--glass-border); }
 
   .sink-list { list-style: none; padding: 0; margin: 10px 0 0; }
   .sink-list li {
@@ -445,7 +452,7 @@ public struct DashboardRoute: Sendable {
   .btn-ghost {
     background: transparent;
     border: 1px solid var(--glass-border);
-    color: var(--text);
+    color: var(--ink);
     border-radius: 8px;
     padding: 6px 10px;
     font-size: 0.75rem;
@@ -464,7 +471,7 @@ public struct DashboardRoute: Sendable {
   .chip {
     border: 1px solid var(--glass-border);
     background: rgba(0,0,0,0.2);
-    color: var(--muted);
+    color: var(--mut);
     border-radius: 999px;
     padding: 5px 12px;
     font-size: 0.75rem;
@@ -482,7 +489,7 @@ public struct DashboardRoute: Sendable {
 
   .results { display: flex; flex-direction: column; gap: 10px; min-height: 120px; }
   .empty-state {
-    color: var(--muted);
+    color: var(--mut);
     font-size: 0.88rem;
     text-align: center;
     padding: 28px 12px;
@@ -516,13 +523,13 @@ public struct DashboardRoute: Sendable {
     padding: 2px 7px;
     border-radius: 6px;
     background: rgba(255,255,255,0.05);
-    color: var(--muted);
+    color: var(--mut);
     font-family: var(--mono);
   }
   .hit-foot {
     font-family: var(--mono);
     font-size: 0.7rem;
-    color: var(--muted);
+    color: var(--mut);
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
@@ -544,14 +551,14 @@ public struct DashboardRoute: Sendable {
     filter: grayscale(0.3);
   }
   .secrets h2 { margin: 0 0 4px; font-size: 0.95rem; }
-  .secrets p { margin: 0; color: var(--muted); font-size: 0.85rem; }
+  .secrets p { margin: 0; color: var(--mut); font-size: 0.85rem; }
   .secrets .scoped-badge {
     display: inline-block;
     margin-top: 8px;
     font-size: 0.7rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--mut);
     border: 1px dashed var(--glass-border);
     border-radius: 6px;
     padding: 3px 8px;
@@ -560,7 +567,7 @@ public struct DashboardRoute: Sendable {
   footer.foot {
     margin-top: 28px;
     text-align: center;
-    color: var(--muted);
+    color: var(--mut);
     font-size: 0.78rem;
     letter-spacing: 0.02em;
   }
