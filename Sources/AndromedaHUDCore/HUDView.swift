@@ -866,3 +866,77 @@ public extension Notification.Name {
         .padding()
         .background(Color.gray)
 }
+
+// MARK: - Sub-component previews
+
+#Preview("MemoryHitRow · selected") {
+    let hit = MemoryHit(narrative: "Studio hosts the hive mind", project: "andromeda", source: .vault, score: 8.0)
+    return HUDMemoryHitRow(hit: hit, isSelected: true, onActivate: {})
+        .padding()
+        .frame(width: 380)
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("MemoryHitRow · unselected · hot") {
+    let hit = MemoryHit(narrative: "Quick ephemeral from the hot store", source: .hotStore, score: 12.0)
+    return HUDMemoryHitRow(hit: hit, isSelected: false, onActivate: {})
+        .padding()
+        .frame(width: 380)
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("FleetPulseChip · green") {
+    HUDFleetPulseChip(pulse: HUDFleetPulse(status: .green, attentionCount: 0, detail: "All systems nominal"))
+        .padding()
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("FleetPulseChip · red") {
+    HUDFleetPulseChip(pulse: HUDFleetPulse(status: .red, attentionCount: 1, detail: "Critical: Qdrant unreachable"))
+        .padding()
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("StatusRow · syncing") {
+    HUDStatusRow(systemImage: nil, showsProgress: true, title: "Searching…", accessibilityLabel: "Searching")
+        .padding()
+        .frame(width: 380)
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("StatusRow · failed") {
+    HUDStatusRow(systemImage: "exclamationmark.triangle.fill", showsProgress: false, title: "Memory store unavailable", accessibilityLabel: "Error", emphasis: .warning)
+        .padding()
+        .frame(width: 380)
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("RecentQueriesView") {
+    HUDRecentQueriesView(
+        queries: ["project.state", "recall fleet observe", "store hello"],
+        selectedIndex: 1,
+        onSelect: { _ in }
+    )
+    .padding()
+    .frame(width: 380)
+    .background(Color.gray.opacity(0.2))
+}
+
+#Preview("ProjectResultsView") {
+    let states = [
+        ProjectState(id: "andromeda", title: "Andromeda", status: .active, items: [
+            ProjectStateItem(id: "i1", title: "Wire HUD results panel", status: .active),
+            ProjectStateItem(id: "i2", title: "Ship snapshots", status: .backlog),
+        ]),
+    ]
+    return HUDProjectResultsView(projects: states, selectedIndex: 0, onActivateItem: nil)
+        .padding()
+        .frame(width: 380)
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("DragHandle") {
+    DragHandleView()
+        .padding()
+        .background(Color.gray.opacity(0.2))
+}
