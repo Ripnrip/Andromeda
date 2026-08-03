@@ -1,3 +1,4 @@
+import AndromedaDomain
 import AndromedaHostOps
 import AndromedaSecrets
 import AndromedaServer
@@ -82,6 +83,13 @@ struct Serve: AsyncParsableCommand {
         }
 
         let logger = Logger(label: "andromeda.runtime.cli")
+
+        // ASCII banner — Andromeda brand identity in the terminal.
+        // Respects NO_COLOR env var for non-TTY / accessibility.
+        let useColor = ProcessInfo.processInfo.environment["NO_COLOR"] == nil
+        print(AndromedaASCIILogo.banner(colored: useColor))
+        print()
+
         guard let qdrantBaseURL = URL(string: qdrantUrl) else {
             throw ValidationError("Invalid Qdrant URL: \(qdrantUrl)")
         }
