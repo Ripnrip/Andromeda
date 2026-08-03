@@ -67,7 +67,7 @@ public struct HUDResultsView<Content: View>: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(.white.opacity(0.08), lineWidth: 1)
+                            .strokeBorder(Color.andromedaLine, lineWidth: 1)
                     )
                     .transition(.opacity)
             }

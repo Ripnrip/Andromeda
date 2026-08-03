@@ -109,7 +109,7 @@ public struct HUDView: View {
                     .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
                     .overlay(
                         Capsule()
-                            .stroke(.white.opacity(0.1), lineWidth: 1)
+                            .stroke(Color.andromedaLine, lineWidth: 1)
                     )
             }
             .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: isExpanded)
@@ -309,10 +309,10 @@ struct HUDFleetPulseChip: View {
 
     private var color: Color {
         switch pulse.status {
-        case .green: return .green
-        case .yellow: return .yellow
-        case .red: return .red
-        case .unknown: return .secondary
+        case .green: return .andromedaLive
+        case .yellow: return .andromedaAlert
+        case .red: return .andromedaAlert
+        case .unknown: return .andromedaMuted
         }
     }
 }
@@ -354,7 +354,7 @@ struct HUDRecentQueriesView: View {
                     .padding(.vertical, 6)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(index == selectedIndex ? Color.white.opacity(0.12) : .clear)
+                            .fill(index == selectedIndex ? Color.andromedaSelection : .clear)
                     )
                     .contentShape(Rectangle())
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: selectedIndex)
@@ -645,7 +645,7 @@ struct HUDProjectResultsView: View {
             .padding(.leading, 8)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(globalIndex == selectedIndex ? Color.white.opacity(0.12) : .clear)
+                    .fill(globalIndex == selectedIndex ? Color.andromedaSelection : .clear)
             )
             .contentShape(Rectangle())
         }
@@ -658,10 +658,10 @@ struct HUDProjectResultsView: View {
 
     private func statusColor(for status: ProjectStateStatus) -> Color {
         switch status {
-        case .backlog: return .secondary
-        case .active: return .teal
-        case .blocked: return .orange
-        case .done: return .green
+        case .backlog: return .andromedaMuted
+        case .active: return .andromedaTeal
+        case .blocked: return .andromedaAlert
+        case .done: return .andromedaLive
         }
     }
 }
@@ -724,10 +724,10 @@ struct HUDMemoryHitRow: View {
 
     private var rowFill: Color {
         if isSelected {
-            return Color.white.opacity(0.12)
+            return .andromedaSelection
         }
         if isHovering {
-            return Color.white.opacity(0.06)
+            return .andromedaHover
         }
         return .clear
     }
