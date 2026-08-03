@@ -18,7 +18,7 @@ import Testing
 @Suite("AndromedaHTTP.DashboardRoute")
 struct DashboardRouteTests {
     /// 🌟 GET / must serve the embedded console with the Andromeda wordmark.
-    @Test("GET / returns 200 text/html containing ANDROMEDA")
+    @Test("GET / returns 200 text/html containing Andromeda wordmark")
     func dashboardHTMLServesWordmark() async throws {
         let runtime = try makeMemoryRuntime()
         let router = Router(context: BasicRequestContext.self)
@@ -31,7 +31,11 @@ struct DashboardRouteTests {
                 let contentType = response.headers[.contentType] ?? ""
                 #expect(contentType.contains("text/html"))
                 let body = String(buffer: response.body)
-                #expect(body.contains("ANDROMEDA"))
+                // Design system wordmark: Instrument Serif "Andromeda." with teal dot
+                #expect(body.contains("Andromeda"))
+                // Verify design system CSS tokens are present
+                #expect(body.contains("--teal"))
+                #expect(body.contains("--bg"))
             }
         }
     }

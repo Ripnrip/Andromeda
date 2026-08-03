@@ -183,6 +183,7 @@ let package = Package(
         .executableTarget(
             name: "AndromedaRuntimeCLI",
             dependencies: [
+                "AndromedaDomain",
                 "AndromedaHostOps",
                 "AndromedaSecrets",
                 "AndromedaServer",
