@@ -141,54 +141,60 @@ public struct DashboardRoute: Sendable {
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Andromeda Runtime Memory Console</title>
+<title>Andromeda — Runtime Memory Console</title>
 <style>
+  @keyframes dsPulse{0%,100%{opacity:1;box-shadow:0 0 6px 1px rgba(62,224,140,.85)}50%{opacity:.5;box-shadow:0 0 13px 4px rgba(62,224,140,.35)}}
+  @keyframes dsBreathe{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:.9;transform:scale(1.22)}}
+  @keyframes dsOrbit{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+
+  /* Honor reduced-motion preferences — suppress all animations */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
   :root {
-    --void: #0a0e1a;
-    --void-2: #0d1224;
-    --glass: rgba(255, 255, 255, 0.04);
-    --glass-border: rgba(255, 255, 255, 0.10);
-    --glass-hover: rgba(255, 255, 255, 0.07);
-    --text: #e8eaf2;
-    --muted: #8b93a7;
-    --indigo: #6366f1;
-    --violet: #a855f7;
-    --gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-    --ok: #34d399;
-    --warn: #fbbf24;
-    --bad: #f87171;
-    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
-    --radius: 14px;
-    --shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    --bg: #030b0c;
+    --panel: #040d0e;
+    --surface: #0d1a1b;
+    --ink: #e9fbf8;
+    --mut: #7fa39e;
+    --mut2: #5f8d88;
+    --teal: #34e8dc;
+    --glow: #8ffbef;
+    --green: #3ee08c;
+    --line: rgba(94,234,222,.13);
+    --glass: rgba(10, 26, 27, .5);
+    --glass-border: rgba(94, 234, 222, .13);
+    --glass-hover: rgba(52, 232, 220, .08);
+    --alert: #ff9d94;
+    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --sans: 'Space Grotesk', -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --radius: 16px;
+    --radius-btn: 11px;
+    --shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
   }
 
   * { box-sizing: border-box; }
   html, body {
     margin: 0; padding: 0; min-height: 100%;
-    background: var(--void);
-    color: var(--text);
+    background: var(--bg);
+    color: var(--ink);
     font-family: var(--sans);
     font-size: 15px;
     line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
   }
 
-  /* ✨ Zero-JS starfield — pure CSS radial-gradient dust */
+  /* Andromeda ambient glow — calm teal radial, not a starfield */
   body {
-    background-color: var(--void);
+    background-color: var(--bg);
     background-image:
-      radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,0.55), transparent),
-      radial-gradient(1px 1px at 28% 72%, rgba(255,255,255,0.35), transparent),
-      radial-gradient(1.2px 1.2px at 44% 34%, rgba(255,255,255,0.45), transparent),
-      radial-gradient(1px 1px at 61% 12%, rgba(255,255,255,0.30), transparent),
-      radial-gradient(1px 1px at 73% 58%, rgba(255,255,255,0.50), transparent),
-      radial-gradient(1.2px 1.2px at 88% 26%, rgba(255,255,255,0.40), transparent),
-      radial-gradient(1px 1px at 15% 88%, rgba(255,255,255,0.28), transparent),
-      radial-gradient(1px 1px at 52% 90%, rgba(255,255,255,0.38), transparent),
-      radial-gradient(1.5px 1.5px at 95% 80%, rgba(168,85,247,0.35), transparent),
-      radial-gradient(1.5px 1.5px at 8% 48%, rgba(99,102,241,0.30), transparent),
-      radial-gradient(800px 400px at 20% -10%, rgba(99,102,241,0.12), transparent),
-      radial-gradient(600px 300px at 90% 110%, rgba(168,85,247,0.10), transparent);
+      radial-gradient(600px 300px at 18% -8%, rgba(52,232,220,.07), transparent),
+      radial-gradient(500px 250px at 88% 108%, rgba(52,232,220,.05), transparent);
     background-attachment: fixed;
   }
 
@@ -208,18 +214,21 @@ public struct DashboardRoute: Sendable {
     margin-bottom: 28px;
   }
   .wordmark {
-    font-size: 1.65rem;
-    font-weight: 700;
-    letter-spacing: 0.18em;
-    background: var(--gradient);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    font-family: var(--serif);
+    font-size: 2.4rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--ink);
     margin: 0 0 4px;
+    line-height: 1;
   }
+  .wordmark .dot { color: var(--teal); font-style: italic; }
   .subtitle {
-    color: var(--muted);
-    font-size: 0.92rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--mut2);
     margin: 0;
   }
   .health-pill {
@@ -233,23 +242,24 @@ public struct DashboardRoute: Sendable {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     font-size: 0.82rem;
-    color: var(--muted);
+    color: var(--mut);
     box-shadow: var(--shadow);
   }
   .health-dot {
     width: 8px; height: 8px; border-radius: 50%;
-    background: var(--muted);
+    background: var(--mut);
     box-shadow: 0 0 0 0 transparent;
   }
   .health-dot.ok {
-    background: var(--ok);
-    box-shadow: 0 0 10px rgba(52, 211, 153, 0.65);
+    background: var(--green);
+    box-shadow: 0 0 10px rgba(62, 224, 140, 0.65);
+    animation: dsPulse 2.4s ease-in-out infinite;
   }
   .health-dot.bad {
-    background: var(--bad);
-    box-shadow: 0 0 10px rgba(248, 113, 113, 0.55);
+    background: var(--alert);
+    box-shadow: 0 0 10px rgba(255, 157, 148, 0.55);
   }
-  .health-version { font-family: var(--mono); font-size: 0.78rem; color: var(--text); }
+  .health-version { font-family: var(--mono); font-size: 0.78rem; color: var(--ink); }
 
   /* Grid */
   .grid {
@@ -262,8 +272,8 @@ public struct DashboardRoute: Sendable {
   }
 
   .card {
-    background: var(--glass);
-    border: 1px solid var(--glass-border);
+    background: linear-gradient(180deg, rgba(10,26,27,.5), rgba(4,13,14,.4));
+    border: 1px solid var(--line);
     border-radius: var(--radius);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -271,13 +281,14 @@ public struct DashboardRoute: Sendable {
     box-shadow: var(--shadow);
   }
   .card h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 1.5rem;
     margin: 0 0 6px;
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
   }
   .card .hint {
-    color: var(--muted);
+    font-weight: 300;
+    color: var(--mut);
     font-size: 0.82rem;
     margin: 0 0 18px;
   }
@@ -291,7 +302,7 @@ public struct DashboardRoute: Sendable {
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--muted);
+    color: var(--mut);
     margin-bottom: 6px;
   }
   input[type="text"], textarea {
@@ -299,7 +310,7 @@ public struct DashboardRoute: Sendable {
     background: rgba(0,0,0,0.28);
     border: 1px solid var(--glass-border);
     border-radius: 10px;
-    color: var(--text);
+    color: var(--ink);
     padding: 10px 12px;
     font-family: inherit;
     font-size: 0.95rem;
@@ -307,7 +318,7 @@ public struct DashboardRoute: Sendable {
     transition: border-color 0.15s ease;
   }
   input[type="text"]:focus, textarea:focus {
-    border-color: rgba(99,102,241,0.55);
+    border-color: rgba(52,232,220,0.55);
   }
   textarea { min-height: 120px; resize: vertical; line-height: 1.45; }
 
@@ -319,18 +330,18 @@ public struct DashboardRoute: Sendable {
   .segmented button {
     background: rgba(0,0,0,0.25);
     border: 1px solid var(--glass-border);
-    color: var(--muted);
+    color: var(--mut);
     border-radius: 8px;
     padding: 6px 11px;
     font-size: 0.78rem;
     cursor: pointer;
     transition: all 0.12s ease;
   }
-  .segmented button:hover { background: var(--glass-hover); color: var(--text); }
+  .segmented button:hover { background: var(--glass-hover); color: var(--ink); }
   .segmented button.active {
-    color: var(--text);
-    border-color: rgba(99,102,241,0.55);
-    background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(168,85,247,0.22));
+    color: var(--glow);
+    border-color: rgba(52,232,220,0.45);
+    background: rgba(52,232,220,0.1);
   }
 
   .privacy-grid {
@@ -348,43 +359,44 @@ public struct DashboardRoute: Sendable {
     cursor: pointer;
   }
   .privacy-option.active {
-    border-color: rgba(99,102,241,0.5);
-    background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(168,85,247,0.10));
+    border-color: rgba(52,232,220,0.4);
+    background: rgba(52,232,220,0.08);
   }
-  .privacy-option input { margin-top: 3px; accent-color: var(--indigo); }
+  .privacy-option input { margin-top: 3px; accent-color: var(--teal); }
   .privacy-option strong { display: block; font-size: 0.88rem; }
-  .privacy-option small { color: var(--muted); font-size: 0.78rem; }
+  .privacy-option small { color: var(--mut); font-size: 0.78rem; }
 
   .demo-scope {
     font-family: var(--mono);
     font-size: 0.72rem;
-    color: var(--muted);
+    color: var(--mut);
     background: rgba(0,0,0,0.25);
     border-radius: 8px;
     padding: 8px 10px;
     margin-bottom: 14px;
     word-break: break-all;
   }
-  .demo-scope b { color: var(--text); font-weight: 500; }
+  .demo-scope b { color: var(--ink); font-weight: 500; }
 
   .btn-commit {
     width: 100%;
     margin-top: 8px;
     border: none;
-    border-radius: 12px;
+    border-radius: var(--radius-btn);
     padding: 14px 18px;
     font-size: 0.95rem;
     font-weight: 600;
     letter-spacing: 0.01em;
-    color: white;
-    background: var(--gradient);
+    color: #03191a;
+    background: var(--teal);
     cursor: pointer;
-    box-shadow: 0 6px 24px rgba(99,102,241,0.35);
-    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+    box-shadow: 0 6px 24px rgba(52,232,220,0.25);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease, background 0.12s ease;
   }
   .btn-commit:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 10px 28px rgba(168,85,247,0.40);
+    background: var(--glow);
+    box-shadow: 0 10px 28px rgba(143,251,239,0.30);
   }
   .btn-commit:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -392,8 +404,8 @@ public struct DashboardRoute: Sendable {
     margin-top: 16px;
     padding: 14px;
     border-radius: 12px;
-    border: 1px solid rgba(99,102,241,0.30);
-    background: rgba(99,102,241,0.08);
+    border: 1px solid rgba(52,232,220,0.25);
+    background: rgba(52,232,220,0.05);
     display: none;
   }
   .receipt.visible { display: block; }
@@ -402,7 +414,7 @@ public struct DashboardRoute: Sendable {
     font-size: 0.85rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--mut);
   }
   .badge {
     display: inline-flex;
@@ -415,16 +427,16 @@ public struct DashboardRoute: Sendable {
     letter-spacing: 0.03em;
     text-transform: uppercase;
   }
-  .badge.ok { background: rgba(52,211,153,0.15); color: var(--ok); border: 1px solid rgba(52,211,153,0.30); }
-  .badge.warn { background: rgba(251,191,36,0.12); color: var(--warn); border: 1px solid rgba(251,191,36,0.28); }
-  .badge.bad { background: rgba(248,113,113,0.12); color: var(--bad); border: 1px solid rgba(248,113,113,0.28); }
-  .badge.kind-decision { background: rgba(99,102,241,0.18); color: #a5b4fc; }
-  .badge.kind-discovery { background: rgba(34,211,238,0.14); color: #67e8f9; }
-  .badge.kind-workflow { background: rgba(52,211,153,0.14); color: #6ee7b7; }
-  .badge.kind-issue { background: rgba(248,113,113,0.14); color: #fca5a5; }
-  .badge.kind-checkpoint { background: rgba(251,191,36,0.14); color: #fcd34d; }
-  .badge.kind-note { background: rgba(168,85,247,0.16); color: #d8b4fe; }
-  .badge.privacy { background: rgba(255,255,255,0.06); color: var(--muted); border: 1px solid var(--glass-border); }
+  .badge.ok { background: rgba(62,224,140,0.12); color: var(--green); border: 1px solid rgba(62,224,140,0.25); }
+  .badge.warn { background: rgba(255,157,148,0.10); color: var(--alert); border: 1px solid rgba(255,157,148,0.22); }
+  .badge.bad { background: rgba(255,157,148,0.12); color: var(--alert); border: 1px solid rgba(255,157,148,0.25); }
+  .badge.kind-decision { background: rgba(52,232,220,0.12); color: var(--glow); }
+  .badge.kind-discovery { background: rgba(52,232,220,0.10); color: var(--teal); }
+  .badge.kind-workflow { background: rgba(62,224,140,0.10); color: var(--green); }
+  .badge.kind-issue { background: rgba(255,157,148,0.10); color: var(--alert); }
+  .badge.kind-checkpoint { background: rgba(143,251,239,0.08); color: var(--mut); }
+  .badge.kind-note { background: rgba(127,163,158,0.12); color: var(--mut); }
+  .badge.privacy { background: rgba(255,255,255,0.06); color: var(--mut); border: 1px solid var(--glass-border); }
 
   .sink-list { list-style: none; padding: 0; margin: 10px 0 0; }
   .sink-list li {
@@ -440,7 +452,7 @@ public struct DashboardRoute: Sendable {
   .btn-ghost {
     background: transparent;
     border: 1px solid var(--glass-border);
-    color: var(--text);
+    color: var(--ink);
     border-radius: 8px;
     padding: 6px 10px;
     font-size: 0.75rem;
@@ -459,25 +471,25 @@ public struct DashboardRoute: Sendable {
   .chip {
     border: 1px solid var(--glass-border);
     background: rgba(0,0,0,0.2);
-    color: var(--muted);
+    color: var(--mut);
     border-radius: 999px;
     padding: 5px 12px;
     font-size: 0.75rem;
     cursor: pointer;
   }
   .chip.active, .chip:hover {
-    color: var(--text);
-    border-color: rgba(168,85,247,0.45);
-    background: rgba(168,85,247,0.12);
+    color: var(--glow);
+    border-color: rgba(52,232,220,0.45);
+    background: rgba(52,232,220,0.10);
   }
   .chip.flagship {
-    border-color: rgba(168,85,247,0.45);
-    color: #e9d5ff;
+    border-color: rgba(52,232,220,0.35);
+    color: var(--glow);
   }
 
   .results { display: flex; flex-direction: column; gap: 10px; min-height: 120px; }
   .empty-state {
-    color: var(--muted);
+    color: var(--mut);
     font-size: 0.88rem;
     text-align: center;
     padding: 28px 12px;
@@ -511,13 +523,13 @@ public struct DashboardRoute: Sendable {
     padding: 2px 7px;
     border-radius: 6px;
     background: rgba(255,255,255,0.05);
-    color: var(--muted);
+    color: var(--mut);
     font-family: var(--mono);
   }
   .hit-foot {
     font-family: var(--mono);
     font-size: 0.7rem;
-    color: var(--muted);
+    color: var(--mut);
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
@@ -539,14 +551,14 @@ public struct DashboardRoute: Sendable {
     filter: grayscale(0.3);
   }
   .secrets h2 { margin: 0 0 4px; font-size: 0.95rem; }
-  .secrets p { margin: 0; color: var(--muted); font-size: 0.85rem; }
+  .secrets p { margin: 0; color: var(--mut); font-size: 0.85rem; }
   .secrets .scoped-badge {
     display: inline-block;
     margin-top: 8px;
     font-size: 0.7rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--mut);
     border: 1px dashed var(--glass-border);
     border-radius: 6px;
     padding: 3px 8px;
@@ -555,7 +567,7 @@ public struct DashboardRoute: Sendable {
   footer.foot {
     margin-top: 28px;
     text-align: center;
-    color: var(--muted);
+    color: var(--mut);
     font-size: 0.78rem;
     letter-spacing: 0.02em;
   }
@@ -572,9 +584,9 @@ public struct DashboardRoute: Sendable {
     max-width: min(380px, calc(100vw - 32px));
   }
   .toast {
-    background: rgba(20, 24, 40, 0.92);
-    border: 1px solid rgba(248,113,113,0.35);
-    color: var(--text);
+    background: rgba(4,13,14, 0.92);
+    border: 1px solid rgba(255,157,148,0.30);
+    color: var(--ink);
     border-radius: 12px;
     padding: 12px 14px;
     font-size: 0.85rem;
@@ -582,7 +594,7 @@ public struct DashboardRoute: Sendable {
     backdrop-filter: blur(12px);
     animation: toast-in 0.2s ease;
   }
-  .toast.ok { border-color: rgba(52,211,153,0.35); }
+  .toast.ok { border-color: rgba(62,224,140,0.30); }
   @keyframes toast-in {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
@@ -593,8 +605,8 @@ public struct DashboardRoute: Sendable {
 <div class="shell">
   <header class="top">
     <div>
-      <h1 class="wordmark">ANDROMEDA</h1>
-      <p class="subtitle">Runtime Memory Console — projection view</p>
+      <h1 class="wordmark">Andromeda<span class="dot">.</span></h1>
+      <p class="subtitle">Runtime Memory Console · projection view</p>
     </div>
     <div class="health-pill" id="healthPill" title="Live runtime health">
       <span class="health-dot" id="healthDot"></span>
@@ -678,7 +690,7 @@ public struct DashboardRoute: Sendable {
   </section>
 
   <footer class="foot">
-    Andromeda Runtime v2 · this page is a projection — canonical truth lives in the event journal.
+    Andromeda Runtime v2 · Control the chaos, conceal the complexity.
   </footer>
 </div>
 
