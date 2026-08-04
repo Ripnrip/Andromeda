@@ -109,7 +109,7 @@ public struct HUDView: View {
                     .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
                     .overlay(
                         Capsule()
-                            .stroke(.white.opacity(0.1), lineWidth: 1)
+                            .stroke(Color.andromedaLine, lineWidth: 1)
                     )
             }
             .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: isExpanded)
@@ -309,10 +309,10 @@ struct HUDFleetPulseChip: View {
 
     private var color: Color {
         switch pulse.status {
-        case .green: return .green
-        case .yellow: return .yellow
-        case .red: return .red
-        case .unknown: return .secondary
+        case .green: return .andromedaLive
+        case .yellow: return .andromedaAlert
+        case .red: return .andromedaAlert
+        case .unknown: return .andromedaMuted
         }
     }
 }
@@ -354,7 +354,7 @@ struct HUDRecentQueriesView: View {
                     .padding(.vertical, 6)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(index == selectedIndex ? Color.white.opacity(0.12) : .clear)
+                            .fill(index == selectedIndex ? Color.andromedaSelection : .clear)
                     )
                     .contentShape(Rectangle())
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: selectedIndex)
@@ -645,7 +645,7 @@ struct HUDProjectResultsView: View {
             .padding(.leading, 8)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(globalIndex == selectedIndex ? Color.white.opacity(0.12) : .clear)
+                    .fill(globalIndex == selectedIndex ? Color.andromedaSelection : .clear)
             )
             .contentShape(Rectangle())
         }
@@ -658,10 +658,10 @@ struct HUDProjectResultsView: View {
 
     private func statusColor(for status: ProjectStateStatus) -> Color {
         switch status {
-        case .backlog: return .secondary
-        case .active: return .teal
-        case .blocked: return .orange
-        case .done: return .green
+        case .backlog: return .andromedaMuted
+        case .active: return .andromedaTeal
+        case .blocked: return .andromedaAlert
+        case .done: return .andromedaLive
         }
     }
 }
@@ -724,10 +724,10 @@ struct HUDMemoryHitRow: View {
 
     private var rowFill: Color {
         if isSelected {
-            return Color.white.opacity(0.12)
+            return .andromedaSelection
         }
         if isHovering {
-            return Color.white.opacity(0.06)
+            return .andromedaHover
         }
         return .clear
     }
@@ -865,4 +865,78 @@ public extension Notification.Name {
     return HUDView(isExpanded: true, searchQuery: "", model: model)
         .padding()
         .background(Color.gray)
+}
+
+// MARK: - Sub-component previews
+
+#Preview("MemoryHitRow · selected") {
+    let hit = MemoryHit(narrative: "Studio hosts the hive mind", project: "andromeda", source: .vault, score: 8.0)
+    return HUDMemoryHitRow(hit: hit, isSelected: true, onActivate: {})
+        .padding()
+        .frame(width: 380)
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("MemoryHitRow · unselected · hot") {
+    let hit = MemoryHit(narrative: "Quick ephemeral from the hot store", source: .hotStore, score: 12.0)
+    return HUDMemoryHitRow(hit: hit, isSelected: false, onActivate: {})
+        .padding()
+        .frame(width: 380)
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("FleetPulseChip · green") {
+    HUDFleetPulseChip(pulse: HUDFleetPulse(status: .green, attentionCount: 0, detail: "All systems nominal"))
+        .padding()
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("FleetPulseChip · red") {
+    HUDFleetPulseChip(pulse: HUDFleetPulse(status: .red, attentionCount: 1, detail: "Critical: Qdrant unreachable"))
+        .padding()
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("StatusRow · syncing") {
+    HUDStatusRow(systemImage: nil, showsProgress: true, title: "Searching…", accessibilityLabel: "Searching")
+        .padding()
+        .frame(width: 380)
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("StatusRow · failed") {
+    HUDStatusRow(systemImage: "exclamationmark.triangle.fill", showsProgress: false, title: "Memory store unavailable", accessibilityLabel: "Error", emphasis: .warning)
+        .padding()
+        .frame(width: 380)
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("RecentQueriesView") {
+    HUDRecentQueriesView(
+        queries: ["project.state", "recall fleet observe", "store hello"],
+        selectedIndex: 1,
+        onSelect: { _ in }
+    )
+    .padding()
+    .frame(width: 380)
+    .background(Color.gray.opacity(0.2))
+}
+
+#Preview("ProjectResultsView") {
+    let states = [
+        ProjectState(id: "andromeda", title: "Andromeda", status: .active, items: [
+            ProjectStateItem(id: "i1", title: "Wire HUD results panel", status: .active),
+            ProjectStateItem(id: "i2", title: "Ship snapshots", status: .backlog),
+        ]),
+    ]
+    return HUDProjectResultsView(projects: states, selectedIndex: 0, onActivateItem: nil)
+        .padding()
+        .frame(width: 380)
+        .background(Color.gray.opacity(0.2))
+}
+
+#Preview("DragHandle") {
+    DragHandleView()
+        .padding()
+        .background(Color.gray.opacity(0.2))
 }
