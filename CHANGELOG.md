@@ -6,12 +6,17 @@ All notable changes to Andromeda will be documented here.
 
 **Tone hat:** Hacker 🕶️
 **Commit message of the day:** `feat: open shared memory MCP capabilities to every agent`
-**Steps taken (UTC):** Inspected the control-plane contract; composed `memory.store` and `memory.recall` into the bearer-authenticated MCP door; added agent-neutral provenance and round-trip tests.
+**Steps taken (UTC):** Inspected the control-plane contract; composed `memory.store` and `memory.recall` into the bearer-authenticated MCP door; added agent-neutral provenance and round-trip tests; fixed Codex P1s for shared recallable scope, agent-namespaced idempotency, and safe recall limit parsing.
 
 ### Added
 - Provider-neutral MCP tool serving and composition boundaries.
 - `memory.store` and `memory.recall` for Letta, Hermes, Multica squads, and other bearer-authenticated MCP clients.
 - SQLite-backed universal-agent write/read tests with explicit provenance and idempotency.
+
+### Fixed
+- MCP shared memory now uses a stable shared project scope so default `project` privacy remains recallable.
+- Caller idempotency keys are namespaced by agent identity; conflicting replays are rejected instead of silently discarded.
+- `memory.recall` validates `limit` before `Int` conversion so oversized finite JSON numbers return a tool error instead of trapping.
 
 ### Security
 - Removed no authentication boundary: all agents use the same universal bearer interface, while upstream secrets and storage brands remain behind Andromeda's capability curtain.

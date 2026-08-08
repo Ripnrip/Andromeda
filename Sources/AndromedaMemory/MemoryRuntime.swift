@@ -42,6 +42,7 @@ public actor MemoryRuntime {
 
     public func remember(_ intent: RememberIntent) async throws -> MemoryRememberResponse {
         if let existing = try await recordForIdempotencyKey(intent.idempotencyKey) {
+            try Self.validateIdempotentReplay(intent: intent, existing: existing)
             try await operationalStore.upsert(existing)
             return response(for: existing, sinkReceipts: [
                 MemoryWriteReceipt(
@@ -104,6 +105,7 @@ public actor MemoryRuntime {
                     "Canonical memory exists for idempotency key \(intent.idempotencyKey.rawValue) but could not be reloaded."
                 )
             }
+            try Self.validateIdempotentReplay(intent: intent, existing: existing)
             try await operationalStore.upsert(existing)
             return response(for: existing, sinkReceipts: [
                 MemoryWriteReceipt(
@@ -258,6 +260,22 @@ public actor MemoryRuntime {
             eventID: persisted.envelope.id,
             correlationID: persisted.envelope.correlationID
         )
+    }
+
+    /// Rejects idempotent replays that reuse a key with a different agent, content, scope, or privacy intent.
+    private static func validateIdempotentReplay(intent: RememberIntent, existing: MemoryRecord) throws {
+        let trimmedContent = intent.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard existing.content == trimmedContent,
+              existing.source.actor == intent.source.actor,
+              existing.source.subsystem == intent.source.subsystem,
+              existing.kind == intent.kind,
+              existing.privacyLevel == intent.privacyLevel,
+              existing.scope == intent.scope
+        else {
+            throw AndromedaRuntimeError.invalidRuntimeRequest(
+                "Idempotency key \(intent.idempotencyKey.rawValue) was reused with a different memory intent."
+            )
+        }
     }
 
     private func scopeMatches(_ recordScope: EventScope, requested: EventScope) -> Bool {
