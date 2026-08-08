@@ -113,6 +113,36 @@ struct MemoryRuntimeTests {
         #expect(stored.count == 1)
     }
 
+    @Test("idempotent remember rejects a conflicting intent for the same key")
+    func rememberIdempotencyRejectsConflictingIntent() async throws {
+        let context = try TestContext()
+        let runtime = try makeRuntime(context: context)
+
+        _ = try await runtime.remember(
+            RememberIntent(
+                scope: EventScope(projectID: projectID, sessionID: sessionID),
+                source: MemorySource(subsystem: "tests", actor: "memory", label: "idempotent"),
+                content: "Use JSONL as the canonical journal.",
+                kind: .decision,
+                privacyLevel: .project,
+                idempotencyKey: "remember-conflict"
+            )
+        )
+
+        await #expect(throws: AndromedaRuntimeError.self) {
+            _ = try await runtime.remember(
+                RememberIntent(
+                    scope: EventScope(projectID: projectID, sessionID: sessionID),
+                    source: MemorySource(subsystem: "tests", actor: "memory", label: "idempotent"),
+                    content: "A different canonical journal decision.",
+                    kind: .decision,
+                    privacyLevel: .project,
+                    idempotencyKey: "remember-conflict"
+                )
+            )
+        }
+    }
+
     @Test("partial sink failure does not roll back the canonical commit")
     func partialSinkFailureKeepsCanonicalCommit() async throws {
         let context = try TestContext()

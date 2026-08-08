@@ -24,13 +24,13 @@ public struct MCPBearerAuth: Sendable {
 public struct MCPRoute: Sendable {
     public static let protocolVersion = "2025-03-26"
 
-    private let broker: CuratedToolBroker
+    private let broker: any MCPToolServing
     private let auth: MCPBearerAuth
     private let serverName: String
     private let serverVersion: String
 
     public init(
-        broker: CuratedToolBroker,
+        broker: any MCPToolServing,
         auth: MCPBearerAuth,
         serverName: String = "andromeda",
         serverVersion: String
@@ -87,7 +87,7 @@ public struct MCPRoute: Sendable {
 
     private static func handle(
         _ envelope: JSONRPCEnvelope,
-        broker: CuratedToolBroker,
+        broker: any MCPToolServing,
         serverName: String,
         serverVersion: String
     ) async -> JSONRPCMessage {
