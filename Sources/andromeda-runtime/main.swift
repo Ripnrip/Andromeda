@@ -1,4 +1,4 @@
-import AndromedaDomain
+import AndromedaBrand
 import AndromedaHostOps
 import AndromedaSecrets
 import AndromedaServer
@@ -82,19 +82,23 @@ struct Serve: AsyncParsableCommand {
             return handler
         }
 
+        // Brand chrome on stdout; structured log lines stay untouched below.
+        let style = TerminalStyle.detect()
+        print(
+            AndromedaChrome.banner(
+                surface: "runtime v2",
+                version: nil,
+                tagline: "Memory · secrets/vault · tools/MCP behind the capability curtain.",
+                style: style
+            )
+        )
+
         let logger = Logger(label: "andromeda.runtime.cli")
-
-        // ASCII banner — Andromeda brand identity in the terminal.
-        // Color only when: NO_COLOR is unset AND stdout is a TTY.
-        let env = ProcessInfo.processInfo.environment
-        let useColor = env["NO_COLOR"] == nil && isatty(STDOUT_FILENO) != 0
-        print(AndromedaASCIILogo.banner(colored: useColor))
-        print()
-
         guard let qdrantBaseURL = URL(string: qdrantUrl) else {
             throw ValidationError("Invalid Qdrant URL: \(qdrantUrl)")
         }
 
+        let env = ProcessInfo.processInfo.environment
         func option(_ value: String?, _ envName: String) -> String? {
             value ?? env[envName]
         }
@@ -183,6 +187,12 @@ struct Setup: AsyncParsableCommand {
     var slackTokenAccount: String?
 
     func run() async throws {
+        let style = TerminalStyle.detect()
+        print(AndromedaChrome.paintedMark(.compact, style: style).joined(separator: "\n"))
+        print("")
+        print("  " + AndromedaChrome.eyebrow("host setup", style: style))
+        print("  " + AndromedaChrome.rule(min(style.width, 62), style: style))
+
         let skipPrompts = yes || nonInteractive || dryRun
         let applyFixes = fix && !dryRun
 
@@ -444,10 +454,19 @@ struct Doctor: AsyncParsableCommand {
             menubarAvailable: menubarAvailable
         )
 
+        let style = TerminalStyle.detect()
+        print(AndromedaChrome.paintedMark(.compact, style: style).joined(separator: "\n"))
+        print("")
+        print("  " + AndromedaChrome.eyebrow("doctor", style: style))
+        print("  " + AndromedaChrome.rule(min(style.width, 62), style: style))
         print(report.render())
         print("")
-        print("capabilities (curtain): andromeda_github_*, andromeda_slack_* — never Linear/Multica/provider brands")
-        print("pillars: memory + secrets/vault + tools/mcp")
+        print("  " + AndromedaChrome.field("runtime", status: runtimeReachable ? .healthy : .offline, style: style))
+        print("  " + AndromedaChrome.field("broker", status: bearer.isEmpty ? .specified : .partial, detail: "secrets broker not shipped", style: style))
+        print("  " + AndromedaChrome.rule(min(style.width, 62), style: style))
+        print("  " + AndromedaChrome.field("capabilities", "andromeda_github_*, andromeda_slack_*", style: style, keyWidth: 14))
+        print("  " + AndromedaChrome.field("pillars", "memory + secrets/vault + tools/mcp", style: style, keyWidth: 14))
+        print("  " + AndromedaChrome.caveat("Capability IDs only — never Linear/Multica/provider brands.", style: style))
 
         throw ExitCode(report.exitCode)
     }
