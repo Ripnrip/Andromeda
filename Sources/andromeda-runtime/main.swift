@@ -57,7 +57,7 @@ struct Serve: AsyncParsableCommand {
     @Option(name: .long, help: "Base URL for the Qdrant HTTP API. Defaults to http://localhost:6333.")
     var qdrantUrl: String = "http://localhost:6333"
 
-    @Option(name: .long, help: "Bearer token VM agents use for POST /mcp. Env: ANDROMEDA_MCP_BEARER_TOKEN. Enables the tools/MCP endpoint when set.")
+    @Option(name: .long, help: "Universal bearer token any agent client uses for POST /mcp. Env: ANDROMEDA_MCP_BEARER_TOKEN. Enables memory read/write and configured tools when set.")
     var mcpBearerToken: String?
 
     @Option(name: .long, help: "Keychain service holding the GitHub token. Env: ANDROMEDA_GITHUB_TOKEN_SERVICE.")

@@ -35,3 +35,9 @@ public struct ToolCallResult: Sendable, Equatable, Codable {
         self.isError = isError
     }
 }
+
+/// A provider-neutral MCP tool surface that can be composed behind Andromeda's authenticated endpoint.
+public protocol MCPToolServing: Sendable {
+    func listTools() async -> [ToolDefinition]
+    func callTool(name: String, arguments: [String: JSONValue]) async -> ToolCallResult
+}

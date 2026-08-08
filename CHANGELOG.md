@@ -2,6 +2,47 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-08-08 — Universal agent memory over MCP
+
+**Tone hat:** Hacker 🕶️
+**Commit message of the day:** `feat: open shared memory MCP capabilities to every agent`
+**Steps taken (UTC):** Inspected the control-plane contract; composed `memory.store` and `memory.recall` into the bearer-authenticated MCP door; added agent-neutral provenance and round-trip tests; fixed Codex P1s for shared recallable scope, agent-namespaced idempotency, and safe recall limit parsing.
+
+### Added
+- Provider-neutral MCP tool serving and composition boundaries.
+- `memory.store` and `memory.recall` for Letta, Hermes, Multica squads, and other bearer-authenticated MCP clients.
+- SQLite-backed universal-agent write/read tests with explicit provenance and idempotency.
+
+### Fixed
+- MCP shared memory now uses a stable shared project scope so default `project` privacy remains recallable.
+- Caller idempotency keys are namespaced by agent identity; conflicting replays are rejected instead of silently discarded.
+- `memory.recall` validates `limit` before `Int` conversion so oversized finite JSON numbers return a tool error instead of trapping.
+
+### Security
+- Removed no authentication boundary: all agents use the same universal bearer interface, while upstream secrets and storage brands remain behind Andromeda's capability curtain.
+
+### Reflection
+- I felt proud we opened the library doors without tossing the keys under the cosmic doormat. 🔐
+
+### Easter egg
+- Memory moth count: 2 tools glowing, 0 Claude-shaped locks fluttering nearby. 🦋
+
+## 2026-08-08 — AndromedaBrand terminal design system (BIN-229 / BIN-231)
+
+**Tone hat:** Brand mechanic
+**Commit message of the day:** `feat: salvage AndromedaBrand terminal chrome off main`
+**Steps taken:** Lifted unique #35 terminal-brand delta onto current main (post design-system spine #34), and addressed Codex TerminalStyle review (FORCE_COLOR without TERM; Unicode gated by UTF-8 locale).
+
+### Added
+- `AndromedaBrand` target — `AndromedaPalette` (sRGB parity with `web/app/globals.css`), `TerminalStyle` (truecolor → 256 → plain, `NO_COLOR` / `FORCE_COLOR` honoured), `AndromedaASCII`, `AndromedaChrome`, SwiftUI `AndromedaTheme`.
+- `andromeda brand` — prints the terminal design system: mark, palette, status vocabulary, degradation caveat.
+- Branded start-up banners and status/doctor/setup chrome on `andromeda` and `andromeda-runtime`.
+- `docs/ANDROMEDA-DESIGN-SYSTEM.md` and a Terminal (TUI) block on `/design`.
+- `AndromedaBrandTests` — hex parity, colour degradation, ASCII-only art, FORCE_COLOR without TERM, UTF-8 locale Unicode gating.
+
+### Not done yet
+- 🚧 BIN-230 / BIN-232: `AndromedaHomeCore` / `AndromedaHUDCore` still use system / Domain tokens. Migrating them to `AndromedaTheme` requires re-recording SwiftUI snapshots on macOS.
+
 ## 2026-08-03 — Point-Free component screenshot constellation (BIN-229 / BIN-230 / BIN-232)
 
 **Tone hat:** Hacker 🕶️
@@ -18,21 +59,7 @@ All notable changes to Andromeda will be documented here.
 
 ### Easter egg
 - Suspicious quasar count: 1 — it insists its visual diff is “artistically intentional.” 🌌
-## 2026-08-08 — AndromedaBrand terminal design system (BIN-229 / BIN-231)
 
-**Tone hat:** Brand mechanic
-**Commit message of the day:** `feat: salvage AndromedaBrand terminal chrome off main`
-**Steps taken:** Lifted unique #35 terminal-brand delta onto current main (post design-system spine #34), and addressed Codex TerminalStyle review (FORCE_COLOR without TERM; Unicode gated by UTF-8 locale).
-
-### Added
-- `AndromedaBrand` target — `AndromedaPalette` (sRGB parity with `web/app/globals.css`), `TerminalStyle` (truecolor → 256 → plain, `NO_COLOR` / `FORCE_COLOR` honoured), `AndromedaASCII`, `AndromedaChrome`, SwiftUI `AndromedaTheme`.
-- `andromeda brand` — prints the terminal design system: mark, palette, status vocabulary, degradation caveat.
-- Branded start-up banners and status/doctor/setup chrome on `andromeda` and `andromeda-runtime`.
-- `docs/ANDROMEDA-DESIGN-SYSTEM.md` and a Terminal (TUI) block on `/design`.
-- `AndromedaBrandTests` — hex parity, colour degradation, ASCII-only art, FORCE_COLOR without TERM, UTF-8 locale Unicode gating.
-
-### Not done yet
-- 🚧 BIN-230 / BIN-232: `AndromedaHomeCore` / `AndromedaHUDCore` still use system / Domain tokens. Migrating them to `AndromedaTheme` requires re-recording SwiftUI snapshots on macOS.
 
 ## 2026-08-02 — M5 setup + doctor on runtime v2 (BIN-212 / BIN-213)
 
