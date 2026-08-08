@@ -122,7 +122,10 @@ struct AndromedaASCIITests {
     func asciiOnly() {
         let lines = AndromedaASCII.mark(.full) + AndromedaASCII.mark(.compact) + AndromedaASCII.wordmark
         for line in lines {
-            #expect(line.allSatisfy(\.isASCII))
+            // Avoid `#expect(line.allSatisfy(\.isASCII))` — Swift Testing's macro
+            // expansion treats key-path allSatisfy as a throwing call.
+            let isASCII = line.unicodeScalars.allSatisfy(\.isASCII)
+            #expect(isASCII)
         }
     }
 
