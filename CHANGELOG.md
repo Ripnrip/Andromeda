@@ -2,6 +2,22 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-08-03 — Point-Free component screenshot constellation (BIN-229 / BIN-230 / BIN-232)
+
+**Tone hat:** Hacker 🕶️
+**Commit message of the day:** `test: snapshot every HUD component state`
+**Timestamp / steps taken:** 2026-08-03 UTC — audited every SwiftUI surface, filled the missing success and primitive previews, then added a deterministic Point-Free image matrix for every HUD outcome in light and dark appearances.
+
+### Added
+- Xcode previews for stored, journaled, project-created, and project-updated outcomes.
+- Xcode component galleries for every fleet-pulse status and selected/unselected memory rows.
+- Point-Free `SnapshotTesting` coverage for all ten `HUDOutcome` branches in light and dark, plus the complete fleet-pulse state strip.
+
+### Reflection
+- I felt oddly proud giving every tiny status dot its own close-up; no component should have to audition off-camera. 🎬
+
+### Easter egg
+- Suspicious quasar count: 1 — it insists its visual diff is “artistically intentional.” 🌌
 ## 2026-08-08 — AndromedaBrand terminal design system (BIN-229 / BIN-231)
 
 **Tone hat:** Brand mechanic
