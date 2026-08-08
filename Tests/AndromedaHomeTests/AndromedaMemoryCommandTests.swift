@@ -13,6 +13,10 @@ struct AndromedaMemoryCommandTests {
         #expect(AndromedaMemoryCommand.parse("store hello hive") == .store(narrative: "hello hive"))
         #expect(AndromedaMemoryCommand.parse("journal end of day") == .journal(body: "end of day"))
         #expect(AndromedaMemoryCommand.parse("session dump wrap-up") == .journal(body: "wrap-up"))
+        #expect(AndromedaMemoryCommand.parse("memory_retain durable") == .retain(narrative: "durable"))
+        #expect(AndromedaMemoryCommand.parse("memory_forget id-1") == .forget(target: "id-1"))
+        #expect(AndromedaMemoryCommand.parse("memory_health") == .health)
+        #expect(AndromedaMemoryCommand.parse("memory_recall cats") == .recall(query: "cats"))
     }
 
     @Test("Capability IDs stay memory.*")
@@ -21,6 +25,9 @@ struct AndromedaMemoryCommandTests {
         #expect(AndromedaMemoryCapability.store.rawValue == "memory.store")
         #expect(AndromedaMemoryCapability.journal.rawValue == "memory.journal")
         #expect(AndromedaMemoryCapability.sessionDump.rawValue == "memory.session_dump")
+        #expect(AndromedaMemoryCapability.memoryRetain.rawValue == "memory_retain")
+        #expect(AndromedaMemoryCommand.parse("memory_retain x")?.capability == .memoryRetain)
+        #expect(AndromedaMemoryCommand.parse("store x")?.capability == .store)
     }
 
     @Test("Rejects non-memory queries")

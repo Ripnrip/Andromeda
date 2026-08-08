@@ -15,6 +15,11 @@ struct HUDCommandTests {
         #expect(HUDCommand.parse("infer some thought") == .inferWrite(thought: "some thought"))
         #expect(HUDCommand.parse("recall cats") == .recall(query: "cats"))
         #expect(HUDCommand.parse("bare needle") == .recall(query: "bare needle"))
+        #expect(HUDCommand.parse("memory_retain durable fact") == .retain(narrative: "durable fact"))
+        #expect(HUDCommand.parse("retain durable fact") == .retain(narrative: "durable fact"))
+        #expect(HUDCommand.parse("memory_forget abc") == .forget(target: "abc"))
+        #expect(HUDCommand.parse("memory_health") == .health)
+        #expect(HUDCommand.parse("memory_recall cats") == .recall(query: "cats"))
     }
 
     @Test("Bare verbs yield empty payloads")
@@ -38,9 +43,14 @@ struct HUDCommandTests {
         #expect(HUDCommand.parse("session dump x")?.capabilityID == .sessionDump)
         #expect(HUDCommand.parse("infer.write x")?.capabilityID == .inferWrite)
         #expect(HUDCommand.parse("infer x")?.capabilityID == .inferWrite)
+        #expect(HUDCommand.parse("memory_retain x")?.capabilityID == .memoryRetain)
+        #expect(HUDCommand.parse("memory_forget x")?.capabilityID == .memoryForget)
+        #expect(HUDCommand.parse("memory_health")?.capabilityID == .memoryHealth)
         #expect(HUDCapabilityID.journal.rawValue == "memory.journal")
         #expect(HUDCapabilityID.sessionDump.rawValue == "memory.session_dump")
         #expect(HUDCapabilityID.inferWrite.rawValue == "infer.write")
         #expect(HUDCapabilityID.store.rawValue == "memory.store")
+        #expect(HUDCapabilityID.memoryRetain.rawValue == "memory_retain")
+        #expect(HUDCapabilityID.memoryRecall.rawValue == "memory_recall")
     }
 }

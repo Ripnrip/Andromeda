@@ -27,6 +27,40 @@ All notable changes to Andromeda will be documented here.
 ### Easter egg
 - Memory moth count: 2 tools glowing, 0 Claude-shaped locks fluttering nearby. 🦋
 
+## 2026-08-08 — AndromedaBrand terminal design system (BIN-229 / BIN-231)
+
+**Tone hat:** Brand mechanic
+**Commit message of the day:** `feat: salvage AndromedaBrand terminal chrome off main`
+**Steps taken:** Lifted unique #35 terminal-brand delta onto current main (post design-system spine #34), and addressed Codex TerminalStyle review (FORCE_COLOR without TERM; Unicode gated by UTF-8 locale).
+
+### Added
+- `AndromedaBrand` target — `AndromedaPalette` (sRGB parity with `web/app/globals.css`), `TerminalStyle` (truecolor → 256 → plain, `NO_COLOR` / `FORCE_COLOR` honoured), `AndromedaASCII`, `AndromedaChrome`, SwiftUI `AndromedaTheme`.
+- `andromeda brand` — prints the terminal design system: mark, palette, status vocabulary, degradation caveat.
+- Branded start-up banners and status/doctor/setup chrome on `andromeda` and `andromeda-runtime`.
+- `docs/ANDROMEDA-DESIGN-SYSTEM.md` and a Terminal (TUI) block on `/design`.
+- `AndromedaBrandTests` — hex parity, colour degradation, ASCII-only art, FORCE_COLOR without TERM, UTF-8 locale Unicode gating.
+
+### Not done yet
+- 🚧 BIN-230 / BIN-232: `AndromedaHomeCore` / `AndromedaHUDCore` still use system / Domain tokens. Migrating them to `AndromedaTheme` requires re-recording SwiftUI snapshots on macOS.
+
+## 2026-08-03 — Point-Free component screenshot constellation (BIN-229 / BIN-230 / BIN-232)
+
+**Tone hat:** Hacker 🕶️
+**Commit message of the day:** `test: snapshot every HUD component state`
+**Timestamp / steps taken:** 2026-08-03 UTC — audited every SwiftUI surface, filled the missing success and primitive previews, then added a deterministic Point-Free image matrix for every HUD outcome in light and dark appearances.
+
+### Added
+- Xcode previews for stored, journaled, project-created, and project-updated outcomes.
+- Xcode component galleries for every fleet-pulse status and selected/unselected memory rows.
+- Point-Free `SnapshotTesting` coverage for all ten `HUDOutcome` branches in light and dark, plus the complete fleet-pulse state strip.
+
+### Reflection
+- I felt oddly proud giving every tiny status dot its own close-up; no component should have to audition off-camera. 🎬
+
+### Easter egg
+- Suspicious quasar count: 1 — it insists its visual diff is “artistically intentional.” 🌌
+
+
 ## 2026-08-02 — M5 setup + doctor on runtime v2 (BIN-212 / BIN-213)
 
 **Tone hat:** Host mechanic

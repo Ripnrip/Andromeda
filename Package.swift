@@ -7,6 +7,7 @@ let package = Package(
         .macOS(.v14),
     ],
     products: [
+        .library(name: "AndromedaBrand", targets: ["AndromedaBrand"]),
         .library(name: "AndromedaCore", targets: ["AndromedaCore"]),
         .library(name: "AndromedaAutoCache", targets: ["AndromedaAutoCache"]),
         .library(name: "AndromedaGateway", targets: ["AndromedaGateway"]),
@@ -40,6 +41,13 @@ let package = Package(
     targets: [
         .systemLibrary(
             name: "CSQLite"
+        ),
+        .target(
+            name: "AndromedaBrand",
+            dependencies: [],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
         ),
         .target(
             name: "AndromedaCore",
@@ -174,6 +182,7 @@ let package = Package(
         .executableTarget(
             name: "AndromedaCLI",
             dependencies: [
+                "AndromedaBrand",
                 "AndromedaCore",
                 "AndromedaGateway",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
@@ -183,7 +192,7 @@ let package = Package(
         .executableTarget(
             name: "AndromedaRuntimeCLI",
             dependencies: [
-                "AndromedaDomain",
+                "AndromedaBrand",
                 "AndromedaHostOps",
                 "AndromedaSecrets",
                 "AndromedaServer",
@@ -366,6 +375,18 @@ let package = Package(
             swiftSettings: [
                 .swiftLanguageMode(.v6)
             ]
+        ),
+        .testTarget(
+            name: "AndromedaBrandTests",
+            dependencies: [
+                "AndromedaBrand",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .testTarget(
+            name: "RepositoryPolicyTests"
         ),
     ]
 )
