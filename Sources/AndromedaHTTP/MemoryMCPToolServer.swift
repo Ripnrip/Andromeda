@@ -26,12 +26,15 @@ public actor MemoryMCPToolServer: MCPToolServing {
     public func callTool(name: String, arguments: [String: JSONValue]) async -> ToolCallResult {
         do {
             switch name {
-            case Self.storeTool: try await store(arguments)
-            case Self.recallTool: try await recall(arguments)
-            default: ToolCallResult(text: "Unknown memory capability: \(name)", isError: true)
+            case Self.storeTool:
+                return try await store(arguments)
+            case Self.recallTool:
+                return try await recall(arguments)
+            default:
+                return ToolCallResult(text: "Unknown memory capability: \(name)", isError: true)
             }
         } catch {
-            ToolCallResult(text: "Memory capability failed: \(error.localizedDescription)", isError: true)
+            return ToolCallResult(text: "Memory capability failed: \(error.localizedDescription)", isError: true)
         }
     }
 
