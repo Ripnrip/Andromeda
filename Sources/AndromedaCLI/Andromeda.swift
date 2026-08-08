@@ -1,3 +1,4 @@
+import AndromedaBrand
 import AndromedaCore
 import AndromedaGateway
 import ArgumentParser
@@ -10,9 +11,50 @@ struct Andromeda: AsyncParsableCommand {
         commandName: "andromeda",
         abstract: "Andromeda — Swift-native control plane and Hummingbird model gateway.",
         version: AndromedaVersion.string,
-        subcommands: [Serve.self, Status.self],
+        subcommands: [Serve.self, Status.self, Brand.self],
         defaultSubcommand: Status.self
     )
+}
+
+/// 🎨 Design-system surface: prints the Andromeda mark, palette and chrome so the
+/// TUI vocabulary is inspectable from the terminal it ships in.
+struct Brand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "Show the Andromeda terminal design system: mark, palette, status chips."
+    )
+
+    @Flag(name: .long, help: "Print the narrow trefoil instead of the full mark.")
+    var compact = false
+
+    func run() throws {
+        let style = TerminalStyle.detect()
+        print(
+            AndromedaChrome.banner(
+                surface: "design system",
+                version: AndromedaVersion.string,
+                tagline: "One visual system across web, TUI and macOS surfaces.",
+                style: style,
+                compact: compact
+            )
+        )
+        print("")
+        print("  " + AndromedaChrome.eyebrow("palette", style: style))
+        for token in AndromedaPalette.all {
+            print("  " + AndromedaChrome.field(token.name, style.paint(token.color.hex, token.color), style: style, keyWidth: 22))
+        }
+        print("")
+        print("  " + AndromedaChrome.eyebrow("status vocabulary", style: style))
+        for status in BrandStatus.allCases {
+            print("  " + AndromedaChrome.statusChip(status, style: style))
+        }
+        print("")
+        print("  " + AndromedaChrome.principles(
+            ["Local first.", "Visible by default.", "No silent sprawl."],
+            style: style
+        ))
+        print("")
+        print("  " + AndromedaChrome.caveat("Colour degrades to 256-colour and to plain text; NO_COLOR is honoured.", style: style))
+    }
 }
 
 struct Status: AsyncParsableCommand {
@@ -22,13 +64,21 @@ struct Status: AsyncParsableCommand {
 
     func run() async throws {
         let config = try GatewayConfig.loadFromEnvironment()
-        print("\(AndromedaVersion.productName) \(AndromedaVersion.string)")
-        print("surface: autocache (Anthropic prompt-cache proxy)")
-        print("bind: \(config.serverAddress)")
-        print("strategy: \(config.cacheStrategy)")
-        print("anthropic: \(config.anthropicURL)")
-        print("api_key: \(config.apiKeyConfigured ? "configured" : "per-request headers")")
-        print("ready: run `andromeda serve` to start the Hummingbird gateway")
+        let style = TerminalStyle.detect()
+
+        print(AndromedaChrome.paintedMark(.compact, style: style).joined(separator: "\n"))
+        print("")
+        print("  " + AndromedaChrome.eyebrow("autocache gateway", style: style))
+        print("  " + style.paint("\(AndromedaVersion.productName) v\(AndromedaVersion.string)", AndromedaPalette.foreground, bold: true))
+        print("  " + AndromedaChrome.rule(min(style.width, 62), style: style))
+        print("  " + AndromedaChrome.field("surface", "autocache (Anthropic prompt-cache proxy)", style: style))
+        print("  " + AndromedaChrome.field("bind", config.serverAddress, style: style))
+        print("  " + AndromedaChrome.field("strategy", config.cacheStrategy, style: style))
+        print("  " + AndromedaChrome.field("anthropic", config.anthropicURL, style: style))
+        print("  " + AndromedaChrome.field("api_key", config.apiKeyConfigured ? "configured" : "per-request headers", style: style))
+        print("  " + AndromedaChrome.field("pillar 4", status: .partial, detail: "LLM proxy — Anthropic surface only", style: style))
+        print("  " + AndromedaChrome.rule(min(style.width, 62), style: style))
+        print("  " + style.paint("ready: run `andromeda serve` to start the Hummingbird gateway", AndromedaPalette.mutedForeground))
     }
 }
 
@@ -60,19 +110,19 @@ struct Serve: AsyncParsableCommand {
             return handler
         }
 
-        let logger = Logger(label: "andromeda.cli")
-        logger.info(
-            """
-
-                 _            _
-                / \\   _ __  | |_ __ ___  _ __ ___   ___  __| | __ _
-               / _ \\ | '_ \\ | | '__/ _ \\| '_ ` _ \\ / _ \\/ _` |/ _` |
-              / ___ \\| | | || | | | (_) | | | | | |  __/ (_| | (_| |
-             /_/   \\_\\_| |_||_|_|  \\___/|_| |_| |_|\\___|\\__,_|\\__,_|
-
-             Hummingbird Autocache Gateway — Anthropic prompt-cache proxy
-            """
+        // Banner goes to stdout, not the log stream, so the mark keeps its brand
+        // colour and structured log lines stay machine-parseable.
+        let style = TerminalStyle.detect()
+        print(
+            AndromedaChrome.banner(
+                surface: "autocache gateway",
+                version: AndromedaVersion.string,
+                tagline: "Hummingbird Autocache — Anthropic prompt-cache proxy.",
+                style: style
+            )
         )
+
+        let logger = Logger(label: "andromeda.cli")
 
         let gateway = GatewayApplication(config: config, logger: logger)
         try await gateway.run()
