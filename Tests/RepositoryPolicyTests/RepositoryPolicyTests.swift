@@ -24,6 +24,15 @@ struct RepositoryPolicyTests {
         )
     }
 
+    /// Guards the `env -S bash` family explicitly so extensionless scripts cannot bypass the policy.
+    @Test("env -S shell shebangs are forbidden")
+    func rejectsEnvSplitStringShebangs() {
+        #expect(isShellInterpreterDirective("#!/usr/bin/env -S bash -eu"))
+        #expect(isShellInterpreterDirective("#!/usr/bin/env zsh"))
+        #expect(!isShellInterpreterDirective("#!/usr/bin/env python3"))
+        #expect(!isShellInterpreterDirective("print('hello')"))
+    }
+
     /// Resolves the package root from this test source location without relying on the caller's working directory.
     private func repositoryRootURL() -> URL {
         URL(fileURLWithPath: #filePath)
@@ -68,6 +77,11 @@ struct RepositoryPolicyTests {
         guard let firstLine = String(data: prefix, encoding: .utf8)?.split(separator: "\n").first else {
             return false
         }
+        return isShellInterpreterDirective(String(firstLine))
+    }
+
+    /// Parses shebang directives, including `/usr/bin/env -S bash`, to detect prohibited shell entrypoints.
+    private func isShellInterpreterDirective(_ firstLine: String) -> Bool {
         guard firstLine.hasPrefix("#!") else {
             return false
         }
