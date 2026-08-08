@@ -6,6 +6,7 @@ import { SiteFooter } from "@/components/site-footer"
 import { AndromedaMark } from "@/components/andromeda-mark"
 import { Wordmark } from "@/components/wordmark"
 import { StatusDot } from "@/components/status-dot"
+import { TerminalPreview } from "@/components/terminal-preview"
 
 const SWATCHES = [
   { name: "Void", token: "--background", css: "oklch(0.16 0.018 210)", note: "Base surface" },
@@ -163,6 +164,14 @@ export default function DesignPage() {
               </div>
             ))}
           </div>
+        </Block>
+
+        {/* Terminal */}
+        <Block
+          title="Terminal (TUI)"
+          desc="The CLI is a first-class surface. `andromeda brand` prints this exact vocabulary from the shared Swift AndromedaBrand module — same tokens, same trefoil, same status words. Colour degrades truecolor → 256 → plain, and NO_COLOR is absolute."
+        >
+          <TerminalPreview />
         </Block>
 
         {/* Components */}
