@@ -19,6 +19,16 @@ public enum JSONValue: Sendable, Equatable {
         if case let .object(value) = self { return value }
         return nil
     }
+
+    public var arrayValue: [JSONValue]? {
+        if case let .array(value) = self { return value }
+        return nil
+    }
+
+    public var numberValue: Double? {
+        if case let .number(value) = self { return value }
+        return nil
+    }
 }
 
 extension JSONValue: Codable {

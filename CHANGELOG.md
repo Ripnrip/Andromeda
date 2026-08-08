@@ -2,6 +2,26 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-08-08 — Universal agent memory over MCP
+
+**Tone hat:** Hacker 🕶️
+**Commit message of the day:** `feat: open shared memory MCP capabilities to every agent`
+**Steps taken (UTC):** Inspected the control-plane contract; composed `memory.store` and `memory.recall` into the bearer-authenticated MCP door; added agent-neutral provenance and round-trip tests.
+
+### Added
+- Provider-neutral MCP tool serving and composition boundaries.
+- `memory.store` and `memory.recall` for Letta, Hermes, Multica squads, and other bearer-authenticated MCP clients.
+- SQLite-backed universal-agent write/read tests with explicit provenance and idempotency.
+
+### Security
+- Removed no authentication boundary: all agents use the same universal bearer interface, while upstream secrets and storage brands remain behind Andromeda's capability curtain.
+
+### Reflection
+- I felt proud we opened the library doors without tossing the keys under the cosmic doormat. 🔐
+
+### Easter egg
+- Memory moth count: 2 tools glowing, 0 Claude-shaped locks fluttering nearby. 🦋
+
 ## 2026-08-02 — M5 setup + doctor on runtime v2 (BIN-212 / BIN-213)
 
 **Tone hat:** Host mechanic

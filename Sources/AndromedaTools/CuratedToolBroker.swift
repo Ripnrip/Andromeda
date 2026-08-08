@@ -10,7 +10,7 @@ import OSLog
 /// on the host against GitHub/Slack, resolving tokens from the Keychain at
 /// call time. Resolved secrets are used only for the upstream Authorization
 /// header and are scrubbed from anything returned to the caller.
-public actor CuratedToolBroker {
+public actor CuratedToolBroker: MCPToolServing {
 
     #if canImport(OSLog)
     private let logger = Logger(subsystem: "com.andromeda.tools-broker", category: "broker")
