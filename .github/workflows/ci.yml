@@ -62,26 +62,49 @@ jobs:
 
       - name: Verify Studio Qdrant
         if: steps.qdrant.outputs.enabled == 'true'
+        id: qdrant_verify
         env:
           ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant.outputs.url }}
         run: |
+          set +e
           tailscale status
           tailscale ping --c 3 studio || true
           curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
             --retry 5 --retry-delay 2 \
             "$ANDROMEDA_TEST_QDRANT_URL/collections" >/dev/null
-          echo "Studio Qdrant reachable over tailnet"
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "reachable=true" >> "$GITHUB_OUTPUT"
+            echo "Studio Qdrant reachable over tailnet"
+          else
+            # Tailscale up ≠ Qdrant listening. Fail open so unit tests still run
+            # (same posture as TS_AUTHKEY-absent forks).
+            echo "reachable=false" >> "$GITHUB_OUTPUT"
+            echo "url=" >> "$GITHUB_OUTPUT"
+            echo "::warning::Studio Qdrant unreachable (curl exit $status); continuing without live Qdrant"
+          fi
 
       - name: Build
         run: swift build
 
-      # Baselines must be recorded on macos-14 + Xcode 16.4 (this job). Local macOS 26 /
+      # Baselines must be recorded on macos-15 + Xcode 16.4 (this job). Local macOS 26 /
       # Xcode 26 PNGs will not pixel-match the runner. Tip a commit with [record-snapshots]
       # to rewrite **/__Snapshots__ here, then download the artifact and commit.
+      # pull_request checkouts are merge commits whose message often mirrors the PR title —
+      # only the PR head tip commit message may enable record mode.
       - name: Detect snapshot record mode
         id: snapshots
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          MSG="$(git log -1 --pretty=%B)"
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_HEAD_SHA" ]; then
+            git fetch --no-tags --depth=1 origin "$PR_HEAD_SHA"
+            MSG="$(git log -1 --pretty=%B "$PR_HEAD_SHA")"
+          else
+            MSG="$(git log -1 --pretty=%B)"
+          fi
           if printf '%s' "$MSG" | grep -q '\[record-snapshots\]'; then
             echo "record=true" >> "$GITHUB_OUTPUT"
             echo "SNAPSHOT_TESTING_RECORD enabled for this commit"
@@ -92,7 +115,7 @@ jobs:
       - name: Test (root package)
         if: steps.snapshots.outputs.record != 'true'
         env:
-          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant.outputs.url }}
+          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant_verify.outputs.reachable == 'true' && steps.qdrant.outputs.url || '' }}
         # Single worker: AppKit snapshot + MainActor HUD tests contend under default
         # Swift Testing parallelism and flake debounce / project.state timeouts on CI.
         # IMPORTANT: do not set SNAPSHOT_TESTING_RECORD="" — empty still counts as set
@@ -104,7 +127,7 @@ jobs:
         if: steps.snapshots.outputs.record == 'true'
         env:
           SNAPSHOT_TESTING_RECORD: "1"
-          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant.outputs.url }}
+          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant_verify.outputs.reachable == 'true' && steps.qdrant.outputs.url || '' }}
         run: swift test --parallel --num-workers 1
         continue-on-error: true
 

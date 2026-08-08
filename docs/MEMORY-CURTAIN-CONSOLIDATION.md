@@ -1,11 +1,12 @@
 # Memory Curtain Consolidation — one write, one recall
 
 > **Audience:** agents / operators shaping Andromeda Memory (Anima) + Multibrain.  
-> **Status:** 📐 design pivot (2026-07-21) — early project; pivot fast. Not a Realm migration plan.  
+> **Status:** 🚧 partial (2026-08-08) — Andromida complexity curtain (BIN-246–252) landed in MemoryKit.  
 > **Honesty:** ✅ shipped · 🚧 partial · 📐 specified.  
 > **Dual-home:** keep this file byte-identical in
 > `~/Developer/multibrain/docs/MEMORY-CURTAIN-CONSOLIDATION.md` and
-> `~/Developer/Andromeda/docs/MEMORY-CURTAIN-CONSOLIDATION.md`.
+> `~/Developer/Andromeda/docs/MEMORY-CURTAIN-CONSOLIDATION.md`.  
+> **Superseding ADR:** [ADR-0017-andromida-complexity-curtain.md](./adr/ADR-0017-andromida-complexity-curtain.md)
 
 Complements [MEMORY-ONEPAGER.md](./MEMORY-ONEPAGER.md) (layers + fleet map) and
 [ANDROMEDA-CONTROL-PLANE.md](./ANDROMEDA-CONTROL-PLANE.md) (six pillars). This doc
@@ -17,38 +18,42 @@ locks the **client contract** and the **curtain routing** for writes and recall.
 
 | Decision | Choice |
 |----------|--------|
-| Client write verb | **Keep `memory.store`** (already shipped). Do **not** ship a parallel `memory.write` unless a versioned rename is intentional. |
-| Client recall verb | **Keep `memory.recall`**. Optional `mode` hint; curtain may auto-pick. |
-| Journal / session dump | Convenience **aliases** of `memory.store` that set `WriteKind` — not separate SoTs. |
-| `infer.write` | **Retired as a client capability ID.** Compatibility shim → `WriteKind.inferAliasDeprecated`. |
-| LLM / Cerebras | **Not a memory write.** Lives under LLM proxy / secrets (`write.too`, Autocache, …). |
-| Hot store brands | Clients never see SwiftData or Realm. One hot SoT + optional live fanout adapter. |
-| Retrieval | hot → page/structured index → graphify → vector similarity; **ripgrep = degraded fallback only**. |
+| Canonical agent verbs | **`memory_recall` / `memory_retain` / `memory_forget` / `memory_health`** (BIN-247) |
+| Legacy write / recall verbs | **`memory.store` / `memory.recall`** remain **compatibility shims** → retain / recall |
+| Journal / session dump | Convenience **aliases** of retain that set `CurtainWriteKind` — **off agent hot path** |
+| `infer.write` | Compatibility shim → `CurtainWriteKind.inferAliasDeprecated` |
+| Write authority | **JSON outbox** (`JSONOutboxAuthority`) — durable before backend delivery |
+| Live projection | **Fail-open** Realm-shaped mirror (`OutboxLiveProjection`); never blocks retain |
+| Hot working store | Optional adapter (SwiftData today) — not retain acceptance SoT on the curtain path |
+| Retrieval | Intent planner + rank fusion; agents never choose backends |
 
 ---
 
-## 2. Client surface — two verbs
+## 2. Client surface — four verbs (+ shims)
 
 Clients (HUD, Home, bar, satellite agents) see a **small** menu:
 
 | Stable ID | Job | Notes |
 |-----------|-----|-------|
-| `memory.store` | Persist a memory unit | Body + metadata; curtain assigns `WriteKind` |
-| `memory.recall` | Fetch relevant memory | Query + optional `mode`; curtain routes backends |
-| `memory.journal` | Alias | → `memory.store` + `WriteKind.journal` |
-| `memory.session_dump` | Alias | → `memory.store` + `WriteKind.sessionDump` |
+| `memory_retain` | Persist a memory unit into the JSON outbox | Canonical write |
+| `memory_recall` | Fetch relevant memory | Intent plan + fusion |
+| `memory_forget` | Tombstone a memory id | Suppresses fused recall |
+| `memory_health` | Outbox + projection + drift | Operator / companion |
+| `memory.store` / `store` | Shim | → `memory_retain` |
+| `memory.recall` / `recall` | Shim | → `memory_recall` |
+| `memory.journal` | Alias | → retain + `WriteKind.journal` (off hot path) |
+| `memory.session_dump` | Alias | → retain + `WriteKind.sessionDump` (off hot path) |
 | `project.state.*` | Unchanged | Tracker fanout stays operator-side |
 
-**Removed from client menus (after shim window):** `infer.write`.
+**Removed from client menus (after shim window):** treating `infer.write` as a first-class memory verb.
 
-**Never on the memory menu:** provider brands, store brands (SwiftData/Realm/Ladybug/Qdrant/graphify), Linear/Multica/n8n, raw API keys.
+**Never on the memory menu:** provider brands, store brands (SwiftData/Realm/Ladybug/Qdrant/graphify/Graphiti), Linear/Multica/n8n, raw API keys.
 
-### Why keep `memory.store` (not rename to `memory.write`)
+### Why keep dotted shims
 
-`memory.store` is already ✅ in MemoryKit / HUD / Home proofs. Renaming to `memory.write`
-buys little and breaks dogfood strings. Internally, the curtain can still speak
-`WriteKind` / “write path.” If a future rename is wanted, do it as a **versioned**
-alias (`memory.write` → same CaptureService), not a second confusing peer.
+`memory.store` / `memory.recall` are already ✅ in MemoryKit / HUD / Home proofs.
+The Andromida standard adds underscore verbs without stranding dogfood strings.
+Internally, the curtain speaks retain / recall / forget / health.
 
 ---
 
@@ -95,38 +100,30 @@ sequenceDiagram
 
 ---
 
-## 4. Hot store strategy — SwiftData today → Realm spine (one SoT)
+## 4. Write authority — JSON outbox + fail-open live projection
 
 ### Honesty today
 
-- ✅ Hot episodic SoT: SwiftData at `~/.multibrain/anima-hot.store` via `CaptureService`.
-- 📐 Realm: **not implemented**. Do not claim dual-write.
+- ✅ Curtain retain path: `JSONOutboxAuthority` JSONL seeds (MemoryKit).
+- ✅ Live projection: `RealmOutboxLiveProjection` (Realm-**shaped**, rebuildable, fail-open).
+- 📐 Apple RealmSwift adapter behind `OutboxLiveProjection` — not imported.
+- ✅ SwiftData hot store still powers legacy HUD/Home `CaptureService` path; curtain path does not require it for retain acceptance.
 
-### Honest reading of “SwiftData in Realm”
+### Rejected
 
-Apple does **not** run SwiftData *inside* Realm. Practical pivot options:
-
-| Option | Meaning | Prefer when |
-|--------|---------|-------------|
-| **A. Realm as sync/realtime spine** | Realm (or Device Sync / equivalent) owns multi-device live fanout; Swift types / Codable models stay the app schema; optional SwiftData kept local-only short-term | Need live multi-device without iCloud quota as the assumption |
-| **B. One hot adapter** | `HotStore` protocol; SwiftDataAdapter today, RealmAdapter later; **one** active backend per host | Cleanest curtain; recommended migration shape |
-| **C. Two peer SoTs** | SwiftData + Realm both authoritative | **Rejected** — dual-write hell |
-
-**Locked preference:** **B**, with **A** as the sync story once Realm (or similar) is chosen.
-Clients never see either brand. Local ACID remains mandatory; live fanout is **optional**
-and must not assume iCloud/CloudKit quota.
+| Option | Meaning |
+|--------|---------|
+| Twin SoTs (SwiftData + Realm both authoritative) | Dual-write hell |
+| Realm as write authority | Conflates operator UX with system truth |
 
 ```
-Client → memory.store
+Client → memory_retain
            ↓
-     HotStore protocol
-           ↓
-   ┌───────┴────────┐
-   │ SwiftData ✅   │  today
-   │ Realm adapter  │  📐 later (realtime / multi-device)
-   └────────────────┘
-           ↓
-   async project → vault / page index / graphify / vectors
+   JSON outbox (authority)  ✅ durable accept
+           ↓ fail-open
+   Live outbox projection   🚧 Realm-shaped today / RealmSwift later
+           ↓ async
+   backend fan-out / replay
 ```
 
 CloudKit remains a **planned cold replica**, not the hot SoT and not proof of hive sync.
@@ -199,8 +196,9 @@ client menus. FAISS stays rejected.
 | `infer.write` = LLM | **False today.** It is a memory-store alias. Retire the client ID. |
 | Cerebras / Autocache = `memory.store` | **False.** Generation ≠ persist. |
 | SwiftData + Realm as twin SoTs | **Rejected.** |
+| Realm as write authority | **Rejected** — JSON outbox is authority; Realm-shaped projection is fail-open. |
 | Ripgrep vault = semantic memory | **Insufficient** long-term; keep as degraded only. |
-| Clients pick Ladybug / Qdrant / graphify | **Never.** Curtain routes. |
+| Clients pick Ladybug / Qdrant / graphify / Graphiti | **Never.** Curtain routes. |
 
 LLM proxy pillar keeps separate stable IDs (`write.too`, future `infer.generate` / Autocache
 surface). Do **not** recycle `infer.write` for real inference without a versioned

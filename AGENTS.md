@@ -33,7 +33,8 @@ Examples: Andromeda overall → Multica+Linear; Slack issue → Linear first the
 
 ## Repository Rules
 
-- Do not add project-maintained Bash automation files.
+- **Hard flag:** do not add project-maintained shell automation (`.sh`, Bash, Zsh, and similar). If an operation can be implemented in Swift, it must be Swift. Shell snippets are allowed only as documentation examples.
+- Keep `RepositoryPolicyTests` green; its shell-automation scan is the executable guardrail for this rule. Do not add exceptions merely to make the test pass.
 - Do not add invisible `launchctl` jobs, hidden watchdogs, or unsurfaced background daemons.
 - Any background behavior must have visible status, telemetry, ownership, and controls.
 - Do not overwrite unrelated work or reset the repository to hide conflicts.

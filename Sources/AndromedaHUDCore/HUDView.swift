@@ -857,6 +857,67 @@ public extension Notification.Name {
         .background(Color.gray)
 }
 
+#Preview("HUD Stored · success") {
+    let model = HUDModel()
+    model.lastOutcome = .stored(idSummary: "A1B2C3D4")
+    return HUDView(isExpanded: true, searchQuery: "store ship preview coverage", model: model)
+        .padding()
+        .background(Color.gray)
+}
+
+#Preview("HUD Journaled · success") {
+    let model = HUDModel()
+    model.lastOutcome = .journaled(idSummary: "E5F6A7B8")
+    return HUDView(isExpanded: true, searchQuery: "journal snapshot pass", model: model)
+        .padding()
+        .background(Color.gray)
+}
+
+#Preview("HUD Project created · success") {
+    let model = HUDModel()
+    model.lastOutcome = .created(title: "Catalog every component state")
+    return HUDView(isExpanded: true, searchQuery: "project.state.create", model: model)
+        .padding()
+        .background(Color.gray)
+}
+
+#Preview("HUD Project updated · success") {
+    let model = HUDModel()
+    model.lastOutcome = .updated(title: "Catalog every component state")
+    return HUDView(isExpanded: true, searchQuery: "project.state.update", model: model)
+        .padding()
+        .background(Color.gray)
+}
+
+#Preview("HUD Fleet pulse · all states") {
+    HStack(spacing: 20) {
+        HUDFleetPulseChip(pulse: .init(status: .green, detail: "Fleet healthy"))
+        HUDFleetPulseChip(pulse: .init(status: .yellow, attentionCount: 1, detail: "Fleet needs attention"))
+        HUDFleetPulseChip(pulse: .init(status: .red, attentionCount: 2, detail: "Fleet degraded"))
+        HUDFleetPulseChip(pulse: .init(status: .unknown, detail: "Fleet status unknown"))
+    }
+    .padding()
+    .background(Color.gray)
+}
+
+#Preview("HUD Memory rows · all states") {
+    VStack(spacing: 4) {
+        HUDMemoryHitRow(
+            hit: MemoryHit(narrative: "Hot-store result", source: .hotStore, score: 10),
+            isSelected: false,
+            onActivate: {}
+        )
+        HUDMemoryHitRow(
+            hit: MemoryHit(narrative: "Selected vault result", project: "andromeda", source: .vault, score: 8),
+            isSelected: true,
+            onActivate: {}
+        )
+    }
+    .padding()
+    .frame(width: 360)
+    .background(Color.gray)
+}
+
 #Preview("HUD Recent queries") {
     let model = HUDModel()
     model.recordRecentQuery("recall fleet observe")
