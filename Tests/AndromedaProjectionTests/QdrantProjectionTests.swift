@@ -106,9 +106,9 @@ private let testQdrantURLSession: URLSession = {
 }()
 
 private let testQdrantBaseURL: URL = {
-    let value = ProcessInfo.processInfo.environment["ANDROMEDA_TEST_QDRANT_URL"]
-        ?? "http://localhost:6333"
-    return URL(string: value)!
+    let raw = ProcessInfo.processInfo.environment["ANDROMEDA_TEST_QDRANT_URL"]
+    let value = (raw?.isEmpty == false ? raw : nil) ?? "http://localhost:6333"
+    return URL(string: value) ?? URL(string: "http://localhost:6333")!
 }()
 
 private func skipUnlessQdrantReachable(baseURL: URL) async throws {
