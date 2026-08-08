@@ -62,15 +62,28 @@ jobs:
 
       - name: Verify Studio Qdrant
         if: steps.qdrant.outputs.enabled == 'true'
+        id: qdrant_verify
         env:
           ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant.outputs.url }}
         run: |
+          set +e
           tailscale status
           tailscale ping --c 3 studio || true
           curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
             --retry 5 --retry-delay 2 \
             "$ANDROMEDA_TEST_QDRANT_URL/collections" >/dev/null
-          echo "Studio Qdrant reachable over tailnet"
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "reachable=true" >> "$GITHUB_OUTPUT"
+            echo "Studio Qdrant reachable over tailnet"
+          else
+            # Tailscale up ≠ Qdrant listening. Fail open so unit tests still run
+            # (same posture as TS_AUTHKEY-absent forks).
+            echo "reachable=false" >> "$GITHUB_OUTPUT"
+            echo "url=" >> "$GITHUB_OUTPUT"
+            echo "::warning::Studio Qdrant unreachable (curl exit $status); continuing without live Qdrant"
+          fi
 
       - name: Build
         run: swift build
@@ -92,7 +105,7 @@ jobs:
       - name: Test (root package)
         if: steps.snapshots.outputs.record != 'true'
         env:
-          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant.outputs.url }}
+          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant_verify.outputs.reachable == 'true' && steps.qdrant.outputs.url || '' }}
         # Single worker: AppKit snapshot + MainActor HUD tests contend under default
         # Swift Testing parallelism and flake debounce / project.state timeouts on CI.
         # IMPORTANT: do not set SNAPSHOT_TESTING_RECORD="" — empty still counts as set
@@ -104,7 +117,7 @@ jobs:
         if: steps.snapshots.outputs.record == 'true'
         env:
           SNAPSHOT_TESTING_RECORD: "1"
-          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant.outputs.url }}
+          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant_verify.outputs.reachable == 'true' && steps.qdrant.outputs.url || '' }}
         run: swift test --parallel --num-workers 1
         continue-on-error: true
 
