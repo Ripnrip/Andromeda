@@ -163,7 +163,7 @@ public enum HUDCommand: Equatable, Sendable {
         case .sessionDump: return .sessionDump
         case .inferWrite: return .inferWrite
         case .project, .projectCreate, .projectUpdate: return .project
-        case .recall: return .recall
+        case .recall: return .memoryRecall
         }
     }
 }
