@@ -132,8 +132,12 @@ public struct AndromedaRuntimeServer: Sendable {
                 secrets: MacOSKeychainSecretProvider(),
                 http: URLSessionUpstreamHTTP()
             )
+            let universalTools = CompositeMCPToolServer(servers: [
+                MemoryMCPToolServer(runtime: memoryRuntime),
+                broker,
+            ])
             MCPRoute(
-                broker: broker,
+                broker: universalTools,
                 auth: MCPBearerAuth(token: mcp.bearerToken),
                 serverVersion: configuration.version
             ).register(on: router)
