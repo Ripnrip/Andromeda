@@ -91,18 +91,19 @@ jobs:
       # Baselines must be recorded on macos-15 + Xcode 16.4 (this job). Local macOS 26 /
       # Xcode 26 PNGs will not pixel-match the runner. Tip a commit with [record-snapshots]
       # to rewrite **/__Snapshots__ here, then download the artifact and commit.
-      # pull_request checkouts are merge commits — the tip marker lives on the PR head,
-      # so fetch and inspect that SHA (feature-branch pushes no longer run CI).
+      # pull_request checkouts are merge commits whose message often mirrors the PR title —
+      # only the PR head tip commit message may enable record mode.
       - name: Detect snapshot record mode
         id: snapshots
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          MSG="$(git log -1 --pretty=%B)"
           if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_HEAD_SHA" ]; then
             git fetch --no-tags --depth=1 origin "$PR_HEAD_SHA"
-            MSG="$MSG"$'\n'"$(git log -1 --pretty=%B "$PR_HEAD_SHA")"
+            MSG="$(git log -1 --pretty=%B "$PR_HEAD_SHA")"
+          else
+            MSG="$(git log -1 --pretty=%B)"
           fi
           if printf '%s' "$MSG" | grep -q '\[record-snapshots\]'; then
             echo "record=true" >> "$GITHUB_OUTPUT"
