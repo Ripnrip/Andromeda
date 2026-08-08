@@ -68,8 +68,32 @@ struct RepositoryPolicyTests {
         guard let firstLine = String(data: prefix, encoding: .utf8)?.split(separator: "\n").first else {
             return false
         }
-        let shellInterpreters = ["/bash", "/sh", "/zsh", "env bash", "env sh", "env zsh"]
-        return firstLine.hasPrefix("#!") && shellInterpreters.contains { firstLine.contains($0) }
+        guard firstLine.hasPrefix("#!") else {
+            return false
+        }
+
+        let interpreter = firstLine.dropFirst(2).trimmingCharacters(in: .whitespacesAndNewlines)
+        let tokens = interpreter.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard let firstToken = tokens.first else {
+            return false
+        }
+
+        let shellNames: Set<String> = ["bash", "sh", "zsh"]
+        let isShellToken: (String) -> Bool = { token in
+            let lowered = token.lowercased()
+            return shellNames.contains(lowered) || shellNames.contains(lowered.split(separator: "/").last.map(String.init) ?? "")
+        }
+
+        if isShellToken(firstToken) {
+            return true
+        }
+
+        let firstLowered = firstToken.lowercased()
+        if firstLowered == "env" || firstLowered.hasSuffix("/env") {
+            return tokens.dropFirst().contains(where: isShellToken)
+        }
+
+        return false
     }
 
     /// Returns the set of repository-relative paths for shell scripts that are grandfathered.
