@@ -9,8 +9,17 @@ enum HUDLogger {
 }
 
 /// 🌟 Stable client capability IDs — never tracker brands.
+///
+/// Canonical Andromida verbs use underscore form (`memory_recall` …).
+/// Dotted `memory.*` / `infer.write` remain compatibility shims (BIN-247).
 public enum HUDCapabilityID: String, Sendable {
+    case memoryRecall = "memory_recall"
+    case memoryRetain = "memory_retain"
+    case memoryForget = "memory_forget"
+    case memoryHealth = "memory_health"
+    /// Compatibility shim → `memory_recall`.
     case recall = "memory.recall"
+    /// Compatibility shim → `memory_retain`.
     case store = "memory.store"
     case journal = "memory.journal"
     case sessionDump = "memory.session_dump"
@@ -18,9 +27,12 @@ public enum HUDCapabilityID: String, Sendable {
     case project = "project.state"
 }
 
-/// 🌟 Parsed HUD submit verbs (store / journal / infer.write / project.state / recall).
+/// 🌟 Parsed HUD submit verbs (retain/recall/forget/health + legacy shims).
 public enum HUDCommand: Equatable, Sendable {
     case store(narrative: String)
+    case retain(narrative: String)
+    case forget(target: String)
+    case health
     case journal(body: String)
     case sessionDump(body: String)
     case inferWrite(thought: String)
@@ -37,6 +49,34 @@ public enum HUDCommand: Equatable, Sendable {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let lower = trimmed.lowercased()
+
+        // Canonical Andromida verbs (BIN-247) — prefer before dotted shims.
+        if lower.hasPrefix("memory_retain ") || lower == "memory_retain"
+            || lower.hasPrefix("retain ") || lower == "retain"
+        {
+            let prefix: String
+            if lower.hasPrefix("memory_retain") {
+                prefix = "memory_retain"
+            } else {
+                prefix = "retain"
+            }
+            let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            return .retain(narrative: rest)
+        }
+        if lower.hasPrefix("memory_forget ") || lower == "memory_forget"
+            || lower.hasPrefix("forget ") || lower == "forget"
+        {
+            let prefix = lower.hasPrefix("memory_forget") ? "memory_forget" : "forget"
+            let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            return .forget(target: rest)
+        }
+        if lower == "memory_health" || lower == "health" {
+            return .health
+        }
+        if lower.hasPrefix("memory_recall ") || lower == "memory_recall" {
+            let rest = String(trimmed.dropFirst("memory_recall".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            return .recall(query: rest)
+        }
 
         if lower.hasPrefix("store ") || lower == "store" {
             let rest = String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -115,6 +155,9 @@ public enum HUDCommand: Equatable, Sendable {
 
     public var capabilityID: HUDCapabilityID {
         switch self {
+        case .retain: return .memoryRetain
+        case .forget: return .memoryForget
+        case .health: return .memoryHealth
         case .store: return .store
         case .journal: return .journal
         case .sessionDump: return .sessionDump
@@ -392,6 +435,36 @@ public final class HUDModel {
                 tags: [],
                 emptyHint: "store",
                 isJournal: false,
+                token: token
+            )
+        case .retain(let narrative):
+            guard isReady, let capture else {
+                applyOutcome(.failed(message: "Memory session not ready"), token: token)
+                return
+            }
+            await runStore(
+                narrative: narrative,
+                capture: capture,
+                provenance: HUDCapabilityID.memoryRetain.rawValue,
+                tags: ["memory_retain"],
+                emptyHint: "memory_retain",
+                isJournal: false,
+                token: token
+            )
+        case .forget(let target):
+            let trimmed = target.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                applyOutcome(.empty(message: "Usage: memory_forget <memory-id>"), token: token)
+                return
+            }
+            // Tombstone path lands fully when HUD is wired to MemoryComplexityCurtain.
+            applyOutcome(
+                .empty(message: "memory_forget accepted for \(trimmed) — curtain tombstone path 🚧"),
+                token: token
+            )
+        case .health:
+            applyOutcome(
+                .empty(message: "memory_health — use Andromida Companion for outbox/drift detail"),
                 token: token
             )
         case .journal(let body):

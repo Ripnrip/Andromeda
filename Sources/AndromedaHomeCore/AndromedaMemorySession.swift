@@ -16,7 +16,13 @@ enum AndromedaMemoryLogger {
 }
 
 /// 🌟 Stable capability IDs — clients see these, never store plumbing names.
+///
+/// Canonical Andromida verbs use underscore form. Dotted `memory.*` remain shims.
 public enum AndromedaMemoryCapability: String, Sendable, CaseIterable {
+    case memoryRecall = "memory_recall"
+    case memoryRetain = "memory_retain"
+    case memoryForget = "memory_forget"
+    case memoryHealth = "memory_health"
     case recall = "memory.recall"
     case store = "memory.store"
     case journal = "memory.journal"
@@ -24,8 +30,10 @@ public enum AndromedaMemoryCapability: String, Sendable, CaseIterable {
 
     public var verb: String {
         switch self {
-        case .recall: return "recall"
-        case .store: return "store"
+        case .memoryRecall, .recall: return "recall"
+        case .memoryRetain, .store: return "store"
+        case .memoryForget: return "forget"
+        case .memoryHealth: return "health"
         case .journal, .sessionDump: return "journal"
         }
     }
@@ -35,6 +43,9 @@ public enum AndromedaMemoryCapability: String, Sendable, CaseIterable {
 public enum AndromedaMemoryCommand: Equatable, Sendable {
     case recall(query: String)
     case store(narrative: String)
+    case retain(narrative: String)
+    case forget(target: String)
+    case health
     case journal(body: String)
 
     public static func parse(_ raw: String) -> AndromedaMemoryCommand? {
@@ -42,6 +53,27 @@ public enum AndromedaMemoryCommand: Equatable, Sendable {
         guard !trimmed.isEmpty else { return nil }
         let lower = trimmed.lowercased()
 
+        if lower.hasPrefix("memory_retain ") || lower == "memory_retain"
+            || lower.hasPrefix("retain ") || lower == "retain"
+        {
+            let prefix = lower.hasPrefix("memory_retain") ? "memory_retain" : "retain"
+            let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            return .retain(narrative: rest)
+        }
+        if lower.hasPrefix("memory_forget ") || lower == "memory_forget"
+            || lower.hasPrefix("forget ") || lower == "forget"
+        {
+            let prefix = lower.hasPrefix("memory_forget") ? "memory_forget" : "forget"
+            let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            return .forget(target: rest)
+        }
+        if lower == "memory_health" || lower == "health" {
+            return .health
+        }
+        if lower.hasPrefix("memory_recall ") || lower == "memory_recall" {
+            let rest = String(trimmed.dropFirst("memory_recall".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            return .recall(query: rest)
+        }
         if lower.hasPrefix("recall ") || lower == "recall" {
             return .recall(query: String(trimmed.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines))
         }
@@ -65,7 +97,10 @@ public enum AndromedaMemoryCommand: Equatable, Sendable {
 
     public var capability: AndromedaMemoryCapability {
         switch self {
-        case .recall: return .recall
+        case .recall: return .memoryRecall
+        case .retain: return .memoryRetain
+        case .forget: return .memoryForget
+        case .health: return .memoryHealth
         case .store: return .store
         case .journal: return .journal
         }
@@ -164,6 +199,17 @@ public final class AndromedaMemorySession {
             await runRecall(query: query, retrieval: retrieval)
         case .store(let narrative):
             await runStore(narrative: narrative, capture: capture, capability: .store)
+        case .retain(let narrative):
+            await runStore(narrative: narrative, capture: capture, capability: .memoryRetain)
+        case .forget(let target):
+            let trimmed = target.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                lastOutcome = .empty(message: "Type memory_forget <memory-id>")
+            } else {
+                lastOutcome = .empty(message: "memory_forget accepted for \(trimmed) — curtain tombstone path 🚧")
+            }
+        case .health:
+            lastOutcome = .empty(message: "memory_health — open Andromida Companion for outbox/drift")
         case .journal(let body):
             await runStore(
                 narrative: body.isEmpty ? Self.defaultJournalBody() : body,

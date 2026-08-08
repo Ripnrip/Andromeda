@@ -224,6 +224,36 @@ public struct MemoryConsoleView: View {
                     "tray.and.arrow.down",
                     "Press Return to store this memory."
                 )
+            case .retain(let n) where n.isEmpty:
+                return (
+                    "\(AndromedaMemoryCapability.memoryRetain.rawValue) — durable retain narrative",
+                    "tray.and.arrow.down.fill",
+                    "Memory retain ready. Type a narrative then run."
+                )
+            case .retain:
+                return (
+                    "↩︎ Run · \(AndromedaMemoryCapability.memoryRetain.rawValue)",
+                    "tray.and.arrow.down.fill",
+                    "Press Return to retain this memory."
+                )
+            case .forget(let t) where t.isEmpty:
+                return (
+                    "\(AndromedaMemoryCapability.memoryForget.rawValue) — memory id to tombstone",
+                    "trash",
+                    "Memory forget ready. Type a memory id then run."
+                )
+            case .forget:
+                return (
+                    "↩︎ Run · \(AndromedaMemoryCapability.memoryForget.rawValue)",
+                    "trash",
+                    "Press Return to forget this memory id."
+                )
+            case .health:
+                return (
+                    "↩︎ Run · \(AndromedaMemoryCapability.memoryHealth.rawValue)",
+                    "heart.text.square",
+                    "Press Return to check memory health."
+                )
             case .journal(let b) where b.isEmpty:
                 return (
                     "\(AndromedaMemoryCapability.journal.rawValue) — empty dumps a session stamp",
