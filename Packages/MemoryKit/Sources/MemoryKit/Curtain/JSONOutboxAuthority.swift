@@ -88,8 +88,8 @@ public enum JSONOutboxError: Error, LocalizedError, Sendable, Equatable {
 
 /// Actor-owned JSONL outbox — the durable write authority for Andromida retain.
 public actor JSONOutboxAuthority {
-    public let directoryURL: URL
-    public let seedsURL: URL
+    public nonisolated let directoryURL: URL
+    public nonisolated let seedsURL: URL
 
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
