@@ -5,42 +5,42 @@ import SnapshotTesting
 
 #if canImport(UIKit)
 import UIKit
-@MainActor
-private func makeHost(_ view: some View, _ size: CGSize, dark: Bool) -> UIViewController {
-    let vc = UIHostingController(rootView: view.frame(width: size.width, height: size.height))
-    vc.view.frame = CGRect(origin: .zero, size: size)
-    vc.overrideUserInterfaceStyle = dark ? .dark : .light
-    return vc
-}
 #elseif canImport(AppKit)
 import AppKit
-@MainActor
-private func makeHost(_ view: some View, _ size: CGSize, dark: Bool) -> NSViewController {
-    let themed = view
-        .environment(\.colorScheme, dark ? ColorScheme.dark : ColorScheme.light)
-        .frame(width: size.width, height: size.height)
-    let vc = NSHostingController(rootView: AnyView(themed))
-    vc.view.frame = CGRect(origin: .zero, size: size)
-    vc.view.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-    return vc
-}
 #endif
 
 /// Per-component snapshot coverage: every control-plane surface is captured
-/// in dark and light. Flip `isRecording = true` once to seed baselines.
+/// in dark and light.
+///
+/// Record: `SNAPSHOT_TESTING_RECORD=1 swift test --filter ControlPlaneSnapshotTests`
 @MainActor
 final class ControlPlaneSnapshotTests: XCTestCase {
 
-    override func setUp() { super.setUp(); /* isRecording = true */ }
+    override func invokeTest() {
+        withSnapshotTesting(record: AndromedaUISnapshotSupport.recordMode) {
+            super.invokeTest()
+        }
+    }
 
-    private func verify(_ view: some View, _ size: CGSize, name: String,
-                        file: StaticString = #filePath, testName: String = #function, line: UInt = #line) throws {
+    private func verify(
+        _ view: some View,
+        _ size: CGSize,
+        name: String,
+        file: StaticString = #filePath,
+        testName: String = #function,
+        line: UInt = #line
+    ) throws {
         try AndromedaUISnapshotSupport.requireBaselines(file: file)
         for dark in [true, false] {
             let host = makeHost(view, size, dark: dark)
-            assertSnapshot(of: host, as: .image(precision: 0.98, perceptualPrecision: 0.96),
-                           named: "\(name)-\(dark ? "dark" : "light")",
-                           file: file, testName: testName, line: line)
+            assertSnapshot(
+                of: host,
+                as: .image(precision: 0.98, perceptualPrecision: 0.96),
+                named: "\(name)-\(dark ? "dark" : "light")",
+                file: file,
+                testName: testName,
+                line: line
+            )
         }
     }
 
@@ -80,4 +80,23 @@ final class ControlPlaneSnapshotTests: XCTestCase {
     private func coreShell<V: View>(@ViewBuilder _ content: () -> V) -> some View {
         ZStack { AndromedaSurface(); content() }
     }
+
+    #if canImport(UIKit)
+    private func makeHost(_ view: some View, _ size: CGSize, dark: Bool) -> UIViewController {
+        let vc = UIHostingController(rootView: view.frame(width: size.width, height: size.height))
+        vc.view.frame = CGRect(origin: .zero, size: size)
+        vc.overrideUserInterfaceStyle = dark ? .dark : .light
+        return vc
+    }
+    #elseif canImport(AppKit)
+    private func makeHost(_ view: some View, _ size: CGSize, dark: Bool) -> NSViewController {
+        let themed = view
+            .environment(\.colorScheme, dark ? ColorScheme.dark : ColorScheme.light)
+            .frame(width: size.width, height: size.height)
+        let vc = NSHostingController(rootView: AnyView(themed))
+        vc.view.frame = CGRect(origin: .zero, size: size)
+        vc.view.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        return vc
+    }
+    #endif
 }

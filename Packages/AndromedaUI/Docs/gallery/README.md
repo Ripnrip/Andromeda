@@ -1,7 +1,7 @@
 # AndromedaUI Gate 0 gallery
 
 Package-surface proofs for BIN-270 review. These are **not** recorded SnapshotTesting
-baselines — those land after a macOS `isRecording` pass.
+baselines — those land after a macOS `SNAPSHOT_TESTING_RECORD=1` pass.
 
 | File | Surface |
 | --- | --- |
