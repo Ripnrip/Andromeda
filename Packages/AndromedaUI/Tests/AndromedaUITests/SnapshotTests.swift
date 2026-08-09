@@ -8,14 +8,14 @@ import SnapshotTesting
 /// and light mode. Snapshots record the initial (pre-`onAppear`) frame,
 /// which the synchronous hosting render produces deterministically.
 ///
-/// To (re)record baselines, flip `isRecording = true` in `setUp()` and run
-/// once; commit the resulting `__Snapshots__/` PNGs, then flip it back.
+/// Record: `SNAPSHOT_TESTING_RECORD=1 swift test --filter AndromedaSnapshotTests`
 @MainActor
 final class AndromedaSnapshotTests: XCTestCase {
 
-    override func setUp() {
-        super.setUp()
-        // isRecording = true
+    override func invokeTest() {
+        withSnapshotTesting(record: AndromedaUISnapshotSupport.recordMode) {
+            super.invokeTest()
+        }
     }
 
     func testSpecimensDarkAndLight() throws {

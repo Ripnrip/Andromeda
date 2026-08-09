@@ -74,8 +74,8 @@ Shared kit: `StatusBadge`, `GlassCard`, `SegTab`, `AddButton`.
 - **`ControlPlaneA11yTests`** — Dynamic Type snapshots + UIKit accessibility-tree labels
 - **`AndromedaSnapshotTests`** — animation catalogue × {dark, light} (UIKit)
 
-Seed baselines by flipping `isRecording = true` in `setUp()`, running once, and
-committing `__Snapshots__/`.
+Seed baselines with `SNAPSHOT_TESTING_RECORD=1 swift test` on macOS, then commit
+`__Snapshots__/`.
 
 ## License
 

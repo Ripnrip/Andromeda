@@ -5,22 +5,8 @@ import SnapshotTesting
 
 #if canImport(UIKit)
 import UIKit
-@MainActor
-private func a11yHost(_ view: some View, _ size: CGSize) -> UIViewController {
-    let vc = UIHostingController(rootView: view.frame(width: size.width, height: size.height))
-    vc.view.frame = CGRect(origin: .zero, size: size)
-    vc.overrideUserInterfaceStyle = .dark
-    return vc
-}
 #elseif canImport(AppKit)
 import AppKit
-@MainActor
-private func a11yHost(_ view: some View, _ size: CGSize) -> NSViewController {
-    let vc = NSHostingController(rootView: AnyView(view.environment(\.colorScheme, ColorScheme.dark).frame(width: size.width, height: size.height)))
-    vc.view.frame = CGRect(origin: .zero, size: size)
-    vc.view.appearance = NSAppearance(named: .darkAqua)
-    return vc
-}
 #endif
 
 /// Accessibility coverage.
@@ -29,16 +15,26 @@ private func a11yHost(_ view: some View, _ size: CGSize) -> NSViewController {
 ///    snapshot at `.accessibility3` so regressions (clipping / overlap) show up.
 /// 2. Interactive surfaces must expose accessibility labels — asserted by
 ///    walking the rendered accessibility tree.
+///
+/// Record: `SNAPSHOT_TESTING_RECORD=1 swift test --filter ControlPlaneA11yTests`
 @MainActor
 final class ControlPlaneA11yTests: XCTestCase {
 
-    override func setUp() { super.setUp(); /* isRecording = true */ }
+    override func invokeTest() {
+        withSnapshotTesting(record: AndromedaUISnapshotSupport.recordMode) {
+            super.invokeTest()
+        }
+    }
 
     func testDynamicTypeXXL() throws {
         try AndromedaUISnapshotSupport.requireBaselines()
         let big = ControlPlaneView().dynamicTypeSize(.accessibility3)
         let host = a11yHost(big, CGSize(width: 1120, height: 900))
-        assertSnapshot(of: host, as: .image(precision: 0.97, perceptualPrecision: 0.95), named: "control-plane-a11y-xxl")
+        assertSnapshot(
+            of: host,
+            as: .image(precision: 0.97, perceptualPrecision: 0.95),
+            named: "control-plane-a11y-xxl"
+        )
     }
 
     func testSectionsAtLargeType() throws {
@@ -49,7 +45,11 @@ final class ControlPlaneA11yTests: XCTestCase {
         ]
         for (name, view, size) in cases {
             let host = a11yHost(view.dynamicTypeSize(.accessibility2), size)
-            assertSnapshot(of: host, as: .image(precision: 0.97, perceptualPrecision: 0.95), named: "\(name)-a11y")
+            assertSnapshot(
+                of: host,
+                as: .image(precision: 0.97, perceptualPrecision: 0.95),
+                named: "\(name)-a11y"
+            )
         }
     }
 
@@ -72,6 +72,26 @@ final class ControlPlaneA11yTests: XCTestCase {
         }
         for sub in view.subviews { out += accessibilityLabels(in: sub) }
         return out
+    }
+
+    private func a11yHost(_ view: some View, _ size: CGSize) -> UIViewController {
+        let vc = UIHostingController(rootView: view.frame(width: size.width, height: size.height))
+        vc.view.frame = CGRect(origin: .zero, size: size)
+        vc.overrideUserInterfaceStyle = .dark
+        return vc
+    }
+    #elseif canImport(AppKit)
+    private func a11yHost(_ view: some View, _ size: CGSize) -> NSViewController {
+        let vc = NSHostingController(
+            rootView: AnyView(
+                view
+                    .environment(\.colorScheme, ColorScheme.dark)
+                    .frame(width: size.width, height: size.height)
+            )
+        )
+        vc.view.frame = CGRect(origin: .zero, size: size)
+        vc.view.appearance = NSAppearance(named: .darkAqua)
+        return vc
     }
     #endif
 }
