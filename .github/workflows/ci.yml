@@ -47,15 +47,13 @@ jobs:
             base_ref="$(git rev-list --max-parents=0 HEAD)"
           fi
 
-          mapfile -t changed_files < <(git diff --name-only "$base_ref" HEAD)
-
           run_root=false
           run_root_e2e=false
           run_memorykit=false
           run_memorykit_live_e2e=false
           run_anima=false
 
-          for file in "${changed_files[@]}"; do
+          while IFS= read -r file; do
             [ -z "$file" ] && continue
             echo "changed: $file"
 
@@ -90,7 +88,7 @@ jobs:
                 run_memorykit_live_e2e=true
                 ;;
             esac
-          done
+          done < <(git diff --name-only "$base_ref" HEAD)
 
           needs_qdrant=false
           if [ "$run_root_e2e" = true ] || [ "$run_memorykit_live_e2e" = true ]; then
