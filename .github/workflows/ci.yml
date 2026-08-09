@@ -150,6 +150,20 @@ jobs:
         working-directory: Packages/Anima
         run: swift test --parallel --num-workers 1
 
+      # Nested SwiftUI design-system package (BIN-270 Gate 0).
+      - name: Test AndromedaUI (nested package)
+        if: steps.snapshots.outputs.record != 'true'
+        working-directory: Packages/AndromedaUI
+        run: swift test --parallel --num-workers 1
+
+      - name: Test AndromedaUI (nested package, record snapshots)
+        if: steps.snapshots.outputs.record == 'true'
+        working-directory: Packages/AndromedaUI
+        env:
+          SNAPSHOT_TESTING_RECORD: "1"
+        run: swift test --parallel --num-workers 1
+        continue-on-error: true
+
       - name: Upload CI snapshot baselines
         # SnapshotTesting .all records PNGs then fails on purpose ("Record mode is on").
         # Always upload after a record tip so we can commit the rewritten baselines.
@@ -162,6 +176,7 @@ jobs:
             Tests/AndromedaHomeTests/__Snapshots__/
             Packages/MemoryKit/Tests/MemoryKitTests/__Snapshots__/
             Packages/MemoryKit/Tests/MemoryKitTests/Snapshots/__Snapshots__/
+            Packages/AndromedaUI/Tests/AndromedaUITests/__Snapshots__/
           if-no-files-found: error
 
       # Explicit e2e gate (also covered by MemoryKit suite). Skips cleanly when
