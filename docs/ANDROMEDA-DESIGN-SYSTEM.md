@@ -12,7 +12,6 @@
 | Trefoil / wordmark ASCII | `Sources/AndromedaBrand/AndromedaASCII.swift` (mirrored for docs in `web/lib/ascii-mark.ts`) | TUI, design page |
 | Terminal chrome | `Sources/AndromedaBrand/AndromedaChrome.swift` | `andromeda`, `andromeda-runtime` |
 | SwiftUI tokens | `Sources/AndromedaBrand/AndromedaTheme+SwiftUI.swift` | Home, HUD, menu bar, command center |
-| SwiftUI control-plane UI | `Packages/AndromedaUI` (BIN-270+) — palette aliases, motion, floating bar, sections | macOS control plane surfaces |
 | Rendered spec | `/design` on the website | everyone |
 
 `AndromedaBrandTests` asserts hex parity with the web tokens, so drift fails CI
@@ -107,16 +106,6 @@ stays ≤ 200 ms, opacity/scale only.
 
 ## Open work
 
-- **BIN-270 Gate 0 (this lane):** `Packages/AndromedaUI` vendored and compiling as a
-  nested Swift package. Snapshot PNG baselines are still unrecorded — suites skip
-  until a macOS record pass lands in the verification follow-up.
-- **PR split (do not land as one blob):**
-  1. Gate 0 — compile `AndromedaUI` standalone (`swift test` in `Packages/AndromedaUI`)
-  2. Port tokens — converge `AndromedaUI` Color aliases onto `AndromedaBrand` / web OKLCH
-  3. Floating control bar — wire `FloatingBarPanel` into the app shell
-  4. Control-plane sections — Memory / Search / Settings / capability modules as reusable screens
-  5. TUI parity — ASCII mark + teal/void styling share the same token set
-  6. Verification — record snapshots + a11y coverage without snapshot sprawl
 - **BIN-230 / BIN-232:** `AndromedaHomeCore` and `AndromedaHUDCore` still use
   system colours (`.cyan`, `.green`, `windowBackgroundColor`). Migrating them to
   `AndromedaTheme` changes recorded SwiftUI snapshots, so it needs a macOS

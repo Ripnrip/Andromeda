@@ -2,25 +2,6 @@
 
 All notable changes to Andromeda will be documented here.
 
-## 2026-08-09 — AndromedaUI Gate 0 (BIN-270)
-
-**Tone hat:** Design-system mechanic
-**Commit message of the day:** `feat: vendor AndromedaUI and clear Gate 0 compile blockers`
-
-### Added
-- `Packages/AndromedaUI` — vendored SwiftUI design-system package (control plane, floating bar, motion, tokens).
-- Nested-package CI job for `Packages/AndromedaUI`.
-- Gate 0 smoke tests + snapshot baseline skip helper until macOS record pass.
-
-### Fixed
-- Duplicate `Pillar` types (`BarPillar` for the floating bar vs nav `Pillar`).
-- Duplicate `andromedaAmber` / `andromedaDim` / `andromedaInk` Color extensions.
-- Preview / test `ColorScheme` inference under Swift 6.
-- Non-deterministic `UUID()` identities on static memory/control-plane catalogs.
-
-### Follow-ups
-- BIN-271 tokens → AndromedaBrand convergence; BIN-272 bar/sections; BIN-273 TUI parity; snapshot record.
-
 ## 2026-08-08 — Universal agent memory over MCP
 
 **Tone hat:** Hacker 🕶️

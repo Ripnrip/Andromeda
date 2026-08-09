@@ -37,6 +37,7 @@ let package = Package(
         .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.17.0"),
         .package(path: "Packages/MemoryKit"),
         .package(path: "Packages/Anima"),
+        .package(path: "Packages/AndromedaUI"),
     ],
     targets: [
         .systemLibrary(
