@@ -36,7 +36,10 @@ final class Gate0CompileSmokeTests: XCTestCase {
         XCTAssertEqual(infer?.health, .spec)
         XCTAssertEqual(Pillar.models.title, "infer.write")
         XCTAssertEqual(Pillar.models.status, .specified)
-        XCTAssertFalse(Pillar.models.blurb.lowercased().contains("llm"))
+        // Honesty language may mention generation; never advertise as an LLM proxy product.
+        let blurb = Pillar.models.blurb.lowercased()
+        XCTAssertFalse(blurb.contains("llm proxy"))
+        XCTAssertTrue(blurb.contains("episodic") || blurb.contains("alias"))
     }
 
     func testModelCatalogHidesProviderBrands() {

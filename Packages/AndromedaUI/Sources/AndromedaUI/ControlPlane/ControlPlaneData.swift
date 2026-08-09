@@ -76,7 +76,7 @@ public enum Pillar: String, CaseIterable, Identifiable, Sendable {
         case .memory: return "The salience-ranked working set behind the curtain — SwiftData is the shipped hot store. Clients call recall/store; Andromeda owns routing."
         case .mcp: return "One consolidated host for Model-Context-Protocol servers — observed, deduped, surfaced as capabilities instead of 50× npm exec per studio."
         case .skills: return "Every agent skill invoked by stable id from one registry surface — no tribal hunting through ~/.claude/skills."
-        case .models: return "infer.write is a stable client id. Today it aliases episodic-store write — not LLM generation. Real proxy routing is specified, not shipped."
+        case .models: return "infer.write is a stable client id. Today it aliases episodic-store write — not model generation. Real proxy routing is specified, not shipped."
         case .secrets: return "Capability IDs in, secrets injected server-side at call time — raw values never touch a client process."
         case .fleet: return "LaunchAgents, health, and telemetry as first-class entities — one auditable roster and pulse instead of scattered plists."
         case .search: return "Ask about Andromeda's own internals, or run real external web search — same surface, two very different sources."
