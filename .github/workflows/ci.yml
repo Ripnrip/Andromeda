@@ -28,18 +28,131 @@ jobs:
       - name: Checkout
         # Pin to immutable SHA (v4.3.1); mutable @v4 tags are a supply-chain risk.
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          # pull_request checkouts are merge commits; depth 2 is enough to diff
+          # against the first parent and cheaply scope CI without a full-history fetch.
+          fetch-depth: 2
+
+      - name: Determine CI scope
+        id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ] && git rev-parse HEAD^1 >/dev/null 2>&1; then
+            base_ref="HEAD^1"
+          elif git rev-parse HEAD^ >/dev/null 2>&1; then
+            base_ref="HEAD^"
+          else
+            base_ref="$(git rev-list --max-parents=0 HEAD)"
+          fi
+
+          run_root=false
+          run_root_e2e=false
+          run_memorykit=false
+          run_memorykit_live_e2e=false
+          run_anima=false
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            echo "changed: $file"
+
+            case "$file" in
+              .github/workflows/ci.yml)
+                run_root=true
+                run_root_e2e=true
+                run_memorykit=true
+                run_memorykit_live_e2e=true
+                run_anima=true
+                ;;
+              Package.swift|Package.resolved|Sources/*|Tests/*)
+                run_root=true
+                ;;
+              Packages/MemoryKit/Package.swift|Packages/MemoryKit/Package.resolved|Packages/MemoryKit/Sources/*|Packages/MemoryKit/Tests/*)
+                run_root=true
+                run_memorykit=true
+                ;;
+              Packages/Anima/Package.swift|Packages/Anima/Package.resolved|Packages/Anima/Sources/*|Packages/Anima/Tests/*)
+                run_anima=true
+                ;;
+            esac
+
+            case "$file" in
+              .github/workflows/ci.yml|Package.swift|Package.resolved|Packages/MemoryKit/Package.swift|Packages/MemoryKit/Package.resolved|Packages/MemoryKit/Sources/*|Packages/MemoryKit/Tests/*|Sources/AndromedaMemory/*|Sources/AndromedaProjections/*|Tests/AndromedaProjectionTests/*|Sources/AndromedaHUDCore/*|Sources/AndromedaHomeCore/*|Tests/AndromedaHUDTests/*|Tests/AndromedaHomeTests/*)
+                run_root_e2e=true
+                ;;
+            esac
+
+            case "$file" in
+              .github/workflows/ci.yml|Packages/MemoryKit/Package.swift|Packages/MemoryKit/Package.resolved|Packages/MemoryKit/Sources/*|Packages/MemoryKit/Tests/*)
+                run_memorykit_live_e2e=true
+                ;;
+            esac
+          done < <(git diff --name-only "$base_ref" HEAD)
+
+          needs_qdrant=false
+          if [ "$run_root_e2e" = true ] || [ "$run_memorykit_live_e2e" = true ]; then
+            needs_qdrant=true
+          fi
+
+          any_lane=false
+          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ]; then
+            any_lane=true
+          fi
+
+          {
+            echo "run_root=$run_root"
+            echo "run_root_e2e=$run_root_e2e"
+            echo "run_memorykit=$run_memorykit"
+            echo "run_memorykit_live_e2e=$run_memorykit_live_e2e"
+            echo "run_anima=$run_anima"
+            echo "needs_qdrant=$needs_qdrant"
+            echo "any_lane=$any_lane"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: No build/test lanes matched this diff
+        if: steps.scope.outputs.any_lane != 'true'
+        run: echo "Docs/config-only diff — skipping Swift build/test lanes."
 
       - name: Select Xcode 16.4 (Swift 6.1)
+        if: steps.scope.outputs.any_lane == 'true'
         # Package.swift requires swift-tools-version 6.1; pin Xcode so the toolchain
         # does not drift when the hosted runner default changes.
         run: sudo xcode-select -s /Applications/Xcode_16.4.app
 
       - name: Swift version
+        if: steps.scope.outputs.any_lane == 'true'
         run: swift --version
+
+      - name: Cache SwiftPM shared dependency artifacts
+        if: steps.scope.outputs.any_lane == 'true'
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/.swiftpm
+            ~/Library/Caches/org.swift.swiftpm
+          key: swiftpm-shared-${{ runner.os }}-xcode-16.4-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
+          restore-keys: |
+            swiftpm-shared-${{ runner.os }}-xcode-16.4-
+
+      - name: Cache Swift build artifacts
+        if: steps.scope.outputs.any_lane == 'true'
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            .build
+            Packages/MemoryKit/.build
+            Packages/Anima/.build
+          # Key on manifests/lockfiles only so identical dependency graphs can reuse
+          # incremental build products across reruns and nearby PRs.
+          key: swiftpm-builds-${{ runner.os }}-xcode-16.4-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
+          restore-keys: |
+            swiftpm-builds-${{ runner.os }}-xcode-16.4-
 
       # Fork PRs do not receive repository secrets (Codex P2 / BIN-218). Gate live
       # Qdrant so ordinary build+unit tests still run without TS_AUTHKEY.
       - name: Detect live Qdrant availability
+        if: steps.scope.outputs.needs_qdrant == 'true'
         id: qdrant
         env:
           TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
@@ -55,13 +168,13 @@ jobs:
           fi
 
       - name: Connect to Studio tailnet
-        if: steps.qdrant.outputs.enabled == 'true'
+        if: steps.scope.outputs.needs_qdrant == 'true' && steps.qdrant.outputs.enabled == 'true'
         uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3
         with:
           authkey: ${{ secrets.TS_AUTHKEY }}
 
       - name: Verify Studio Qdrant
-        if: steps.qdrant.outputs.enabled == 'true'
+        if: steps.scope.outputs.needs_qdrant == 'true' && steps.qdrant.outputs.enabled == 'true'
         id: qdrant_verify
         env:
           ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant.outputs.url }}
@@ -86,6 +199,7 @@ jobs:
           fi
 
       - name: Build
+        if: steps.scope.outputs.run_root == 'true'
         run: swift build
 
       # Baselines must be recorded on macos-15 + Xcode 16.4 (this job). Local macOS 26 /
@@ -94,6 +208,7 @@ jobs:
       # pull_request checkouts are merge commits whose message often mirrors the PR title —
       # only the PR head tip commit message may enable record mode.
       - name: Detect snapshot record mode
+        if: steps.scope.outputs.any_lane == 'true'
         id: snapshots
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -113,7 +228,7 @@ jobs:
           fi
 
       - name: Test (root package)
-        if: steps.snapshots.outputs.record != 'true'
+        if: steps.scope.outputs.run_root == 'true' && steps.snapshots.outputs.record != 'true'
         env:
           ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant_verify.outputs.reachable == 'true' && steps.qdrant.outputs.url || '' }}
         # Single worker: AppKit snapshot + MainActor HUD tests contend under default
@@ -121,32 +236,54 @@ jobs:
         # IMPORTANT: do not set SNAPSHOT_TESTING_RECORD="" — empty still counts as set
         # in ProcessInfo.environment and forces Point-Free record=.all (always fails).
         # When url is empty, live Qdrant tests fall back to localhost and skip if down.
-        run: swift test --parallel --num-workers 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--parallel --num-workers 1 --skip HUDRecallE2ESnapshotTests --skip ProjectionEndToEndTests --skip QdrantProjectionTests)
+          swift test "${args[@]}"
 
       - name: Test (root package, record snapshots)
-        if: steps.snapshots.outputs.record == 'true'
+        if: steps.scope.outputs.run_root == 'true' && steps.snapshots.outputs.record == 'true'
         env:
           SNAPSHOT_TESTING_RECORD: "1"
           ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant_verify.outputs.reachable == 'true' && steps.qdrant.outputs.url || '' }}
-        run: swift test --parallel --num-workers 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--parallel --num-workers 1)
+          if [ "${{ steps.scope.outputs.run_root_e2e }}" != 'true' ]; then
+            args+=(--skip HUDRecallE2ESnapshotTests --skip ProjectionEndToEndTests --skip QdrantProjectionTests)
+          fi
+          swift test "${args[@]}"
         continue-on-error: true
 
       # Nested SPM package — root `swift test` does not discover MemoryKitTests.
       - name: Test MemoryKit (nested package)
-        if: steps.snapshots.outputs.record != 'true'
+        if: steps.scope.outputs.run_memorykit == 'true' && steps.snapshots.outputs.record != 'true'
         working-directory: Packages/MemoryKit
-        run: swift test --parallel --num-workers 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--parallel --num-workers 1 --skip RetrievalServiceVaultLiveTests)
+          swift test "${args[@]}"
 
       - name: Test MemoryKit (nested package, record snapshots)
-        if: steps.snapshots.outputs.record == 'true'
+        if: steps.scope.outputs.run_memorykit == 'true' && steps.snapshots.outputs.record == 'true'
         working-directory: Packages/MemoryKit
         env:
           SNAPSHOT_TESTING_RECORD: "1"
-        run: swift test --parallel --num-workers 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--parallel --num-workers 1)
+          if [ "${{ steps.scope.outputs.run_memorykit_live_e2e }}" != 'true' ]; then
+            args+=(--skip RetrievalServiceVaultLiveTests)
+          fi
+          swift test "${args[@]}"
         continue-on-error: true
 
       - name: Test Anima (nested package, Phase 1)
-        if: steps.snapshots.outputs.record != 'true'
+        if: steps.scope.outputs.run_anima == 'true' && steps.snapshots.outputs.record != 'true'
         working-directory: Packages/Anima
         run: swift test --parallel --num-workers 1
 
@@ -167,7 +304,7 @@ jobs:
       - name: Upload CI snapshot baselines
         # SnapshotTesting .all records PNGs then fails on purpose ("Record mode is on").
         # Always upload after a record tip so we can commit the rewritten baselines.
-        if: ${{ always() && steps.snapshots.outputs.record == 'true' }}
+        if: ${{ always() && steps.scope.outputs.any_lane == 'true' && steps.snapshots.outputs.record == 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ci-snapshot-baselines-${{ github.sha }}
@@ -182,14 +319,26 @@ jobs:
       # Explicit e2e gate (also covered by MemoryKit suite). Skips cleanly when
       # ~/Developer/SecondBrain or /opt/homebrew/bin/rg are absent on the runner.
       - name: E2E · live-vault recall (RetrievalServiceVaultLiveTests)
-        if: steps.snapshots.outputs.record != 'true'
+        if: steps.scope.outputs.run_memorykit_live_e2e == 'true' && steps.snapshots.outputs.record != 'true'
         working-directory: Packages/MemoryKit
         run: swift test --filter RetrievalServiceVaultLiveTests --parallel --num-workers 1
+
+      # Full-pipeline root-package e2e suites are carved out of the main test pass so
+      # ordinary UI and package changes do not always pay the E2E cost.
+      - name: E2E · projection pipeline
+        if: steps.scope.outputs.run_root_e2e == 'true' && steps.snapshots.outputs.record != 'true'
+        env:
+          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant_verify.outputs.reachable == 'true' && steps.qdrant.outputs.url || '' }}
+        run: |
+          swift test --filter ProjectionEndToEndTests --parallel --num-workers 1
+          swift test --filter QdrantProjectionTests --parallel --num-workers 1
 
       # Full-pipeline HUD e2e (store → recall → render). Only present once
       # AndromedaHUDTests is wired in Package.swift (HUD promote PR).
       - name: E2E · HUD store→recall→render snapshots
-        if: steps.snapshots.outputs.record != 'true'
+        if: steps.scope.outputs.run_root_e2e == 'true' && steps.snapshots.outputs.record != 'true'
+        env:
+          ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant_verify.outputs.reachable == 'true' && steps.qdrant.outputs.url || '' }}
         run: |
           if swift package dump-package 2>/dev/null | grep -q '"AndromedaHUDTests"'; then
             swift test --filter HUDRecallE2ESnapshotTests --parallel --num-workers 1
