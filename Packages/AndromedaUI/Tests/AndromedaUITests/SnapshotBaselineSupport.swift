@@ -34,13 +34,9 @@ enum AndromedaUISnapshotSupport {
     static func requireBaselines(
         file: StaticString = #filePath
     ) throws {
-        switch recordMode {
-        case .all, .failed:
+        // Equatable compare — `Record` is not a frozen switchable enum in SnapshotTesting 1.19.
+        if recordMode == .all || recordMode == .failed {
             return
-        case .never, .missing:
-            break
-        @unknown default:
-            break
         }
 
         let dir = URL(fileURLWithPath: String(describing: file))
