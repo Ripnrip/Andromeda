@@ -3,8 +3,10 @@
 Package-surface proofs for BIN-270 review. These are **not** recorded SnapshotTesting
 baselines — those land after a macOS `SNAPSHOT_TESTING_RECORD=1` pass.
 
-| File | Surface |
+| Surface | Preview |
 | --- | --- |
-| `logo.png` | Bundled `AndromedaLogo` resource |
-| `control-bar.png` | Floating control bar |
-| `pillars.png` | Six-pillar control-plane cards |
+| Bundled `AndromedaLogo` resource | ![Andromeda logo](./logo.png) |
+| Floating control bar | ![Floating control bar](./control-bar.png) |
+| Six-pillar control-plane cards | ![Six pillars](./pillars.png) |
+
+Files: `logo.png` · `control-bar.png` · `pillars.png`
