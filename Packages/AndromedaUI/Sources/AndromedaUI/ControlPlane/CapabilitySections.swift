@@ -71,7 +71,7 @@ public struct ModelsSection: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("CAVEAT · infer.write is an episodic-store alias today — not LLM generation. Lanes below are stable capability IDs only.")
+            Text("CAVEAT · infer.write is an episodic-store alias today — not model generation. Lanes below are stable capability IDs only.")
                 .font(AndromedaFont.mono(11))
                 .foregroundStyle(Color.andromedaAmber)
                 .fixedSize(horizontal: false, vertical: true)
@@ -137,7 +137,7 @@ public struct ModelsSection: View {
 
     private var speed: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("No live latency board — LLM proxy not shipped. Showing capability lanes only.")
+            Text("No live latency board — model proxy not shipped. Showing capability lanes only.")
                 .font(AndromedaFont.mono(11))
                 .foregroundStyle(Color.andromedaAmber)
                 .padding(.bottom, 6)
@@ -160,7 +160,7 @@ public struct ModelsSection: View {
 
     private var health: some View {
         let cards: [(String, String, Color, String)] = [
-            ("infer.write", "spec", .andromedaDim, "episodic-store alias — not LLM generation"),
+            ("infer.write", "spec", .andromedaDim, "episodic-store alias — not model generation"),
             ("proxy routing", "unbuilt", .andromedaAmber, "provider selection stays behind the curtain"),
             ("client catalog", "IDs only", .andromedaTeal, "no provider model brands on this surface"),
         ]
