@@ -72,6 +72,33 @@ public actor PowerLeaseCoordinator {
         PowerLeaseSummary(from: await manager.status())
     }
 
+    /// Default path where a long-lived supervisor writes power status snapshots
+    /// for one-shot CLI consumers like `andromeda doctor`.
+    public static let statusFilePath = ".andromeda/power-status.json"
+
+    /// Write a status snapshot to the default path for doctor / HUD consumption.
+    /// The long-lived supervisor should call this after every lease change.
+    public func writeStatusSnapshot(to path: String? = nil) async {
+        let summary = await self.summary()
+        let target = path ?? Self.statusFilePath
+        let dir = (target as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(
+            atPath: dir, withIntermediateDirectories: true
+        )
+        let payload: [String: Any] = [
+            "activeLeaseCount": summary.activeLeaseCount,
+            "preventSystemSleep": summary.preventSystemSleep,
+            "preventDisplaySleep": summary.preventDisplaySleep,
+            "owners": summary.owners,
+        ]
+        if let data = try? JSONSerialization.data(
+            withJSONObject: payload, options: [.sortedKeys]
+        ) {
+            try? data.write(to: URL(fileURLWithPath: (NSHomeDirectory() as NSString)
+                .appendingPathComponent(target)))
+        }
+    }
+
     /// Human-readable doctor summary of current power state.
     public func doctorSection() async -> String {
         let s = await manager.status()
@@ -99,6 +126,33 @@ public actor PowerLeaseCoordinator {
         lines.append("macOS assertion backend: ProcessInfo")
 
         return lines.joined(separator: "\n")
+    }
+}
+
+    /// Read a status snapshot written by a long-lived supervisor.
+    /// Returns nil when no snapshot exists (e.g., supervisor not running).
+    public static func readStatusSnapshot(from path: String? = nil) -> PowerLeaseSummary? {
+        let target = path ?? statusFilePath
+        let full = (NSHomeDirectory() as NSString).appendingPathComponent(target)
+        guard
+            let data = try? Data(contentsOf: URL(fileURLWithPath: full)),
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return nil
+        }
+        guard let count = json["activeLeaseCount"] as? Int,
+              let system = json["preventSystemSleep"] as? Bool,
+              let display = json["preventDisplaySleep"] as? Bool
+        else {
+            return nil
+        }
+        let owners = (json["owners"] as? [String]) ?? []
+        return PowerLeaseSummary(
+            activeLeaseCount: count,
+            preventSystemSleep: system,
+            preventDisplaySleep: display,
+            owners: owners
+        )
     }
 }
 

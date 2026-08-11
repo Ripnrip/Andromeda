@@ -451,7 +451,8 @@ struct Doctor: AsyncParsableCommand {
             guestConfigText: guestText,
             toolsListNames: tools,
             vmSignalDetected: GuestSignalDetector.detect(),
-            menubarAvailable: menubarAvailable
+            menubarAvailable: menubarAvailable,
+            powerStatus: PowerLeaseCoordinator.readStatusSnapshot()
         )
 
         let style = TerminalStyle.detect()

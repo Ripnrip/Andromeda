@@ -9,6 +9,10 @@ public actor PowerAssertionManager {
     private let eventSink: any PowerEventSink
     private var leases: [UUID: PowerLease] = [:]
     private var aggregateState = AggregateState()
+    /// Monotonic generation counter to detect stale backend writes during
+    /// actor reentrancy.  When reconcile() resumes from a backend await,
+    /// it checks whether a newer reconciliation superseded it and re-applies.
+    private var reconcileGeneration = 0
 
     public init(
         backend: any PowerAssertionBackend = ProcessInfoPowerAssertionBackend(),
@@ -93,6 +97,8 @@ public actor PowerAssertionManager {
 
         guard next != aggregateState else { return }
         aggregateState = next
+        reconcileGeneration += 1
+        let myGeneration = reconcileGeneration
 
         if next.preventSystemSleep || next.preventDisplaySleep {
             let owners = Set(leases.values.map(\.owner)).sorted().joined(separator: ", ")
@@ -107,6 +113,16 @@ public actor PowerAssertionManager {
             )
         } else {
             await backend.clear()
+        }
+
+        // Reentrancy guard: if another task changed lease state while we
+        // were awaiting the backend, re-reconcile to ensure the backend
+        // matches the latest aggregate state.  Without this, a stale
+        // apply(true) could land after a clear(), leaving the host awake
+        // while status() reports no active leases.
+        if myGeneration != reconcileGeneration {
+            await reconcile()
+            return
         }
 
         await eventSink.emit(
