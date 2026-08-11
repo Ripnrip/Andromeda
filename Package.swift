@@ -38,6 +38,7 @@ let package = Package(
         .package(path: "Packages/MemoryKit"),
         .package(path: "Packages/Anima"),
         .package(path: "Packages/AndromedaUI"),
+        .package(path: "Packages/AndromedaPowerKit"),
     ],
     targets: [
         .systemLibrary(
@@ -107,6 +108,7 @@ let package = Package(
             name: "AndromedaHostOps",
             dependencies: [
                 "AndromedaSecrets",
+                .product(name: "AndromedaPowerKit", package: "AndromedaPowerKit"),
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6)
@@ -325,6 +327,7 @@ let package = Package(
             dependencies: [
                 "AndromedaHostOps",
                 "AndromedaSecrets",
+                .product(name: "AndromedaPowerKit", package: "AndromedaPowerKit"),
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6)
