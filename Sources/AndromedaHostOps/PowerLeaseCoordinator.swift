@@ -127,7 +127,6 @@ public actor PowerLeaseCoordinator {
 
         return lines.joined(separator: "\n")
     }
-}
 
     /// Read a status snapshot written by a long-lived supervisor.
     /// Returns nil when no snapshot exists (e.g., supervisor not running).
