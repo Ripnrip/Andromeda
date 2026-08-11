@@ -1,3 +1,4 @@
+import AndromedaPowerKit
 import AndromedaSecrets
 import Foundation
 
@@ -35,7 +36,8 @@ public enum HostDiagnostics {
         guestConfigText: String?,
         toolsListNames: Set<String>?,
         vmSignalDetected: Bool,
-        menubarAvailable: Bool
+        menubarAvailable: Bool,
+        powerStatus: PowerLeaseSummary? = nil
     ) -> DoctorReport {
         var items: [ChecklistItem] = []
 
@@ -193,6 +195,30 @@ public enum HostDiagnostics {
                 fixHint: vmSignalDetected ? nil : "Boot Apple VM / guest and re-run doctor"
             )
         )
+
+        // Power lease status (optional — null when coordinator not probed)
+        if let powerStatus {
+            if powerStatus.activeLeaseCount == 0 {
+                items.append(
+                    ChecklistItem(
+                        id: "power.leases",
+                        title: "Power leases",
+                        status: .pass,
+                        detail: "0 active leases — host sleep permitted"
+                    )
+                )
+            } else {
+                let owners = powerStatus.owners.joined(separator: ", ")
+                items.append(
+                    ChecklistItem(
+                        id: "power.leases",
+                        title: "Power leases",
+                        status: .pass,
+                        detail: "\(powerStatus.activeLeaseCount) active — \(owners)"
+                    )
+                )
+            }
+        }
 
         items.append(
             ChecklistItem(
