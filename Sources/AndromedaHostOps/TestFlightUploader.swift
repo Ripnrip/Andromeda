@@ -218,7 +218,7 @@ public struct LiveShell: ShellExecuting {
         }
 
         return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ShellResult, Never>) in
+            await withCheckedContinuation { continuation in
                 do {
                     try process.run()
                 } catch {
