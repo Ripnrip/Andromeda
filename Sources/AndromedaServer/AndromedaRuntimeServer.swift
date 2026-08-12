@@ -1,11 +1,14 @@
 import AndromedaDomain
+import AndromedaHostOps
 import AndromedaHTTP
 import AndromedaJournal
 import AndromedaMemory
+import AndromedaPowerKit
 import AndromedaProjections
 import AndromedaSecrets
 import AndromedaTools
 import Foundation
+import HTTPTypes
 import Hummingbird
 import Logging
 
@@ -56,6 +59,7 @@ public struct AndromedaRuntimeServer: Sendable {
     public let clock: any ClockProviding
     public let uuidProvider: any UUIDProviding
     public let logger: Logger
+    public let powerCoordinator: PowerLeaseCoordinator
 
     /// Interval between periodic projection retry drains while serving.
     private static let retryDrainInterval: Duration = .seconds(60)
@@ -68,6 +72,7 @@ public struct AndromedaRuntimeServer: Sendable {
         secretsBroker: SecretsBroker,
         clock: any ClockProviding,
         uuidProvider: any UUIDProviding,
+        powerCoordinator: PowerLeaseCoordinator = PowerLeaseCoordinator(),
         logger: Logger = Logger(label: "andromeda.runtime")
     ) {
         self.configuration = configuration
@@ -77,6 +82,7 @@ public struct AndromedaRuntimeServer: Sendable {
         self.secretsBroker = secretsBroker
         self.clock = clock
         self.uuidProvider = uuidProvider
+        self.powerCoordinator = powerCoordinator
         self.logger = logger
     }
 
@@ -116,6 +122,7 @@ public struct AndromedaRuntimeServer: Sendable {
             secretsBroker: SecretsBroker(),
             clock: LiveClock(),
             uuidProvider: LiveUUIDProvider(),
+            powerCoordinator: PowerLeaseCoordinator(),
             logger: logger
         )
     }
@@ -126,6 +133,28 @@ public struct AndromedaRuntimeServer: Sendable {
             memoryRuntime: memoryRuntime
         ).build()
         DashboardRoute(memoryRuntime: memoryRuntime).register(on: router)
+        // Power lease status endpoint — returns current lease state as JSON.
+        let coordinator = powerCoordinator
+        router.get("/power") { _, _ -> Response in
+            let status = await coordinator.status()
+            let body: [String: Any] = [
+                "activeLeaseCount": status.activeLeases.count,
+                "preventSystemSleep": status.preventSystemSleep,
+                "preventDisplaySleep": status.preventDisplaySleep,
+                "leases": status.activeLeases.map { lease -> [String: String] in
+                    [
+                        "id": lease.id.uuidString,
+                        "owner": lease.owner,
+                        "reason": lease.reason,
+                        "acquiredAt": ISO8601DateFormatter().string(from: lease.acquiredAt),
+                    ]
+                },
+            ]
+            let data = (try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])) ?? Data("{}".utf8)
+            var headers = HTTPFields()
+            headers[.contentType] = "application/json"
+            return Response(status: .ok, headers: headers, body: .init(byteBuffer: .init(data: data)))
+        }
         if let mcp = configuration.mcp {
             let broker = CuratedToolBroker(
                 configuration: mcp.tools,
@@ -166,6 +195,8 @@ public struct AndromedaRuntimeServer: Sendable {
         _ = try await memoryRuntime.rebuildOperationalStoreFromJournal()
         // Drain any projection retries that survived a previous run.
         await drainProjectionRetries(reason: "startup")
+        // Write initial power status snapshot so `andromeda doctor` sees us.
+        await powerCoordinator.writeStatusSnapshot()
         return try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask {
                 try await self.makeApplication().runService()
@@ -173,8 +204,30 @@ public struct AndromedaRuntimeServer: Sendable {
             group.addTask {
                 try await self.projectionRetryLoop()
             }
-            defer { group.cancelAll() }
+            group.addTask {
+                try await self.powerSnapshotLoop()
+            }
+            defer {
+                group.cancelAll()
+                Task {
+                    await self.powerCoordinator.releaseAll()
+                    await self.powerCoordinator.writeStatusSnapshot()
+                }
+            }
             try await group.next()
+        }
+    }
+
+    /// Interval between periodic power status snapshot writes.
+    private static let powerSnapshotInterval: Duration = .seconds(30)
+
+    /// Periodically writes power lease status to the snapshot file so
+    /// `andromeda doctor` and HUD consumers see current state.
+    private func powerSnapshotLoop() async throws {
+        while !Task.isCancelled {
+            try await Task.sleep(for: Self.powerSnapshotInterval)
+            if Task.isCancelled { break }
+            await powerCoordinator.writeStatusSnapshot()
         }
     }
 
