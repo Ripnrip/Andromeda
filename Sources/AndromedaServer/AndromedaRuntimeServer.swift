@@ -145,7 +145,7 @@ public struct AndromedaRuntimeServer: Sendable {
             // Check bearer: if token configured, require it for full details.
             let authenticated: Bool
             if let bearerToken {
-                let header = request.headers[.authorization]?.value ?? ""
+                let header = request.headers[.authorization] ?? ""
                 authenticated = header == "Bearer \(bearerToken)"
             } else {
                 // No token configured — return aggregate only (safe for local dev).
