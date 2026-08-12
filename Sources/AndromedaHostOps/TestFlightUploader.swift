@@ -170,6 +170,11 @@ public actor TestFlightUploader {
 public struct ShellResult: Sendable {
     public let success: Bool
     public let output: String
+
+    public init(success: Bool, output: String) {
+        self.success = success
+        self.output = output
+    }
 }
 
 public protocol ShellExecuting: Sendable {
