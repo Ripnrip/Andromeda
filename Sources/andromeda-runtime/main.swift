@@ -12,7 +12,7 @@ struct AndromedaRuntimeCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "andromeda-runtime",
         abstract: "Runnable Andromeda Runtime v2 server.",
-        subcommands: [Serve.self, Setup.self, Doctor.self],
+        subcommands: [Serve.self, Setup.self, Doctor.self, TestFlight.self],
         defaultSubcommand: Serve.self
     )
 }
@@ -486,5 +486,93 @@ private extension Setup {
         try ensureParentFile(journal)
         try FileManager.default.createDirectory(atPath: vault, withIntermediateDirectories: true)
         print("fix: doctor applied safe repairs (dirs + optional Keychain seed)")
+    }
+}
+
+// MARK: - TestFlight (power-leased archive + upload)
+
+struct TestFlight: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "testflight",
+        abstract: "Archive + upload to TestFlight under a power lease (prevents system sleep)."
+    )
+
+    @Option(name: .long, help: "Path to .xcodeproj or .xcworkspace.")
+    var project: String
+
+    @Option(name: .long, help: "Xcode scheme name to archive.")
+    var scheme: String
+
+    @Option(name: .long, help: "Path to ExportOptions.plist.")
+    var exportOptions: String
+
+    @Option(name: .long, help: "Output directory for archive + IPA.")
+    var outputDir: String
+
+    @Option(name: .long, help: "Apple Developer Team ID. Env: ANDROMEDA_TEAM_ID.")
+    var teamID: String?
+
+    @Option(name: .long, help: "Path to App Store Connect API key (.p8). Env: ANDROMEDA_ASC_KEY_PATH.")
+    var apiKeyPath: String?
+
+    @Option(name: .long, help: "App Store Connect API key ID. Env: ANDROMEDA_ASC_KEY_ID.")
+    var apiKeyID: String?
+
+    @Option(name: .long, help: "App Store Connect API issuer ID (UUID). Env: ANDROMEDA_ASC_ISSUER_ID.")
+    var apiIssuerID: String?
+
+    @Flag(name: .long, help: "Archive + export only — skip TestFlight upload.")
+    var archiveOnly = false
+
+    func run() async throws {
+        let style = TerminalStyle.detect()
+        print(
+            AndromedaChrome.banner(
+                surface: "testflight",
+                version: nil,
+                tagline: "Power-leased archive + upload. Mac stays awake until the IPA lands.",
+                style: style
+            )
+        )
+
+        let env = ProcessInfo.processInfo.environment
+        func resolve(_ value: String?, _ envKey: String) -> String? {
+            value ?? env[envKey]
+        }
+
+        let config = TestFlightUploader.Configuration(
+            projectPath: project,
+            scheme: scheme,
+            exportOptionsPath: exportOptions,
+            outputDir: outputDir,
+            teamID: resolve(teamID, "ANDROMEDA_TEAM_ID"),
+            apiKeyPath: resolve(apiKeyPath, "ANDROMEDA_ASC_KEY_PATH"),
+            apiKeyID: resolve(apiKeyID, "ANDROMEDA_ASC_KEY_ID"),
+            apiIssuerID: resolve(apiIssuerID, "ANDROMEDA_ASC_ISSUER_ID"),
+            archiveOnly: archiveOnly
+        )
+
+        let uploader = TestFlightUploader()
+        print("⚡ Power lease acquired — system sleep inhibited")
+        print("📦 Archiving: \(config.scheme)")
+
+        do {
+            let result = try await uploader.run(config)
+            for line in result.logs {
+                print(line)
+            }
+            print("✅ Archive path: \(result.archivePath)")
+            if let ipa = result.ipaPath {
+                print("📦 IPA: \(ipa)")
+            }
+            if result.uploadSuccess {
+                print("🚀 TestFlight upload complete")
+            }
+            print("🌙 Power lease released — system sleep permitted")
+        } catch let error as TestFlightUploader.UploadError {
+            print("❌ Failed: \(error)")
+            print("🌙 Power lease released — system sleep permitted")
+            throw ExitCode(1)
+        }
     }
 }
