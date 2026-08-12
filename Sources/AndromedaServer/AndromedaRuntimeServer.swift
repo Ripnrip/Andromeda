@@ -134,22 +134,47 @@ public struct AndromedaRuntimeServer: Sendable {
         ).build()
         DashboardRoute(memoryRuntime: memoryRuntime).register(on: router)
         // Power lease status endpoint — returns current lease state as JSON.
+        // P1 security: when MCP bearer token is configured, gate the detailed
+        // view behind it. Unauthenticated requests get a redacted aggregate
+        // (counts + sleep flags only — no owner names, reasons, or UUIDs).
         let coordinator = powerCoordinator
-        router.get("/power") { _, _ -> Response in
+        let bearerToken = configuration.mcp?.bearerToken
+        router.get("/power") { request, _ -> Response in
             let status = await coordinator.status()
-            let body: [String: Any] = [
-                "activeLeaseCount": status.activeLeases.count,
-                "preventSystemSleep": status.preventSystemSleep,
-                "preventDisplaySleep": status.preventDisplaySleep,
-                "leases": status.activeLeases.map { lease -> [String: String] in
-                    [
-                        "id": lease.id.uuidString,
-                        "owner": lease.owner,
-                        "reason": lease.reason,
-                        "acquiredAt": ISO8601DateFormatter().string(from: lease.acquiredAt),
-                    ]
-                },
-            ]
+
+            // Check bearer: if token configured, require it for full details.
+            let authenticated: Bool
+            if let bearerToken {
+                let header = request.headers[.authorization]?.value ?? ""
+                authenticated = header == "Bearer \(bearerToken)"
+            } else {
+                // No token configured — return aggregate only (safe for local dev).
+                authenticated = false
+            }
+
+            let body: [String: Any]
+            if authenticated {
+                body = [
+                    "activeLeaseCount": status.activeLeases.count,
+                    "preventSystemSleep": status.preventSystemSleep,
+                    "preventDisplaySleep": status.preventDisplaySleep,
+                    "leases": status.activeLeases.map { lease -> [String: String] in
+                        [
+                            "id": lease.id.uuidString,
+                            "owner": lease.owner,
+                            "reason": lease.reason,
+                            "acquiredAt": ISO8601DateFormatter().string(from: lease.acquiredAt),
+                        ]
+                    },
+                ]
+            } else {
+                // Redacted: counts and flags only — no operator-identifying data.
+                body = [
+                    "activeLeaseCount": status.activeLeases.count,
+                    "preventSystemSleep": status.preventSystemSleep,
+                    "preventDisplaySleep": status.preventDisplaySleep,
+                ]
+            }
             let data = (try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])) ?? Data("{}".utf8)
             var headers = HTTPFields()
             headers[.contentType] = "application/json"
@@ -197,7 +222,7 @@ public struct AndromedaRuntimeServer: Sendable {
         await drainProjectionRetries(reason: "startup")
         // Write initial power status snapshot so `andromeda doctor` sees us.
         await powerCoordinator.writeStatusSnapshot()
-        return try await withThrowingTaskGroup(of: Void.self) { group in
+        try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask {
                 try await self.makeApplication().runService()
             }
@@ -207,15 +232,14 @@ public struct AndromedaRuntimeServer: Sendable {
             group.addTask {
                 try await self.powerSnapshotLoop()
             }
-            defer {
-                group.cancelAll()
-                Task {
-                    await self.powerCoordinator.releaseAll()
-                    await self.powerCoordinator.writeStatusSnapshot()
-                }
-            }
             try await group.next()
+            // Cancel remaining tasks and wait for them to drain before cleanup.
+            group.cancelAll()
         }
+        // Awaited cleanup: release all leases and write final snapshot
+        // before run() returns so the process can't exit with active leases.
+        await powerCoordinator.releaseAll()
+        await powerCoordinator.writeStatusSnapshot()
     }
 
     /// Interval between periodic power status snapshot writes.
