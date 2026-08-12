@@ -140,10 +140,6 @@ public actor TestFlightUploader {
             throw UploadError.missingUploadCredentials
         }
 
-        guard FileManager.default.fileExists(atPath: ipaPath) else {
-            throw UploadError.ipaNotFound(ipaPath)
-        }
-
         logs.append("[\(dateFormatter.string(from: Date()))] Uploading to TestFlight…")
         let uploadArgs = [
             "xcrun", "altool",
