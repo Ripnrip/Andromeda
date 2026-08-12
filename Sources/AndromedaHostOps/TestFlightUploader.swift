@@ -20,23 +20,14 @@ public actor TestFlightUploader {
     // MARK: - Public API
 
     public struct Configuration: Sendable {
-        /// Path to .xcodeproj or .xcworkspace.
         public let projectPath: String
-        /// Xcode scheme name to archive.
         public let scheme: String
-        /// Path to ExportOptions.plist for IPA export.
         public let exportOptionsPath: String
-        /// Output directory for archive + IPA.
         public let outputDir: String
-        /// Optional team ID for signing.
         public let teamID: String?
-        /// Optional API key path (.p8) for altool upload.
         public let apiKeyPath: String?
-        /// Optional API key ID for altool upload.
         public let apiKeyID: String?
-        /// Optional API issuer ID for altool upload.
         public let apiIssuerID: String?
-        /// Skip upload — only archive + export IPA.
         public let archiveOnly: Bool
 
         public init(
@@ -74,9 +65,9 @@ public actor TestFlightUploader {
         case exportFailed(String)
         case uploadFailed(String)
         case missingUploadCredentials
+        case ipaNotFound(String)
     }
 
-    /// Run the full archive → export → upload pipeline under a power lease.
     public func run(_ config: Configuration) async throws -> Result {
         try await coordinator.withLease(
             owner: "testflight-agent",
@@ -94,11 +85,13 @@ public actor TestFlightUploader {
         let dateFormatter = ISO8601DateFormatter()
         var logs: [String] = []
 
-        // Step 1: Archive
+        // Step 1: Archive — select -workspace vs -project from path extension
         logs.append("[\(dateFormatter.string(from: Date()))] Starting archive: \(config.scheme)")
+        let isWorkspace = config.projectPath.hasSuffix(".xcworkspace")
+        let projectFlag = isWorkspace ? "-workspace" : "-project"
         var archiveArgs = [
             "xcodebuild", "archive",
-            "-project", config.projectPath,
+            projectFlag, config.projectPath,
             "-scheme", config.scheme,
             "-archivePath", archivePath,
             "-destination", "generic/platform=iOS",
@@ -117,7 +110,6 @@ public actor TestFlightUploader {
         logs.append("[\(dateFormatter.string(from: Date()))] Archive complete: \(archivePath)")
 
         // Step 2: Export IPA
-        let ipaPath = "\(config.outputDir)/\(config.scheme).ipa"
         logs.append("[\(dateFormatter.string(from: Date()))] Exporting IPA…")
         let exportArgs = [
             "xcodebuild", "-exportArchive",
@@ -130,6 +122,10 @@ public actor TestFlightUploader {
         if !exportResult.success {
             throw UploadError.exportFailed(exportResult.output.suffix(500).description)
         }
+
+        // Discover the actual IPA — xcodebuild names it after the product,
+        // not the scheme, so we scan the export directory.
+        let ipaPath = discoverIPA(in: config.outputDir) ?? "\(config.outputDir)/\(config.scheme).ipa"
         logs.append("[\(dateFormatter.string(from: Date()))] IPA exported: \(ipaPath)")
 
         if config.archiveOnly {
@@ -142,6 +138,10 @@ public actor TestFlightUploader {
               let issuerID = config.apiIssuerID
         else {
             throw UploadError.missingUploadCredentials
+        }
+
+        guard FileManager.default.fileExists(atPath: ipaPath) else {
+            throw UploadError.ipaNotFound(ipaPath)
         }
 
         logs.append("[\(dateFormatter.string(from: Date()))] Uploading to TestFlight…")
@@ -163,6 +163,13 @@ public actor TestFlightUploader {
 
         return Result(archivePath: archivePath, ipaPath: ipaPath, uploadSuccess: true, logs: logs)
     }
+
+    private func discoverIPA(in directory: String) -> String? {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(atPath: directory) else { return nil }
+        return entries.first { $0.hasSuffix(".ipa") }
+            .map { "\(directory)/\($0)" }
+    }
 }
 
 // MARK: - Shell protocol
@@ -182,6 +189,10 @@ public protocol ShellExecuting: Sendable {
 }
 
 /// Live shell executor using Process.
+///
+/// Uses readabilityHandler to drain output concurrently (prevents pipe-buffer
+/// deadlock when xcodebuild writes large volumes).  Terminates the child on
+/// task cancellation so power leases are released promptly.
 public struct LiveShell: ShellExecuting {
     public init() {}
 
@@ -194,24 +205,68 @@ public struct LiveShell: ShellExecuting {
         process.standardOutput = pipe
         process.standardError = pipe
 
-        // Run in a detached task so it's not bound to the actor's executor
-        return try await withCheckedThrowingContinuation { continuation in
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(returning: ShellResult(success: false, output: "Failed to launch: \(error.localizedDescription)"))
-                return
-            }
-
-            DispatchQueue.global().async {
-                process.waitUntilExit()
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8) ?? ""
-                continuation.resume(returning: ShellResult(
-                    success: process.terminationStatus == 0,
-                    output: output
-                ))
+        // Accumulate output incrementally via readabilityHandler.
+        // This drains the pipe concurrently while the process runs,
+        // preventing the deadlock where the child blocks on a full pipe
+        // while the parent blocks in waitUntilExit.
+        let outputBox = SendableBox()
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if !data.isEmpty {
+                outputBox.append(data)
             }
         }
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ShellResult, Never>) in
+                do {
+                    try process.run()
+                } catch {
+                    pipe.fileHandleForReading.readabilityHandler = nil
+                    continuation.resume(returning: ShellResult(
+                        success: false,
+                        output: "Failed to launch: \(error.localizedDescription)"
+                    ))
+                    return
+                }
+
+                // Wait for exit on a background thread so we don't block the actor.
+                process.terminationHandler = { proc in
+                    // Stop the readabilityHandler and read any remaining bytes.
+                    pipe.fileHandleForReading.readabilityHandler = nil
+                    let finalData = pipe.fileHandleForReading.readDataToEndOfFile()
+                    outputBox.append(finalData)
+
+                    continuation.resume(returning: ShellResult(
+                        success: proc.terminationStatus == 0,
+                        output: outputBox.string
+                    ))
+                }
+            }
+        } onCancel: {
+            // Terminate the child process when the task is cancelled
+            // so the power lease is released promptly.
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+    }
+}
+
+/// Thread-safe mutable byte accumulator for concurrent pipe draining.
+private final class SendableBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+
+    func append(_ chunk: Data) {
+        lock.lock()
+        data.append(chunk)
+        lock.unlock()
+    }
+
+    var string: String {
+        lock.lock()
+        defer { lock.unlock() }
+        return String(data: data, encoding: .utf8) ?? ""
     }
 }
