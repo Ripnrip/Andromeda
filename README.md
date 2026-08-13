@@ -2,7 +2,7 @@
 
 > A macOS-first, Swift-native control plane for visible, durable, graph-aware multi-agent engineering.
 
-![Andromeda orbital command center](Documentation/Assets/andromeda-orbital-command-center.png)
+![Andromeda orbital command center](Documentation/Assets/banner-reveal.svg)
 
 Andromeda replaces fragmented scripts, hidden workers, ad-hoc memory stores, provider-specific model wiring, and silent background automation with one observable system.
 
