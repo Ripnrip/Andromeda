@@ -216,3 +216,38 @@ struct CommandTests {
         #expect(!dryRun.contains("APPLIED:"))
     }
 }
+
+@Suite("Containment edge cases")
+struct ContainmentEdgeCaseTests {
+    @Test("near-miss prefix sibling cannot bypass the root guard")
+    func prefixTrap() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rpc-prefix-root-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        // .../rpc-prefix-root-X vs .../rpc-prefix-root-XB: a naive
+        // hasPrefix(root) check would admit the sibling.
+        let sibling = root.deletingLastPathComponent()
+            .appendingPathComponent(root.lastPathComponent + "B", isDirectory: true)
+        try FileManager.default.createDirectory(at: sibling, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sibling) }
+
+        #expect(throws: ASTGrepError.self) {
+            _ = try containedTarget(sibling.path, root: root.path)
+        }
+    }
+
+    @Test("real children resolve inside the root")
+    func childResolves() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("rpc-child-root-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let resolvedRoot = try containedTarget(nil, root: root.path)
+        let resolvedChild = try containedTarget("sub/file.swift", root: root.path)
+        #expect(resolvedChild.hasPrefix(resolvedRoot + "/"))
+        #expect(resolvedChild.hasSuffix("sub/file.swift"))
+    }
+}
