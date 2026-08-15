@@ -167,6 +167,17 @@ struct AndromedaMCPTests {
         #expect(relative.contains("Found 2 match(es)"))
     }
 
+    @Test("malformed tool arguments answer with the request id")
+    func malformedArgumentsKeepID() throws {
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+            #"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"code.search","arguments":{"pattern":123}}}"#,
+        ], fixtureName: "malformed")
+        #expect(responses.count == 2)
+        #expect(responses[1].contains(#""id":7"#), "got: \(responses.count > 1 ? responses[1] : "no response")")
+        #expect(responses[1].contains("Invalid request"))
+    }
+
     @Test("symlinks pivoting outside the workspace root are rejected")
     func symlinkContainment() throws {
         let outside = URL(fileURLWithPath: NSTemporaryDirectory())
