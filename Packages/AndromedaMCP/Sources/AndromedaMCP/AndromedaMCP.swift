@@ -3,8 +3,8 @@
 //
 // Protocol: Model Context Protocol over stdio (JSON-RPC 2.0, line-delimited).
 // Tools:
-//   ast_grep_search  — AST pattern search via `sg run --json=compact`
-//   ast_grep_replace — AST rewrite via `sg run --rewrite … (-U to apply)`
+//   code.search  — AST pattern search (engine behind the curtain)
+//   code.replace — AST rewrite (dry-run by default)
 
 import Foundation
 
@@ -71,8 +71,8 @@ enum JSONValue: Decodable, @unchecked Sendable {
 
 func toolSchemas() -> JSONValue {
     .object([
-        "ast_grep_search": .object([
-            "name": .string("ast_grep_search"),
+        "code.search": .object([
+            "name": .string("code.search"),
             "description": .string("""
                 Search for code patterns using AST matching. More precise than text search.
 
@@ -106,8 +106,8 @@ func toolSchemas() -> JSONValue {
                 "required": .array([.string("pattern")]),
             ]),
         ]),
-        "ast_grep_replace": .object([
-            "name": .string("ast_grep_replace"),
+        "code.replace": .object([
+            "name": .string("code.replace"),
             "description": .string("""
                 Replace code patterns using AST matching. Preserves matched content via meta-variables.
 
@@ -204,33 +204,92 @@ enum ASTGrepError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .binaryNotFound: return "ast-grep binary not found on PATH"
-        case .timedOut: return "ast-grep timed out"
-        case .exited(let code, let stderr): return "ast-grep exited \(code): \(stderr)"
+        case .binaryNotFound: return "code search engine not found on PATH"
+        case .timedOut: return "code search timed out"
+        case .exited(let code, let stderr): return "code search exited \(code): \(stderr)"
         }
     }
 }
 
-/// Resolve the ast-grep binary: PATH first, Homebrew fallbacks.
-func locateASTGrep() -> String? {
-    let fallbacks = [
-        "/opt/homebrew/bin/sg",
-        "/usr/local/bin/sg",
-        "/opt/homebrew/bin/ast-grep",
-        "/usr/local/bin/ast-grep",
-    ]
-    let path = ProcessInfo.processInfo.environment["PATH"] ?? ""
-    for dir in path.split(separator: ":") where FileManager.default.isExecutableFile(atPath: "\(dir)/sg") {
-        return "\(dir)/sg"
+/// Thread-safe accumulator so we can drain child pipes while waiting for exit.
+private final class LockedData: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = Data()
+
+    func append(_ data: Data) {
+        guard !data.isEmpty else { return }
+        lock.lock()
+        storage.append(data)
+        lock.unlock()
     }
-    return fallbacks.first { FileManager.default.isExecutableFile(atPath: $0) }
+
+    func snapshot() -> Data {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
 }
 
-/// Run `sg run` and decode its matches.
+private struct CommandResult {
+    let status: Int32
+    let stdout: Data
+    let stderr: Data
+}
+
+/// True only if `path` is actually ast-grep (rejects shadowing tools named `sg`).
+func isASTGrepExecutable(_ path: String) -> Bool {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: path)
+    process.arguments = ["--version"]
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = pipe
+    do { try process.run() } catch { return false }
+
+    let collected = LockedData()
+    pipe.fileHandleForReading.readabilityHandler = { collected.append($0.availableData) }
+    let deadline = DispatchTime.now() + .seconds(2)
+    while process.isRunning, DispatchTime.now() < deadline {
+        Thread.sleep(forTimeInterval: 0.01)
+    }
+    if process.isRunning { process.terminate() }
+    pipe.fileHandleForReading.readabilityHandler = nil
+    collected.append(pipe.fileHandleForReading.readDataToEndOfFile())
+    let banner = String(decoding: collected.snapshot(), as: UTF8.self)
+    return banner.localizedCaseInsensitiveContains("ast-grep")
+}
+
+/// Resolve the pattern engine: `ast-grep` first, then a verified `sg`.
+func locateASTGrep() -> String? {
+    var candidates: [String] = []
+    let path = ProcessInfo.processInfo.environment["PATH"] ?? ""
+    for dir in path.split(separator: ":") {
+        for name in ["ast-grep", "sg"] {
+            let candidate = "\(dir)/\(name)"
+            if FileManager.default.isExecutableFile(atPath: candidate) {
+                candidates.append(candidate)
+            }
+        }
+    }
+    candidates += [
+        "/opt/homebrew/bin/ast-grep",
+        "/usr/local/bin/ast-grep",
+        "/opt/homebrew/bin/sg",
+        "/usr/local/bin/sg",
+    ]
+
+    var seen = Set<String>()
+    return candidates.first { candidate in
+        seen.insert(candidate).inserted && isASTGrepExecutable(candidate)
+    }
+}
+
+/// Run the pattern engine and decode its matches.
 ///
-/// `--json` is inherently dry-run (ast-grep never writes in JSON mode), so an
-/// apply pass runs twice: once with `--json` to capture the preview, then
-/// without it (plus `--update-all`) to write the files.
+/// `--json` is inherently dry-run, so an apply pass runs twice: preview
+/// (`--json=compact` + `--rewrite`) then writer (`--update-all`, no `--json`).
+/// Child stdout/stderr are drained while the process runs so a large match
+/// set cannot deadlock on a full pipe buffer.
 func runASTGrep(
     pattern: String,
     replacement: String? = nil,
@@ -238,17 +297,26 @@ func runASTGrep(
     language: String? = nil,
     apply: Bool = false
 ) throws -> [ASTGrepMatch] {
-    guard let astGrep = locateASTGrep() else { throw ASTGrepError.binaryNotFound }
+    guard let engine = locateASTGrep() else { throw ASTGrepError.binaryNotFound }
     let workingDirectory = FileManager.default.currentDirectoryPath
     let target = path ?? workingDirectory
 
-    func launch(_ arguments: [String]) throws -> Process {
+    func launch(_ arguments: [String]) throws -> CommandResult {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: astGrep)
+        process.executableURL = URL(fileURLWithPath: engine)
         process.arguments = arguments
         process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
-        process.standardOutput = Pipe()
-        process.standardError = Pipe()
+
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = errPipe
+
+        let stdout = LockedData()
+        let stderr = LockedData()
+        outPipe.fileHandleForReading.readabilityHandler = { stdout.append($0.availableData) }
+        errPipe.fileHandleForReading.readabilityHandler = { stderr.append($0.availableData) }
+
         try process.run()
 
         let timeout = DispatchSource.makeTimerSource(queue: DispatchQueue.global())
@@ -263,14 +331,22 @@ func runASTGrep(
         }
         completion.wait()
         timeout.cancel()
-        return process
+
+        outPipe.fileHandleForReading.readabilityHandler = nil
+        errPipe.fileHandleForReading.readabilityHandler = nil
+        stdout.append(outPipe.fileHandleForReading.readDataToEndOfFile())
+        stderr.append(errPipe.fileHandleForReading.readDataToEndOfFile())
+
+        return CommandResult(
+            status: process.terminationStatus,
+            stdout: stdout.snapshot(),
+            stderr: stderr.snapshot()
+        )
     }
 
-    func decodeMatches(from process: Process) throws -> [ASTGrepMatch] {
-        let output = String(
-            decoding: (process.standardOutput as? Pipe)?.fileHandleForReading.readDataToEndOfFile() ?? Data(),
-            as: UTF8.self
-        ).trimmingCharacters(in: .whitespacesAndNewlines)
+    func decodeMatches(from result: CommandResult) throws -> [ASTGrepMatch] {
+        let output = String(decoding: result.stdout, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !output.isEmpty else { return [] }
         return try JSONDecoder().decode([ASTGrepMatch].self, from: Data(output.utf8))
     }
@@ -282,15 +358,14 @@ func runASTGrep(
 
     let preview = try launch(previewArguments)
     let matches = try decodeMatches(from: preview)
-    switch preview.terminationStatus {
+    switch preview.status {
     case 0: break
     case 15, -15: throw ASTGrepError.timedOut
     default:
-        let stderrText = String(
-            decoding: (preview.standardError as? Pipe)?.fileHandleForReading.readDataToEndOfFile() ?? Data(),
-            as: UTF8.self
+        throw ASTGrepError.exited(
+            code: Int(preview.status),
+            stderr: String(decoding: preview.stderr, as: UTF8.self)
         )
-        throw ASTGrepError.exited(code: Int(preview.terminationStatus), stderr: stderrText)
     }
 
     guard apply, let replacement else { return matches }
@@ -300,12 +375,11 @@ func runASTGrep(
     writeArguments += [target]
 
     let writer = try launch(writeArguments)
-    guard writer.terminationStatus == 0 else {
-        let stderrText = String(
-            decoding: (writer.standardError as? Pipe)?.fileHandleForReading.readDataToEndOfFile() ?? Data(),
-            as: UTF8.self
+    guard writer.status == 0 else {
+        throw ASTGrepError.exited(
+            code: Int(writer.status),
+            stderr: String(decoding: writer.stderr, as: UTF8.self)
         )
-        throw ASTGrepError.exited(code: Int(writer.terminationStatus), stderr: stderrText)
     }
     return matches
 }
@@ -316,7 +390,7 @@ func callTool(name: String, arguments: JSONValue?) throws -> String {
     let args = arguments?.objectValue ?? [:]
 
     switch name {
-    case "ast_grep_search":
+    case "code.search":
         guard let pattern = args["pattern"]?.stringValue else {
             return "Error: missing required argument 'pattern'"
         }
@@ -332,7 +406,7 @@ func callTool(name: String, arguments: JSONValue?) throws -> String {
                     + (match.captureSummary.isEmpty ? [] : ["  ↳ \(match.captureSummary)"])
             }).joined(separator: "\n")
 
-    case "ast_grep_replace":
+    case "code.replace":
         guard let pattern = args["pattern"]?.stringValue,
               let replacement = args["replacement"]?.stringValue else {
             return "Error: missing required arguments 'pattern' and 'replacement'"
