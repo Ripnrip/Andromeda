@@ -32,7 +32,13 @@ struct AndromedaMCPTests {
     /// Run a scripted line-delimited JSON-RPC exchange against the server.
     /// Each call gets its own uniquely-named fixture directory — tests run
     /// in parallel and must not share (or delete) each other's cwd.
-    private func runExchange(_ requests: [String], fixtureName: String) throws -> [String] {
+    /// `setup` runs after the fixture directory is created, for extra files
+    /// or symlinks a test wants inside the workspace root.
+    private func runExchange(
+        _ requests: [String],
+        fixtureName: String,
+        setup: ((URL) throws -> Void)? = nil
+    ) throws -> [String] {
         let fixtureDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("andromeda-mcp-\(fixtureName)-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: fixtureDirectory, withIntermediateDirectories: true)
@@ -43,6 +49,7 @@ struct AndromedaMCPTests {
             print("two")
         }
         """.write(to: fixture, atomically: true, encoding: .utf8)
+        try setup?(fixtureDirectory)
 
         let process = Process()
         process.executableURL = Self.serverBinary
@@ -133,5 +140,54 @@ struct AndromedaMCPTests {
         #expect(rewritten.contains(#"logger.debug("one")"#))
         #expect(rewritten.contains(#"logger.debug("two")"#))
         #expect(!rewritten.contains("print("))
+    }
+
+    @Test("paths resolving outside the workspace root are rejected")
+    func pathContainment() throws {
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+            #"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"code.search","arguments":{"pattern":"print($MSG)","path":"../../../../etc/hosts"}}}"#,
+            #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"code.search","arguments":{"pattern":"print($MSG)","path":"/etc/hosts"}}}"#,
+            #"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"code.replace","arguments":{"pattern":"print($MSG)","replacement":"boom($MSG)","path":"/etc/hosts","dryRun":false}}}"#,
+            #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"code.search","arguments":{"pattern":"print($MSG)","path":"fixture.swift"}}}"#,
+        ], fixtureName: "containment")
+        #expect(responses.count == 5, "got \(responses.count): \(responses)")
+
+        let dotDotEscape = try textPayload(of: responses[1])
+        #expect(dotDotEscape.contains("escapes workspace root"))
+
+        let absoluteEscape = try textPayload(of: responses[2])
+        #expect(absoluteEscape.contains("escapes workspace root"))
+
+        let writeEscape = try textPayload(of: responses[3])
+        #expect(writeEscape.contains("escapes workspace root"))
+
+        // Relative paths inside the root still work.
+        let relative = try textPayload(of: responses[4])
+        #expect(relative.contains("Found 2 match(es)"))
+    }
+
+    @Test("symlinks pivoting outside the workspace root are rejected")
+    func symlinkContainment() throws {
+        let outside = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("andromeda-mcp-outside-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        let outsideFile = outside.appendingPathComponent("secret.swift")
+        try #"func secret() { print("nope") }"#
+            .write(to: outsideFile, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: outside) }
+
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+            #"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"code.search","arguments":{"pattern":"print($MSG)","path":"link.swift"}}}"#,
+        ], fixtureName: "symlink") { fixtureDirectory in
+            try FileManager.default.createSymbolicLink(
+                at: fixtureDirectory.appendingPathComponent("link.swift"),
+                withDestinationURL: outsideFile
+            )
+        }
+        #expect(responses.count == 2)
+        let payload = try textPayload(of: responses[1])
+        #expect(payload.contains("escapes workspace root"))
     }
 }

@@ -96,7 +96,7 @@ func toolSchemas() -> JSONValue {
                     ]),
                     "path": .object([
                         "type": .string("string"),
-                        "description": .string("File or directory to search (default: cwd)"),
+                        "description": .string("File or directory to search, resolved under the workspace root (default: root). Paths resolving outside the root are rejected."),
                     ]),
                     "language": .object([
                         "type": .string("string"),
@@ -130,7 +130,7 @@ func toolSchemas() -> JSONValue {
                     ]),
                     "path": .object([
                         "type": .string("string"),
-                        "description": .string("File or directory to rewrite (default: cwd)"),
+                        "description": .string("File or directory to rewrite, resolved under the workspace root (default: root). Paths resolving outside the root are rejected."),
                     ]),
                     "language": .object([
                         "type": .string("string"),
@@ -201,12 +201,14 @@ enum ASTGrepError: Error, LocalizedError {
     case binaryNotFound
     case timedOut
     case exited(code: Int, stderr: String)
+    case pathEscapesWorkspace(String)
 
     var errorDescription: String? {
         switch self {
         case .binaryNotFound: return "code search engine not found on PATH"
         case .timedOut: return "code search timed out"
         case .exited(let code, let stderr): return "code search exited \(code): \(stderr)"
+        case .pathEscapesWorkspace(let path): return "path escapes workspace root: \(path)"
         }
     }
 }
@@ -284,12 +286,37 @@ func locateASTGrep() -> String? {
     }
 }
 
+/// Resolve a client-supplied search/rewrite target under the workspace root
+/// (the server's working directory). Absolute paths must resolve inside the
+/// root; `..` components that climb out of it are rejected. Symlinks are
+/// resolved on both sides so an in-tree link cannot pivot outside the root.
+func containedTarget(
+    _ clientPath: String?,
+    root: String = FileManager.default.currentDirectoryPath
+) throws -> String {
+    let rootURL = URL(fileURLWithPath: root).resolvingSymlinksInPath()
+    let rootPath = rootURL.path
+    guard let clientPath = clientPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !clientPath.isEmpty else {
+        return rootPath
+    }
+    let candidate = clientPath.hasPrefix("/")
+        ? URL(fileURLWithPath: clientPath)
+        : rootURL.appendingPathComponent(clientPath)
+    let resolved = candidate.resolvingSymlinksInPath().standardizedFileURL.path
+    let contained = resolved == rootPath
+        || resolved.hasPrefix(rootPath.hasSuffix("/") ? rootPath : rootPath + "/")
+    guard contained else { throw ASTGrepError.pathEscapesWorkspace(clientPath) }
+    return resolved
+}
+
 /// Run the pattern engine and decode its matches.
 ///
 /// `--json` is inherently dry-run, so an apply pass runs twice: preview
 /// (`--json=compact` + `--rewrite`) then writer (`--update-all`, no `--json`).
 /// Child stdout/stderr are drained while the process runs so a large match
-/// set cannot deadlock on a full pipe buffer.
+/// set cannot deadlock on a full pipe buffer. All targets are contained to
+/// the workspace root before the engine is invoked.
 func runASTGrep(
     pattern: String,
     replacement: String? = nil,
@@ -299,7 +326,7 @@ func runASTGrep(
 ) throws -> [ASTGrepMatch] {
     guard let engine = locateASTGrep() else { throw ASTGrepError.binaryNotFound }
     let workingDirectory = FileManager.default.currentDirectoryPath
-    let target = path ?? workingDirectory
+    let target = try containedTarget(path, root: workingDirectory)
 
     func launch(_ arguments: [String]) throws -> CommandResult {
         let process = Process()
