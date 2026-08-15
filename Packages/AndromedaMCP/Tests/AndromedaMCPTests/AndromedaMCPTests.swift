@@ -167,6 +167,34 @@ struct AndromedaMCPTests {
         #expect(relative.contains("Found 2 match(es)"))
     }
 
+    @Test("large match sets cannot deadlock on pipe buffers")
+    func largeOutputDrains() throws {
+        // Regression: a match set far larger than the pipe buffer (~64 KB)
+        // must drain while the child runs. 3,000 matches ≈ 1.4 MB of JSON.
+        let bigFixture = (0..<3_000)
+            .map { #"print("line \#($0)")"# }
+            .joined(separator: "\n")
+
+        let responses = try runExchange(
+            [
+                #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+                #"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"code.search","arguments":{"pattern":"print($MSG)","path":"big.swift"}}}"#,
+            ],
+            fixtureName: "drain",
+            setup: { directory in
+                try bigFixture.write(
+                    to: directory.appendingPathComponent("big.swift"),
+                    atomically: true,
+                    encoding: .utf8
+                )
+            }
+        )
+        #expect(responses.count == 2)
+
+        let payload = try textPayload(of: responses[1])
+        #expect(payload.contains("Found 3000 match(es)"), "got prefix: \(payload.prefix(120))")
+    }
+
     @Test("malformed tool arguments answer with the request id")
     func malformedArgumentsKeepID() throws {
         let responses = try runExchange([
