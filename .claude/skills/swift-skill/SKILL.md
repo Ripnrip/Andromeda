@@ -50,7 +50,8 @@ This canon explicitly covers:
 ### New feature
 1. `references/functional-swift.md` — pure core, effect shell
 2. `references/concurrency.md` — Sendable, actors, streams
-3. `references/tca.md` OR `references/swiftui-state.md` — pick architecture
+3. `references/anti-patterns.md` — DO NOT WRITE LIKE THIS exhibits; read before writing protocol/JSON/process code
+4. `references/tca.md` OR `references/swiftui-state.md` — pick architecture
 4. `references/swiftui-views.md` — compose views
 5. `references/previews.md` — state matrix before full builds
 6. `references/testing.md` — unit + snapshot + TestStore
@@ -123,6 +124,8 @@ This canon explicitly covers:
 
 ## Review checklist
 
+- [ ] No anti-pattern exhibit shapes (`references/anti-patterns.md`) — dynamic JSON enums, `try?` at trust boundaries, `@unchecked Sendable` without stated invariant, semaphore-around-Process
+
 - [ ] Strict concurrency — no data races
 - [ ] `Sendable` / actor isolation / static data all satisfy Swift 6 rules
 - [ ] Business logic out of `body` and out of views
@@ -142,6 +145,7 @@ This canon explicitly covers:
 | Doc | Topic |
 |-----|-------|
 | `functional-swift.md` | Pure transforms, composition, Result |
+| `anti-patterns.md` | DO NOT WRITE LIKE THIS — verbatim bad-code exhibits with approved replacements |
 | `concurrency.md` | Swift 6, actors, AsyncStream, Sendable |
 | `combine.md` | Publisher bridges, operators |
 | `tca.md` | Reducers, clients, TestStore |
