@@ -44,7 +44,7 @@ struct AndromedaMCPServer {
             }
 
         case "tools/call":
-            await toolCall(data, engine: engine)
+            await toolCall(data, engine: engine, requestID: header.id)
 
         default:
             // Unknown notifications are dropped silently; unknown requests
@@ -68,14 +68,16 @@ struct AndromedaMCPServer {
 
     /// Two typed decode passes over the same bytes: route on the tool name,
     /// then decode the full request with tool-specific arguments so schema
-    /// violations surface as `-32602` with the coding path.
-    private static func toolCall(_ data: Data, engine: URL?) async {
-        guard let probe = decode(ToolNameProbe.self, from: data, id: nil) else { return }
+    /// violations surface as `-32602` with the coding path. `requestID` keeps
+    /// error responses correlatable — a client must never orphan an id it
+    /// already sent us.
+    private static func toolCall(_ data: Data, engine: URL?, requestID: RPCID?) async {
+        guard let probe = decode(ToolNameProbe.self, from: data, id: requestID) else { return }
 
         switch probe.params.name {
         case Tool.search.name:
             guard let request = decode(
-                ToolCallRequest<CodeSearchArguments>.self, from: data, id: nil
+                ToolCallRequest<CodeSearchArguments>.self, from: data, id: requestID
             ) else { return }
             let arguments = request.params.arguments
             guard let engine else {
@@ -104,7 +106,7 @@ struct AndromedaMCPServer {
 
         case Tool.replacement.name:
             guard let request = decode(
-                ToolCallRequest<CodeReplaceArguments>.self, from: data, id: nil
+                ToolCallRequest<CodeReplaceArguments>.self, from: data, id: requestID
             ) else { return }
             let arguments = request.params.arguments
             guard let engine else {
@@ -136,7 +138,7 @@ struct AndromedaMCPServer {
             }
 
         default:
-            if let request = decode(ToolCallRequest<EmptyArguments>.self, from: data, id: nil) {
+            if let request = decode(ToolCallRequest<EmptyArguments>.self, from: data, id: requestID) {
                 send(RPCResult(
                     id: request.id,
                     result: CallToolResult.text(
