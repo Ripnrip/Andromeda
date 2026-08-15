@@ -24,6 +24,7 @@ struct AndromedaPowerEventSink: PowerEventSink {
                         "leaseID": lease.id.uuidString,
                         "owner": lease.owner,
                         "reason": lease.reason,
+                        "requirements": requirementNames(lease.requirements),
                         "activeLeaseCount": String(activeLeaseCount)
                     ]
                 )
@@ -37,6 +38,7 @@ struct AndromedaPowerEventSink: PowerEventSink {
                         "leaseID": lease.id.uuidString,
                         "owner": lease.owner,
                         "reason": lease.reason,
+                        "requirements": requirementNames(lease.requirements),
                         "activeLeaseCount": String(activeLeaseCount)
                     ]
                 )
@@ -91,4 +93,16 @@ actor ExampleJobSupervisor {
             operation: operation
         )
     }
+}
+
+/// Human-readable requirement list for lease event metadata, e.g.
+/// `"preventSystemSleep,preventDisplaySleep"` — or `"none"` for an empty set.
+private func requirementNames(_ requirements: PowerRequirement) -> String {
+    guard !requirements.isEmpty else { return "none" }
+    return [
+        requirements.contains(.preventSystemSleep) ? "preventSystemSleep" : nil,
+        requirements.contains(.preventDisplaySleep) ? "preventDisplaySleep" : nil,
+    ]
+    .compactMap { $0 }
+    .joined(separator: ",")
 }
