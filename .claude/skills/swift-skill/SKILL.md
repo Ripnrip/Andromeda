@@ -13,8 +13,15 @@ Use this when the ask is not just “write Swift,” but “write and review Swi
 
 ```text
 Domain/product truth (what Andromeda means) → domain skill / repo docs
-Swift craft + review law (how to build and review it) → this skill
+Swift craft + review law (how to build and review it) → ../swift-canon/
+Andromeda-specific rules + this repo's merge hygiene → this skill
 ```
+
+This skill is the Andromeda **projection** of the world canon: `swift-canon`
+(this repo, `.claude/skills/swift-canon/`) is the reusable base carrying
+Swift 6 craft, concurrency law, and the DO-NOT-WRITE anti-patterns
+(`../swift-canon/references/anti-patterns.md`). Everything below layers
+Andromeda rules on top; where the two overlap, the stricter rule wins.
 
 This canon explicitly covers:
 
@@ -50,12 +57,12 @@ This canon explicitly covers:
 ### New feature
 1. `references/functional-swift.md` — pure core, effect shell
 2. `references/concurrency.md` — Sendable, actors, streams
-3. `references/anti-patterns.md` — DO NOT WRITE LIKE THIS exhibits; read before writing protocol/JSON/process code
+3. `../swift-canon/references/anti-patterns.md` — DO NOT WRITE LIKE THIS exhibits; read before writing protocol/JSON/process code
 4. `references/tca.md` OR `references/swiftui-state.md` — pick architecture
-4. `references/swiftui-views.md` — compose views
-5. `references/previews.md` — state matrix before full builds
-6. `references/testing.md` — unit + snapshot + TestStore
-7. `references/andromeda-review-canon.md` — scope, truth, gallery, merge law
+5. `references/swiftui-views.md` — compose views
+6. `references/previews.md` — state matrix before full builds
+7. `references/testing.md` — unit + snapshot + TestStore
+8. `references/andromeda-review-canon.md` — scope, truth, gallery, merge law
 
 ### SwiftUI surface
 1. `references/swiftui-state.md` — property wrappers, `@Observable`
@@ -124,7 +131,7 @@ This canon explicitly covers:
 
 ## Review checklist
 
-- [ ] No anti-pattern exhibit shapes (`references/anti-patterns.md`) — dynamic JSON enums, `try?` at trust boundaries, `@unchecked Sendable` without stated invariant, semaphore-around-Process
+- [ ] No anti-pattern exhibit shapes (`../swift-canon/references/anti-patterns.md`) — dynamic JSON enums, `try?` at trust boundaries, `@unchecked Sendable` without stated invariant, semaphore-around-Process, per-byte bulk reads
 
 - [ ] Strict concurrency — no data races
 - [ ] `Sendable` / actor isolation / static data all satisfy Swift 6 rules
@@ -145,7 +152,7 @@ This canon explicitly covers:
 | Doc | Topic |
 |-----|-------|
 | `functional-swift.md` | Pure transforms, composition, Result |
-| `anti-patterns.md` | DO NOT WRITE LIKE THIS — verbatim bad-code exhibits with approved replacements |
+| `../swift-canon/references/anti-patterns.md` | DO NOT WRITE LIKE THIS — verbatim bad-code exhibits with approved replacements |
 | `concurrency.md` | Swift 6, actors, AsyncStream, Sendable |
 | `combine.md` | Publisher bridges, operators |
 | `tca.md` | Reducers, clients, TestStore |
@@ -170,7 +177,8 @@ This canon explicitly covers:
 
 ```
 Domain/product (what)     → repo docs / domain skill
-Craft + review law (how)  → swift-skill (this)
+Craft + review law (how)  → ../swift-canon/ (world canon)
+Andromeda rules + merge hygiene → this skill
 ```
 
-Example: a MemoryKit or control-plane PR may need repo docs for product truth, but this skill is where the Swift 6, snapshot, scope, and merge discipline live.
+Example: a MemoryKit or control-plane PR may need repo docs for product truth; `swift-canon` carries the Swift 6, snapshot, and review law; this skill adds Andromeda's truth-in-surface and merge discipline on top.
