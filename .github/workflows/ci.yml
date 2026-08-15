@@ -53,6 +53,8 @@ jobs:
           run_memorykit_live_e2e=false
           run_anima=false
           run_andromeda_mcp=false
+          run_powerkit=false
+          run_statusline=false
 
           while IFS= read -r file; do
             [ -z "$file" ] && continue
@@ -79,6 +81,12 @@ jobs:
               Packages/AndromedaMCP/Package.swift|Packages/AndromedaMCP/Package.resolved|Packages/AndromedaMCP/Sources/*|Packages/AndromedaMCP/Tests/*)
                 run_andromeda_mcp=true
                 ;;
+              Packages/AndromedaPowerKit/*)
+                run_powerkit=true
+                ;;
+              Packages/AndromedaStatusline/Package.swift|Packages/AndromedaStatusline/Package.resolved|Packages/AndromedaStatusline/Sources/*|Packages/AndromedaStatusline/Tests/*)
+                run_statusline=true
+                ;;
             esac
 
             case "$file" in
@@ -100,7 +108,7 @@ jobs:
           fi
 
           any_lane=false
-          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ]; then
+          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ]; then
             any_lane=true
           fi
 
@@ -304,6 +312,19 @@ jobs:
           set -euo pipefail
           brew install ast-grep
           swift test --parallel --num-workers 1
+
+      # Nested PowerKit package (leases + power assertions). Same anti-greenwash
+      # posture as the MCP lane: a PowerKit diff must run PowerKit tests.
+      - name: Test AndromedaPowerKit (nested package)
+        if: steps.scope.outputs.run_powerkit == 'true'
+        working-directory: Packages/AndromedaPowerKit
+        run: swift test --parallel --num-workers 1
+
+      # Nested Statusline package.
+      - name: Test AndromedaStatusline (nested package)
+        if: steps.scope.outputs.run_statusline == 'true'
+        working-directory: Packages/AndromedaStatusline
+        run: swift test --parallel --num-workers 1
 
       # Nested SwiftUI design-system package (BIN-270 Gate 0).
       - name: Test AndromedaUI (nested package)
