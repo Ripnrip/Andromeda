@@ -1,5 +1,5 @@
 // End-to-end protocol test: drives the built server binary over stdio and
-// asserts a real ast_grep_search / ast_grep_replace round-trip.
+// asserts a real code.search / code.replace round-trip.
 
 import Foundation
 import Testing
@@ -83,13 +83,13 @@ struct AndromedaMCPTests {
         let responses = try runExchange([
             #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}"#,
             #"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#,
-            #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"ast_grep_search","arguments":{"pattern":"print($MSG)","path":"__PATH__"}}}"#,
+            #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"code.search","arguments":{"pattern":"print($MSG)","path":"__PATH__"}}}"#,
         ], fixtureName: "search")
         #expect(responses.count == 3, "got \(responses.count): \(responses)")
 
         #expect(responses[0].contains(#""name":"andromeda-mcp""#))
-        #expect(responses[1].contains("ast_grep_search"))
-        #expect(responses[1].contains("ast_grep_replace"))
+        #expect(responses[1].contains("code.search"))
+        #expect(responses[1].contains("code.replace"))
 
         let search = try textPayload(of: responses[2])
         #expect(search.contains("Found 2 match(es)"))
@@ -101,7 +101,7 @@ struct AndromedaMCPTests {
     func replaceDryRun() throws {
         let responses = try runExchange([
             #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
-            #"{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"ast_grep_replace","arguments":{"pattern":"print($MSG)","replacement":"logger.debug($MSG)","path":"__PATH__","dryRun":true}}}"#,
+            #"{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"code.replace","arguments":{"pattern":"print($MSG)","replacement":"logger.debug($MSG)","path":"__PATH__","dryRun":true}}}"#,
         ], fixtureName: "dryrun")
         #expect(responses.count == 2)
         let payload = try textPayload(of: responses[1])
@@ -115,7 +115,7 @@ struct AndromedaMCPTests {
         // own fixture file by piggybacking on runExchange's __PATH__ token.
         let responses = try runExchange([
             #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
-            #"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"ast_grep_replace","arguments":{"pattern":"print($MSG)","replacement":"logger.debug($MSG)","path":"__PATH__","dryRun":false}}}"#,
+            #"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"code.replace","arguments":{"pattern":"print($MSG)","replacement":"logger.debug($MSG)","path":"__PATH__","dryRun":false}}}"#,
         ], fixtureName: "apply")
         #expect(responses.count == 2)
         let payload = try textPayload(of: responses[1])
