@@ -119,6 +119,8 @@ jobs:
             echo "run_memorykit_live_e2e=$run_memorykit_live_e2e"
             echo "run_anima=$run_anima"
             echo "run_andromeda_mcp=$run_andromeda_mcp"
+            echo "run_powerkit=$run_powerkit"
+            echo "run_statusline=$run_statusline"
             echo "needs_qdrant=$needs_qdrant"
             echo "any_lane=$any_lane"
           } >> "$GITHUB_OUTPUT"
