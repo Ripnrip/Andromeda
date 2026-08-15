@@ -52,6 +52,7 @@ jobs:
           run_memorykit=false
           run_memorykit_live_e2e=false
           run_anima=false
+          run_andromeda_mcp=false
 
           while IFS= read -r file; do
             [ -z "$file" ] && continue
@@ -75,6 +76,9 @@ jobs:
               Packages/Anima/Package.swift|Packages/Anima/Package.resolved|Packages/Anima/Sources/*|Packages/Anima/Tests/*)
                 run_anima=true
                 ;;
+              Packages/AndromedaMCP/Package.swift|Packages/AndromedaMCP/Package.resolved|Packages/AndromedaMCP/Sources/*|Packages/AndromedaMCP/Tests/*)
+                run_andromeda_mcp=true
+                ;;
             esac
 
             case "$file" in
@@ -96,7 +100,7 @@ jobs:
           fi
 
           any_lane=false
-          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ]; then
+          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ]; then
             any_lane=true
           fi
 
@@ -106,6 +110,7 @@ jobs:
             echo "run_memorykit=$run_memorykit"
             echo "run_memorykit_live_e2e=$run_memorykit_live_e2e"
             echo "run_anima=$run_anima"
+            echo "run_andromeda_mcp=$run_andromeda_mcp"
             echo "needs_qdrant=$needs_qdrant"
             echo "any_lane=$any_lane"
           } >> "$GITHUB_OUTPUT"
@@ -286,6 +291,19 @@ jobs:
         if: steps.scope.outputs.run_anima == 'true' && steps.snapshots.outputs.record != 'true'
         working-directory: Packages/Anima
         run: swift test --parallel --num-workers 1
+
+      # Nested MCP server package. The protocol tests drive the built binary
+      # end-to-end and need the ast-grep engine on PATH, which GitHub runners
+      # do not preinstall. Skip path intentionally unavailable: an MCP diff
+      # that skips its own tests is fake-green.
+      - name: Test AndromedaMCP (nested package)
+        if: steps.scope.outputs.run_andromeda_mcp == 'true'
+        working-directory: Packages/AndromedaMCP
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install ast-grep
+          swift test --parallel --num-workers 1
 
       # Nested SwiftUI design-system package (BIN-270 Gate 0).
       - name: Test AndromedaUI (nested package)
