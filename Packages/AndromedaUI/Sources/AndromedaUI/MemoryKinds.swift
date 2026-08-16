@@ -23,23 +23,24 @@ public struct AndromedaCore: View {
     @State private var breathe = false
     @State private var spin = false
     public init(size: CGFloat = 40) { self.size = size }
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         ZStack {
             Circle().stroke(Color.andromedaTeal, lineWidth: 1.5)
                 .padding(size * 0.08)
                 .scaleEffect(breathe ? 1.15 : 0.82)
                 .opacity(breathe ? 0.25 : 0.95)
-                .animation(.easeInOut(duration: 1.8).repeatForever(), value: breathe)
+                .andromedaLoop(.easeInOut(duration: 1.8).repeatForever(), value: breathe)
             Circle().fill(Color.andromedaGlow)
                 .frame(width: size * 0.12, height: size * 0.12)
                 .shadow(color: .andromedaGlow, radius: 4)
                 .offset(y: -size * 0.5)
                 .rotationEffect(.degrees(spin ? 360 : 0))
-                .animation(.linear(duration: 6).repeatForever(autoreverses: false), value: spin)
+                .andromedaLoop(.linear(duration: 6).repeatForever(autoreverses: false), value: spin)
             AndromedaLogo(size: size * 0.5)
         }
         .frame(width: size, height: size)
-        .onAppear { breathe = true; spin = true }
+        .onAppear { guard motionActive else { return }; breathe = true; spin = true }
     }
 }
 
@@ -84,6 +85,7 @@ public enum AndromedaMemory {
 public struct MemoryKindCard: View {
     public var kind: MemoryKind
     public init(_ kind: MemoryKind) { self.kind = kind }
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -113,6 +115,7 @@ public struct MemoryKindCard: View {
 public struct MemoryKindsGrid: View {
     public init() {}
     private let cols = [GridItem(.adaptive(minimum: 150), spacing: 12)]
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("The eight jobs of memory").font(.custom("Instrument Serif", size: 20))

@@ -21,6 +21,7 @@ import SwiftUI
 // MARK: DashMarch — a border whose dashes crawl
 
 public struct MarchingBorder: ViewModifier {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var color: Color
     public var radius: CGFloat
     public var lineWidth: CGFloat
@@ -37,6 +38,7 @@ public struct MarchingBorder: ViewModifier {
                 .stroke(color, style: StrokeStyle(lineWidth: lineWidth, dash: [5, 4], dashPhase: phase))
         )
         .onAppear {
+            guard motionActive else { return }
             withAnimation(.linear(duration: period).repeatForever(autoreverses: false)) { phase = -18 }
         }
     }
@@ -206,6 +208,7 @@ public extension View {
 // MARK: HueRotation — the dream ramp drifts through its neighbours
 
 public struct HueDrift: ViewModifier {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var degrees: Double
     public var period: Double
     public var active: Bool
@@ -218,8 +221,8 @@ public struct HueDrift: ViewModifier {
     public func body(content: Content) -> some View {
         content
             .hueRotation(.degrees(active && on ? degrees : 0))
-            .animation(.easeInOut(duration: period).repeatForever(autoreverses: true), value: on)
-            .onAppear { on = true }
+            .andromedaLoop(.easeInOut(duration: period).repeatForever(autoreverses: true), value: on)
+            .onAppear { guard motionActive else { return }; on = true }
     }
 }
 
@@ -276,6 +279,7 @@ public struct ThinkingDots: View {
 // MARK: ShimmerSkeleton — a sheen crossing pending rows
 
 public struct Shimmer: ViewModifier {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var color: Color
     public var period: Double
     @State private var phase: CGFloat = -1
@@ -295,6 +299,7 @@ public struct Shimmer: ViewModifier {
             .allowsHitTesting(false)
         )
         .onAppear {
+            guard motionActive else { return }
             withAnimation(.linear(duration: period).repeatForever(autoreverses: false)) { phase = 1.6 }
         }
     }
