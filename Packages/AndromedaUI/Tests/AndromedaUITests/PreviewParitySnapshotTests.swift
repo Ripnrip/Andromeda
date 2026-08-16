@@ -19,6 +19,7 @@ import AppKit
 /// and the full `StatusBadge` state matrix.
 ///
 /// Record: `SNAPSHOT_TESTING_RECORD=1 swift test --filter PreviewParitySnapshotTests`
+/// (CI: tip the PR head with `[record-snapshots]`; baselines are runner-image-bound.)
 @MainActor
 final class PreviewParitySnapshotTests: XCTestCase {
 
