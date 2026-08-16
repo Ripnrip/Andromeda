@@ -95,6 +95,23 @@ struct RPCErrorResponse: Encodable, Sendable {
         self.id = id
         self.error = Error(code: code.rawValue, message: message)
     }
+
+    enum CodingKeys: String, CodingKey { case jsonrpc, id, error }
+
+    /// JSON-RPC 2.0: the `id` member is REQUIRED on responses and MUST be
+    /// null — not absent — when the request id could not be determined
+    /// (parse errors, invalid requests). Synthesized conformance would
+    /// `encodeIfPresent` and silently drop the key.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(jsonrpc, forKey: .jsonrpc)
+        if let id {
+            try container.encode(id, forKey: .id)
+        } else {
+            try container.encodeNil(forKey: .id)
+        }
+        try container.encode(error, forKey: .error)
+    }
 }
 
 // MARK: - Method payloads
@@ -137,6 +154,9 @@ struct CallToolResult: Encodable, Sendable {
 /// Arguments payload for `tools/call` requests whose tool is not recognized;
 /// only the id is needed to reply.
 struct EmptyArguments: Decodable, Sendable {}
+
+/// Empty `{}` result payload — the reply shape for `ping`.
+struct EmptyResult: Encodable, Sendable {}
 
 // MARK: - Decode evidence
 

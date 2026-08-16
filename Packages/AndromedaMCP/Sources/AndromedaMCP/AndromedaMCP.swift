@@ -37,6 +37,14 @@ struct AndromedaMCPServer {
         case "notifications/initialized":
             break // notification — no response
 
+        case "ping":
+            // MCP 2025-06-18: the receiver MUST respond to a ping request
+            // promptly with an (empty) result — a -32601 here reads as
+            // server failure in strict clients.
+            if let request = decode(RPCRequest<EmptyArguments>.self, from: data, id: header.id) {
+                send(RPCResult(id: request.id, result: EmptyResult()))
+            }
+
         case "tools/list":
             struct NoParams: Decodable {}
             if let request = decode(RPCRequest<NoParams>.self, from: data, id: header.id) {
