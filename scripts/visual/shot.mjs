@@ -1,6 +1,7 @@
 // Screenshot a running Andromeda web instance.
 // Usage: node shot.mjs <baseUrl> <outDir>
 import { chromium } from "playwright";
+import { PNG } from "pngjs";
 import fs from "node:fs";
 
 const base = process.argv[2];
