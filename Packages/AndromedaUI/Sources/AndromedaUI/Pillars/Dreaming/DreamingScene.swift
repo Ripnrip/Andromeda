@@ -1,3 +1,6 @@
+
+
+
 import SwiftUI
 
 // MARK: - Dreaming
@@ -83,6 +86,9 @@ public struct DreamMoteField: View {
         self.accent = accent; self.awake = awake; self.slow = slow; self.time = time
     }
 
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var liveMotion: Bool { motionActive && !reduceMotion }
     public var body: some View {
         Canvas { ctx, size in
             let period = slow ? 8.0 : 5.2
@@ -175,11 +181,14 @@ public struct DreamFragmentRow: View {
 
 /// The full Dreaming stage.
 public struct DreamingScene: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var liveMotion: Bool { motionActive && !reduceMotion }
     public var state: DreamState
     public init(state: DreamState) { self.state = state }
 
     public var body: some View {
-        TimelineView(.animation) { context in
+        TimelineView(.animation(minimumInterval: nil, paused: !liveMotion)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             body(at: t)
         }

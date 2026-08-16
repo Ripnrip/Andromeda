@@ -192,9 +192,13 @@ public struct AndromedaMemoryPanel: View {
 
 // MARK: Fleet board
 
-/// Nodes, links, and reach — the runtime seen from above.
+/// Nodes, links, and reach — the runtime seen from above. A design study:
+/// the node count is honestly marked unverified unless a caller injects an
+/// observed value (fleet law — never manufacture "healthy"/counts).
 public struct AndromedaFleetBoard: View {
-    public init() {}
+    /// Observed node count; nil = specimen mode, shown as unverified.
+    public var observedNodes: Int?
+    public init(observedNodes: Int? = nil) { self.observedNodes = observedNodes }
     public var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 9) {
@@ -203,7 +207,7 @@ public struct AndromedaFleetBoard: View {
                     .font(.system(size: 12.5, weight: .medium, design: .monospaced))
                     .foregroundStyle(Color.andromedaInk)
                 Spacer(minLength: 0)
-                Text("3 nodes")
+                Text(observedNodes.map { "\($0) nodes" } ?? "unverified")
                     .font(.system(size: 10.5, design: .monospaced))
                     .foregroundStyle(Color.andromedaMuted)
             }
@@ -223,7 +227,7 @@ public struct AndromedaFleetBoard: View {
         .frame(width: 320, alignment: .leading)
         .background(cardBackground)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Fleet board, 3 nodes")
+        .accessibilityLabel(observedNodes.map { "Fleet board, \($0) nodes" } ?? "Fleet board, node count unverified")
     }
 }
 

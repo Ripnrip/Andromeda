@@ -1,3 +1,6 @@
+
+
+
 import SwiftUI
 
 // MARK: - Pillar motion kit
@@ -58,18 +61,22 @@ public struct TrimDraw<S: Shape>: View {
     public var color: Color
     public var lineWidth: CGFloat
     public var period: Double
-    @Environment(\.andromedaMotionActive) private var motionActive
 
     public init(_ shape: S, color: Color, lineWidth: CGFloat = 1.6, period: Double = 2.6) {
         self.shape = shape; self.color = color; self.lineWidth = lineWidth; self.period = period
     }
 
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Live = motion env on AND Reduce Motion off; the cycling PhaseAnimator
+    /// runs only then, otherwise the deterministic initial phase renders.
+    private var liveMotion: Bool { motionActive && !reduceMotion }
     public var body: some View {
         // The cycling (triggerless) overload actually advances phases; the
         // old `trigger: false` variant fired once and stalled at the first
         // phase. Frozen mode renders the initial phase deterministically.
         Group {
-            if motionActive {
+            if liveMotion {
                 PhaseAnimator([0.0, 1.0]) { phase in
                     trimmed(phase)
                 } animation: { _ in
@@ -115,6 +122,9 @@ public struct NumericTicker: View {
 // MARK: Typewriter — the log line types itself in
 
 public struct TypingLog: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var liveMotion: Bool { motionActive && !reduceMotion }
     public var text: String
     public var tint: Color
     public var charactersPerSecond: Double
@@ -126,7 +136,7 @@ public struct TypingLog: View {
     }
 
     public var body: some View {
-        TimelineView(.animation) { context in
+        TimelineView(.animation(minimumInterval: nil, paused: !liveMotion)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             let typing = Double(text.count) / charactersPerSecond
             let loop = (t).truncatingRemainder(dividingBy: typing + holdSeconds)
@@ -249,9 +259,11 @@ public extension View {
 // MARK: PulsingHeart — a phase-driven double beat
 
 public struct PhasePulse<Content: View>: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var liveMotion: Bool { motionActive && !reduceMotion }
     public var color: Color
     private let content: Content
-    @Environment(\.andromedaMotionActive) private var motionActive
 
     public init(color: Color = .andromedaTeal, @ViewBuilder _ content: () -> Content) {
         self.color = color; self.content = content()
@@ -260,7 +272,7 @@ public struct PhasePulse<Content: View>: View {
     public var body: some View {
         // Cycling overload (the constant-trigger variant never advanced).
         Group {
-            if motionActive {
+            if liveMotion {
                 PhaseAnimator([0, 1, 2]) { phase in
                     beat(phase)
                 } animation: { phase in
@@ -282,9 +294,11 @@ public struct PhasePulse<Content: View>: View {
 // MARK: Thinking — three dots weighing options
 
 public struct ThinkingDots: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var liveMotion: Bool { motionActive && !reduceMotion }
     public var color: Color
     public var dotSize: CGFloat
-    @Environment(\.andromedaMotionActive) private var motionActive
     public init(color: Color = .andromedaTeal, dotSize: CGFloat = 5) {
         self.color = color; self.dotSize = dotSize
     }
@@ -292,7 +306,7 @@ public struct ThinkingDots: View {
     public var body: some View {
         // Cycling overload (the constant-trigger variant never advanced).
         Group {
-            if motionActive {
+            if liveMotion {
                 PhaseAnimator([0, 1, 2]) { phase in
                     dots(phase)
                 } animation: { _ in .easeInOut(duration: 0.32) }
@@ -317,10 +331,10 @@ public struct ThinkingDots: View {
 // MARK: ShimmerSkeleton — a sheen crossing pending rows
 
 public struct Shimmer: ViewModifier {
-    @Environment(\.andromedaMotionActive) private var motionActive
     public var color: Color
     public var period: Double
     @State private var phase: CGFloat = -1
+    @Environment(\.andromedaMotionActive) private var motionActive
 
     public init(color: Color = .andromedaGlow, period: Double = 1.4) {
         self.color = color; self.period = period

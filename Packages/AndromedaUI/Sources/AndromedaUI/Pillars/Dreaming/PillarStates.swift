@@ -501,6 +501,7 @@ public enum FleetState: String, PillarState {
         ("pooling-draft.md", "sealed · 3 witnesses", 1),
         ("zotero/instrument.pdf", "read · 0 traces yet", 0.14),
     ]
-    /// Capability IDs, not engine brands (curtain law).
-    public static let backends = ["vector", "graph", "episodic", "web"]
+    /// Capability IDs under the memory.* namespace, not engine brands
+    /// (curtain law) — FleetScene shows these directly as node labels.
+    public static let backends = ["memory.vector", "memory.graph", "memory.episodic", "memory.web"]
 }
