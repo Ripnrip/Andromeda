@@ -206,6 +206,29 @@ struct AndromedaMCPTests {
         #expect(responses[1].contains("Invalid request"))
     }
 
+    @Test("ping requests get an empty result with the id echoed")
+    func pingResponds() throws {
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+            #"{"jsonrpc":"2.0","id":42,"method":"ping"}"#,
+        ], fixtureName: "ping")
+        #expect(responses.count == 2, "got \(responses.count): \(responses)")
+        #expect(responses[1].contains(#""id":42"#))
+        #expect(responses[1].contains(#""result":{}"#))
+        #expect(!responses[1].contains("error"))
+    }
+
+    @Test("unparseable lines answer -32700 with an explicit null id")
+    func parseErrorCarriesNullID() throws {
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+            "this is not json",
+        ], fixtureName: "parse-null-id")
+        #expect(responses.count == 2, "got \(responses.count): \(responses)")
+        #expect(responses[1].contains(#""id":null"#))
+        #expect(responses[1].contains("-32700"))
+    }
+
     @Test("symlinks pivoting outside the workspace root are rejected")
     func symlinkContainment() throws {
         let outside = URL(fileURLWithPath: NSTemporaryDirectory())
