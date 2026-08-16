@@ -9,6 +9,7 @@ import Combine
 public struct PetalBloom: View {
     @State private var spin = false
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         ZStack {
             ForEach(0..<6, id: \.self) { i in
@@ -23,8 +24,8 @@ public struct PetalBloom: View {
                 .shadow(color: .andromedaGlow, radius: 8)
         }
         .rotationEffect(.degrees(spin ? 360 : 0))
-        .animation(.linear(duration: 8).repeatForever(autoreverses: false), value: spin)
-        .onAppear { spin = true }
+        .andromedaLoop(.linear(duration: 8).repeatForever(autoreverses: false), value: spin)
+        .onAppear { guard motionActive else { return }; spin = true }
     }
 }
 
@@ -32,12 +33,13 @@ public struct PetalBloom: View {
 public struct Jiggle: View {
     @State private var go = false
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         Image(systemName: "bell.fill").font(.system(size: 34))
             .foregroundStyle(Color.andromedaTeal)
             .rotationEffect(.degrees(go ? 9 : -9), anchor: .top)
-            .animation(.spring(duration: 0.25, bounce: 0.7).repeatForever(autoreverses: true), value: go)
-            .onAppear { go = true }
+            .andromedaLoop(.spring(duration: 0.25, bounce: 0.7).repeatForever(autoreverses: true), value: go)
+            .onAppear { guard motionActive else { return }; go = true }
     }
 }
 
@@ -45,14 +47,15 @@ public struct Jiggle: View {
 public struct JelloSquash: View {
     @State private var squish = false
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         RoundedRectangle(cornerRadius: 12)
             .fill(LinearGradient(colors: [.andromedaTeal, .andromedaLive],
                                  startPoint: .top, endPoint: .bottom))
             .frame(width: 40, height: 40)
             .scaleEffect(x: squish ? 1.2 : 0.85, y: squish ? 0.8 : 1.16)
-            .animation(.spring(duration: 0.5, bounce: 0.7).repeatForever(autoreverses: true), value: squish)
-            .onAppear { squish = true }
+            .andromedaLoop(.spring(duration: 0.5, bounce: 0.7).repeatForever(autoreverses: true), value: squish)
+            .onAppear { guard motionActive else { return }; squish = true }
     }
 }
 
@@ -65,6 +68,7 @@ public struct EasingTrio: View {
         .spring(duration: 1.3, bounce: 0.5),
     ]
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         VStack(spacing: 9) {
             ForEach(Array(curves.enumerated()), id: \.offset) { _, curve in
@@ -73,11 +77,11 @@ public struct EasingTrio: View {
                     Circle().fill(Color.andromedaTeal).frame(width: 10, height: 10)
                         .shadow(color: .andromedaTeal, radius: 6)
                         .offset(x: go ? 100 : 0)
-                        .animation(curve.repeatForever(autoreverses: true), value: go)
+                        .andromedaLoop(curve.repeatForever(autoreverses: true), value: go)
                 }
             }
         }
-        .onAppear { go = true }
+        .onAppear { guard motionActive else { return }; go = true }
     }
 }
 
@@ -86,6 +90,7 @@ public struct Thinking: View {
     @State private var tilt = false
     @State private var bounce = false
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         VStack(spacing: 10) {
             ZStack {
@@ -97,18 +102,18 @@ public struct Thinking: View {
                 }.frame(width: 64)
             }
             .rotationEffect(.degrees(tilt ? 9 : -9))
-            .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: tilt)
+            .andromedaLoop(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: tilt)
 
             HStack(spacing: 5) {
                 ForEach(0..<3, id: \.self) { i in
                     Circle().fill(Color.andromedaGlow).frame(width: 5, height: 5)
                         .offset(y: bounce ? -3 : 3)
-                        .animation(.easeInOut(duration: 0.45)
+                        .andromedaLoop(.easeInOut(duration: 0.45)
                             .delay(Double(i) * 0.15).repeatForever(autoreverses: true), value: bounce)
                 }
             }
         }
-        .onAppear { tilt = true; bounce = true }
+        .onAppear { guard motionActive else { return }; tilt = true; bounce = true }
     }
 }
 
@@ -116,6 +121,7 @@ public struct Thinking: View {
 public struct InnerOuterBorder: View {
     @State private var glow = false
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         RoundedRectangle(cornerRadius: 14).strokeBorder(Color.andromedaTeal, lineWidth: 1.5)
             .frame(width: 52, height: 52)
@@ -125,8 +131,8 @@ public struct InnerOuterBorder: View {
                     .opacity(glow ? 1 : 0.35)
             )
             .scaleEffect(glow ? 1.05 : 1)
-            .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: glow)
-            .onAppear { glow = true }
+            .andromedaLoop(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: glow)
+            .onAppear { guard motionActive else { return }; glow = true }
     }
 }
 
@@ -134,6 +140,7 @@ public struct InnerOuterBorder: View {
 public struct IncomingCall: View {
     @State private var animate = false
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         ZStack {
             ForEach(0..<3, id: \.self) { i in
@@ -141,15 +148,15 @@ public struct IncomingCall: View {
                     .frame(width: 26, height: 26)
                     .scaleEffect(animate ? 1.9 : 0.5)
                     .opacity(animate ? 0 : 0.9)
-                    .animation(.easeOut(duration: 2.4)
+                    .andromedaLoop(.easeOut(duration: 2.4)
                         .delay(Double(i) * 0.7).repeatForever(autoreverses: false), value: animate)
             }
             Image(systemName: "phone.fill").font(.system(size: 20))
                 .foregroundStyle(Color.andromedaLive)
                 .hueRotation(.degrees(animate ? 60 : 0))
-                .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animate)
+                .andromedaLoop(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: animate)
         }
-        .onAppear { animate = true }
+        .onAppear { guard motionActive else { return }; animate = true }
     }
 }
 
@@ -158,13 +165,14 @@ public struct IncomingCall: View {
 public struct GlassMorph: View {
     @State private var apart = false
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         HStack(spacing: apart ? 14 : -6) {
             morphBlob
             morphBlob
         }
-        .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: apart)
-        .onAppear { apart = true }
+        .andromedaLoop(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: apart)
+        .onAppear { guard motionActive else { return }; apart = true }
     }
     private var morphBlob: some View {
         RoundedRectangle(cornerRadius: apart ? 8 : 13)
@@ -179,14 +187,15 @@ public struct GlassMorph: View {
 public struct BookmarkTuck: View {
     @State private var saved = false
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         Image(systemName: "bookmark.fill").font(.system(size: 30))
             .foregroundStyle(Color.andromedaTeal)
             .offset(y: saved ? 0 : -22)
             .scaleEffect(saved ? 1 : 0.6)
             .opacity(saved ? 1 : 0)
-            .animation(.spring(duration: 0.5, bounce: 0.5).repeatForever(autoreverses: true), value: saved)
-            .onAppear { saved = true }
+            .andromedaLoop(.spring(duration: 0.5, bounce: 0.5).repeatForever(autoreverses: true), value: saved)
+            .onAppear { guard motionActive else { return }; saved = true }
     }
 }
 
@@ -194,6 +203,7 @@ public struct BookmarkTuck: View {
 public struct Panel3DSway: View {
     @State private var angle = -27.0
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         RoundedRectangle(cornerRadius: 10)
             .fill(LinearGradient(colors: [.andromedaTeal.opacity(0.6), .andromedaLive.opacity(0.35)],
@@ -203,6 +213,7 @@ public struct Panel3DSway: View {
             .rotation3DEffect(.degrees(angle), axis: (0, 1, 0), perspective: 0.6)
             .shadow(color: .black.opacity(0.4), radius: 8, y: 6)
             .onAppear {
+                guard motionActive else { return }
                 withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) { angle = 27 }
             }
     }
@@ -217,6 +228,7 @@ public struct AnchorHop: View {
     ]
     private let timer = Timer.publish(every: 0.8, on: .main, in: .common).autoconnect()
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         ZStack(alignment: .topLeading) {
             ForEach(0..<anchors.count, id: \.self) { i in
@@ -240,6 +252,7 @@ public struct ConfettiBurst: View {
     @State private var go = false
     private let palette: [Color] = [.andromedaTeal, .andromedaLive, .andromedaGlow]
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         ZStack {
             ForEach(0..<8, id: \.self) { i in
@@ -250,8 +263,8 @@ public struct ConfettiBurst: View {
                     .opacity(go ? 0 : 1)
             }
         }
-        .animation(.easeOut(duration: 2).repeatForever(autoreverses: false), value: go)
-        .onAppear { go = true }
+        .andromedaLoop(.easeOut(duration: 2).repeatForever(autoreverses: false), value: go)
+        .onAppear { guard motionActive else { return }; go = true }
     }
     private func angle(_ i: Int) -> Double { Double(i) / 8 * 2 * .pi }
 }
@@ -260,14 +273,15 @@ public struct ConfettiBurst: View {
 public struct RubberBand: View {
     @State private var pull = false
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         Capsule()
             .fill(LinearGradient(colors: [.andromedaTeal, .andromedaLive],
                                  startPoint: .leading, endPoint: .trailing))
             .frame(width: 56, height: 14)
             .scaleEffect(x: pull ? 1.45 : 0.9)
-            .animation(.spring(duration: 0.6, bounce: 0.7).repeatForever(autoreverses: true), value: pull)
-            .onAppear { pull = true }
+            .andromedaLoop(.spring(duration: 0.6, bounce: 0.7).repeatForever(autoreverses: true), value: pull)
+            .onAppear { guard motionActive else { return }; pull = true }
     }
 }
 
