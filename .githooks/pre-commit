@@ -48,7 +48,11 @@ if !forbidden.isEmpty {
 }
 
 // 2. Swift format gate — best effort; skipped when swift-format is absent.
-let swiftFiles = staged.filter { $0.hasSuffix(".swift") }
+//    Only files that still exist on disk: a staged deletion must not put a
+//    nonexistent path on the formatter's command line.
+let swiftFiles = staged.filter {
+    $0.hasSuffix(".swift") && FileManager.default.fileExists(atPath: $0)
+}
 if !swiftFiles.isEmpty && toolExists("swift-format") {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")

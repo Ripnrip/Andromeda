@@ -47,7 +47,15 @@ for (const file of all) {
     continue;
   }
   if (!inHead) {
-    rows.push({ label, status: "removed", pct: null, note: "page/shot no longer captured in head" });
+    rows.push({ label, status: "removed", pct: null, note: "no longer captured in head — base shown, magenta = removed" });
+    // Base-only composite: base on the left, solid magenta on the right, so
+    // a removed surface still gets review evidence instead of silence.
+    const base = readPng(path.join(baseDir, file));
+    const gone = new PNG({ width: base.width, height: base.height });
+    for (let i = 0; i < gone.data.length; i += 4) {
+      gone.data[i] = 255; gone.data[i + 1] = 0; gone.data[i + 2] = 255; gone.data[i + 3] = 255;
+    }
+    writeComposite(base, gone, path.join(outDir, "composites", file));
     continue;
   }
 
@@ -68,17 +76,7 @@ for (const file of all) {
 
   fs.writeFileSync(path.join(outDir, "diffs", `${label}.diff.png`), PNG.sync.write(diffPng));
 
-  // Left-right composite: base | 12px gutter | head, scaled to 700px per side.
-  const side = 700;
-  const scale = Math.min(side / w, 1);
-  const cw = Math.round(w * scale);
-  const ch = Math.round(h * scale);
-  const strip = new PNG({ width: cw * 2 + 12, height: ch });
-  const aSmall = scalePng(A, cw, ch);
-  const bSmall = scalePng(B, cw, ch);
-  PNG.bitblt(aSmall, strip, 0, 0, cw, ch, 0, 0);
-  PNG.bitblt(bSmall, strip, 0, 0, cw, ch, cw + 12, 0);
-  fs.writeFileSync(path.join(outDir, "composites", file), PNG.sync.write(strip));
+  writeComposite(A, B, path.join(outDir, "composites", file));
 
   const verdictStatus =
     changed === 0 ? "unchanged" : pct < 0.1 ? "noise" : "changed";
@@ -87,6 +85,22 @@ for (const file of all) {
       ? `size ${a.width}×${a.height} → ${b.width}×${b.height}`
       : "";
   rows.push({ label, status: verdictStatus, pct, note: sizeNote });
+}
+
+// Left-right composite: base | 12px gutter | head, scaled to ≤700px per side.
+function writeComposite(basePng, headPng, file) {
+  const w = Math.max(basePng.width, headPng.width);
+  const h = Math.max(basePng.height, headPng.height);
+  const side = 700;
+  const scale = Math.min(side / w, 1);
+  const cw = Math.round(w * scale);
+  const ch = Math.round(h * scale);
+  const strip = new PNG({ width: cw * 2 + 12, height: ch });
+  const aSmall = scalePng(padTo(basePng, w, h), cw, ch);
+  const bSmall = scalePng(padTo(headPng, w, h), cw, ch);
+  PNG.bitblt(aSmall, strip, 0, 0, cw, ch, 0, 0);
+  PNG.bitblt(bSmall, strip, 0, 0, cw, ch, cw + 12, 0);
+  fs.writeFileSync(file, PNG.sync.write(strip));
 }
 
 function scalePng(src, w, h) {
@@ -123,18 +137,21 @@ for (const r of rows) {
   const [page, ...rest] = r.label.split("--");
   md += `| \`${page}\` | ${rest.join(" / ") || "default"} | ${verdict(r)} | ${r.note} |\n`;
 }
-const changedCount = rows.filter((r) => r.status === "changed" || r.status === "new").length;
-md += `\n**${changedCount}** of ${rows.length} shots changed.\n`;
+const changedCount = rows.filter(
+  (r) => r.status === "changed" || r.status === "new" || r.status === "removed"
+).length;
+md += `\n**${changedCount}** of ${rows.length} shots changed (changed + new + removed).\n`;
 
 fs.writeFileSync(path.join(outDir, "report.md"), md);
 // Machine-readable list of composites worth embedding in the PR comment.
-// Changed strips first (highest evidence value), then new shots; the comment
-// builder caps embeds and links the rest.
+// Order: changed, then new, then removed — highest evidence value first.
+// Removed entries have base-only composites (magenta right half).
+const order = { changed: 0, new: 1, removed: 2 };
 fs.writeFileSync(
   path.join(outDir, "changed.txt"),
   rows
-    .filter((r) => r.status === "changed" || r.status === "new")
-    .sort((a, b) => (a.status === "changed" ? -1 : 1) - (b.status === "changed" ? -1 : 1))
+    .filter((r) => order[r.status] !== undefined)
+    .sort((a, b) => order[a.status] - order[b.status])
     .map((r) => `${r.label}.png`)
     .join("\n") + "\n"
 );

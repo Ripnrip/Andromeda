@@ -3,7 +3,9 @@ name: Web Visual Diff
 # Browser equivalent of the pointfree snapshot suite: on every PR touching the
 # web surface, build base + head, screenshot every route at desktop/mobile in
 # dark + light, pixel-diff them, and post a left-right diff strip + markdown
-# table as a PR comment. Composites are pushed to visual/pr-<n> for embedding.
+# table as a PR comment. Orchestration lives in the typed Swift runner
+# (scripts/visual, per the no-shell-automation repo policy); composites are
+# pushed to visual/pr-<n> for embedding.
 
 on:
   pull_request:
@@ -24,10 +26,11 @@ permissions:
 jobs:
   visual-diff:
     name: Screenshot diff (base vs head)
-    runs-on: ubuntu-latest
+    # macOS runner: Swift toolchain is preinstalled for the orchestrator.
+    runs-on: macos-15
     env:
-      BASE_PORT: "4173"
-      HEAD_PORT: "4174"
+      TOOLING: ${{ runner.temp }}/visual-tooling
+      RUNNER: ${{ runner.temp }}/visual-tooling/.build/release/visual-diff
     steps:
       - name: Checkout (full history for base checkout)
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -43,57 +46,21 @@ jobs:
       - name: Install visual tooling
         run: |
           npm --prefix scripts/visual ci
-          # The shooters must survive base checkouts (they do not exist on
-          # main yet) — park them outside the working tree.
-          cp -R scripts/visual "$HOME/visual-tooling"
+          swift build -c release --package-path scripts/visual
+          mkdir -p "$TOOLING"
+          cp -R scripts/visual/. "$TOOLING/"
 
       - name: Install Chromium
-        run: npx --prefix "$HOME/visual-tooling" playwright install --with-deps chromium
+        run: npx --prefix "$TOOLING" playwright install --with-deps chromium
 
       - name: Build + shoot BASE
-        env:
-          SIDE: base
-          SHA: ${{ github.event.pull_request.base.sha }}
-          PORT: "4173"
-        run: |
-          set -euo pipefail
-          git checkout -q "$SHA"
-          npm install
-          # npm/cli#4828 workaround: optional platform binaries can go missing.
-          node -e "require('lightningcss')" || {
-            rm -rf node_modules web/node_modules package-lock.json && npm install
-          }
-          npm run build
-          (cd web && npx next start -p "$PORT" &)
-          for i in $(seq 1 30); do curl -sf "http://localhost:$PORT/" >/dev/null && break; sleep 2; done
-          curl -sf "http://localhost:$PORT/" >/dev/null
-          node "$HOME/visual-tooling/shot.mjs" "http://localhost:$PORT" "shots/$SIDE"
-          pkill -f "next start" || true
+        run: '"$RUNNER" capture --side base --sha ${{ github.event.pull_request.base.sha }} --port 4173'
 
       - name: Build + shoot HEAD
-        env:
-          SIDE: head
-          SHA: ${{ github.event.pull_request.head.sha }}
-          PORT: "4174"
-        run: |
-          set -euo pipefail
-          git checkout -q "$SHA"
-          git checkout -q "${{ github.event.pull_request.head.sha }}"
-          npm install
-          node -e "require('lightningcss')" || {
-            rm -rf node_modules web/node_modules package-lock.json && npm install
-          }
-          npm run build
-          (cd web && npx next start -p "$PORT" &)
-          for i in $(seq 1 30); do curl -sf "http://localhost:$PORT/" >/dev/null && break; sleep 2; done
-          curl -sf "http://localhost:$PORT/" >/dev/null
-          node "$HOME/visual-tooling/shot.mjs" "http://localhost:$PORT" "shots/$SIDE"
-          pkill -f "next start" || true
+        run: '"$RUNNER" capture --side head --sha ${{ github.event.pull_request.head.sha }} --port 4174'
 
       - name: Pixel diff + markdown table
-        run: |
-          node "$HOME/visual-tooling/diff.mjs" shots/base shots/head out
-          cat out/report.md
+        run: '"$RUNNER" diff --base shots/base --head shots/head --out out'
 
       - name: Upload full-size shots (90-day retention)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -103,53 +70,9 @@ jobs:
           retention-days: 90
 
       - name: Publish composites to visual/pr-${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-          BRANCH="visual/pr-${{ github.event.pull_request.number }}"
-          git config user.name "andromeda-ci"
-          git config user.email "ci@andromeda.local"
-          git checkout -q -- package-lock.json 2>/dev/null || true
-          git checkout -q --orphan "$BRANCH"
-          git rm -rq --cached .
-          # Only composites + heatmaps live on this branch (raw URLs embed in
-          # comments). -f: local runs gitignore out/, CI artifacts override.
-          git add -f out/composites out/diffs
-          git commit -qm "visual diff artifacts for PR #${{ github.event.pull_request.number }}"
-          git push -qf origin "$BRANCH"
+        run: '"$RUNNER" publish --pr ${{ github.event.pull_request.number }} --repo ${{ github.repository }}'
 
       - name: Upsert PR comment with diff table
         env:
           GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-          RAW="https://raw.githubusercontent.com/${{ github.repository }}/visual/pr-$PR/out"
-          {
-            echo "<!-- web-visual-diff -->"
-            cat out/report.md
-            echo ""
-            echo "### Left–right strips (base | head)"
-            echo ""
-            EMBEDDED=0
-            while IFS= read -r name; do
-              [ -z "$name" ] && continue
-              if [ "$EMBEDDED" -lt 8 ]; then
-                echo "#### $name"
-                echo ""
-                echo "![diff: $name]($RAW/composites/$name)"
-                echo ""
-                EMBEDDED=$((EMBEDDED + 1))
-              else
-                echo "- [$name]($RAW/composites/$name)"
-              fi
-            done < out/changed.txt
-            echo "_Heatmap overlays on the [\`visual/pr-$PR\`](https://github.com/${{ github.repository }}/tree/visual/pr-$PR/out) branch · full-size shots in workflow artifacts · regenerated on every push._"
-          } > comment.md
-          ID=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" \
-            --jq ".[] | select(.body | startswith(\"<!-- web-visual-diff -->\")) | .id" | head -1)
-          if [ -n "$ID" ]; then
-            gh api --method PATCH "repos/${{ github.repository }}/issues/comments/$ID" \
-              -F body=@comment.md --jq '.html_url'
-          else
-            gh pr comment "$PR" --body-file comment.md
-          fi
+        run: '"$RUNNER" comment --pr ${{ github.event.pull_request.number }} --repo ${{ github.repository }}'
