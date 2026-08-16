@@ -128,9 +128,13 @@ md += `\n**${changedCount}** of ${rows.length} shots changed.\n`;
 
 fs.writeFileSync(path.join(outDir, "report.md"), md);
 // Machine-readable list of composites worth embedding in the PR comment.
+// Changed strips first (highest evidence value), then new shots; the comment
+// builder caps embeds and links the rest.
 fs.writeFileSync(
   path.join(outDir, "changed.txt"),
-  rows.filter((r) => r.status === "changed" || r.status === "new")
+  rows
+    .filter((r) => r.status === "changed" || r.status === "new")
+    .sort((a, b) => (a.status === "changed" ? -1 : 1) - (b.status === "changed" ? -1 : 1))
     .map((r) => `${r.label}.png`)
     .join("\n") + "\n"
 );
