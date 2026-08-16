@@ -27,11 +27,20 @@ struct AndromedaMCPServer {
     private static func dispatch(_ data: Data, engine: URL?) async {
         guard let header = decode(RPCRequestHeader.self, from: data, id: nil) else { return }
 
-        // JSON-RPC 2.0: a message without an `id` is a notification — the
-        // server MUST NOT reply to it, whatever the method. This covers
-        // `notifications/initialized` and notification-form `ping` alike;
-        // replies to notifications are unsolicited traffic.
-        guard header.id != nil else { return }
+        // JSON-RPC 2.0: a message whose `id` key is OMITTED is a
+        // notification — the server MUST NOT reply, whatever the method.
+        // An explicit `"id": null` is not a notification (and not a valid
+        // id either) — it gets an invalid-request error so the caller is
+        // never left waiting.
+        if header.id == nil {
+            if header.idOmitted { return }
+            send(RPCErrorResponse(
+                id: nil,
+                code: .invalidRequest,
+                message: "Invalid request: id must be a number or string when present, not null"
+            ))
+            return
+        }
 
         switch header.method {
         case "initialize":

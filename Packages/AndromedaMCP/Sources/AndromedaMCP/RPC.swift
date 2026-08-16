@@ -68,11 +68,25 @@ struct EncodeNull<Value: Encodable & Sendable>: Encodable, Sendable {
 
 // MARK: - Envelopes
 
-/// First decode pass: enough of any message to route it.
+/// First decode pass: enough of any message to route it. `idOmitted`
+/// distinguishes a notification (id key absent — no reply, ever) from a
+/// malformed request carrying an explicit `"id": null` (discouraged by
+/// JSON-RPC 2.0, but NOT a notification — it must get an error reply).
 struct RPCRequestHeader: Decodable, Sendable {
     let jsonrpc: String?
     let id: RPCID?
+    let idOmitted: Bool
     let method: String
+
+    private enum CodingKeys: String, CodingKey { case jsonrpc, id, method }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        idOmitted = !container.contains(.id)
+        jsonrpc = try container.decodeIfPresent(String.self, forKey: .jsonrpc)
+        id = try container.decodeIfPresent(RPCID.self, forKey: .id)
+        method = try container.decode(String.self, forKey: .method)
+    }
 }
 
 /// Second decode pass: a full request with typed params.
@@ -101,6 +115,7 @@ struct RPCResult<Response: Encodable>: Encodable {
 struct RPCErrorResponse: Encodable, Sendable {
     enum Code: Int, Sendable {
         case parseError = -32700
+        case invalidRequest = -32600
         case methodNotFound = -32601
         case invalidParams = -32602
         case internalError = -32603
