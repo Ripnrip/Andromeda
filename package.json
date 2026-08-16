@@ -9,6 +9,13 @@
     "dev": "npm run dev --workspace web",
     "build": "npm run build --workspace web",
     "start": "npm run start --workspace web",
-    "lint": "npm run lint --workspace web"
+    "lint": "npm run lint --workspace web",
+    "test:web-snapshots": "node web/tests/snapshots/run.mjs",
+    "test:web-snapshots:record": "node web/tests/snapshots/run.mjs --record"
+  },
+  "devDependencies": {
+    "agent-browser": "0.34.0",
+    "pixelmatch": "7.1.0",
+    "pngjs": "7.0.0"
   }
 }

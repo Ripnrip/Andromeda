@@ -56,6 +56,14 @@ Dual-home MemoryKit package:
 cd Packages/MemoryKit && swift test
 ```
 
+Web marketing site (`web/`) — screenshot snapshot tests, the browser-side analogue of
+the Point-Free suites. Baselines are committed and CI-image-bound; re-record on CI with
+`[record-web-snapshots]`, never from a laptop. See `docs/WEB-SNAPSHOT-TESTS.md`.
+
+```console
+npm run test:web-snapshots
+```
+
 ## Engineering Rules
 
 - Prefer Swift strict-concurrency correctness, typed identifiers, rich enums, protocol boundaries, actors for shared mutable state, initializer injection, and OSLog diagnostics.

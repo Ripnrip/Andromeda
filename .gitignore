@@ -6,6 +6,10 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 
+# Web snapshot run output (actual / diff / composite PNGs + reports).
+# Baselines under web/tests/snapshots/__Snapshots__/ ARE committed.
+web/tests/snapshots/__Output__/
+
 # OS
 .DS_Store
 
