@@ -229,7 +229,7 @@
     </div>
     <div class="phase now">
       <div class="mark">IN CONTACT</div>
-      <div><h4>Rewire &amp; retire</h4><p>Register the built binary where Claude Code actually reads MCP servers — <code>~/.claude/.mcp.json</code> / <code>~/.claude.json</code> <code>mcpServers</code> (via <code>claude mcp add</code>), per <code>docs/MCP-SPRAWL-PROBLEM.md</code> — under a capability-oriented key (<code>andromeda</code>, the binary's own identity — not the old provider-named <code>multica</code> key, which dies with the masquerade). Then retire the 75 MB <code>marketplaces/omc</code> clone; install the swift canon skill. The masquerade key doesn't get a new owner — it gets deleted.</p></div>
+      <div><h4>Rewire &amp; retire</h4><p>Register the built binary where Claude Code actually reads MCP servers — <code>~/.claude/.mcp.json</code> / <code>~/.claude.json</code> <code>mcpServers</code> (via <code>claude mcp add</code>), per <code>docs/MCP-SPRAWL-PROBLEM.md</code> — under a capability-oriented key (<code>andromeda</code>, the binary's own identity — not the old provider-named <code>multica</code> key, which dies with the masquerade). Then retire the 75 MB <code>marketplaces/omc</code> clone; install the swift canon skill. Cutover is gated, not one-way: validate the new binary serves every required capability first, retain the old config + clone as a known-good rollback artifact, and only then delete the masquerade key and retire the clone (charter: no migration without rollback).</p></div>
     </div>
     <div class="phase">
       <div class="mark">PHASE II</div>
@@ -241,7 +241,7 @@
     </div>
     <div class="phase">
       <div class="mark">PHASE IV</div>
-      <div><h4>Fleet rollout</h4><p>Push the consolidated config across hosts via <code>fleet-settings.json</code> — Studio, Mini, habitat VM — one source of truth, replayable.</p></div>
+      <div><h4>Fleet rollout</h4><p>Push the consolidated config to eligible fleet members via <code>fleet-settings.json</code> — one source of truth, replayable. Mini stays out unless explicitly promoted (it is an intentionally isolated non-hive lane) and the habitat VM remains ingest-source-only, per the control-plane ownership table.</p></div>
     </div>
   </section>
 
