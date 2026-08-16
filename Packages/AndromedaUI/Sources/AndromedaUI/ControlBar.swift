@@ -53,6 +53,8 @@ public struct BarPillar: Identifiable, Sendable {
 /// A comet of light traveling clockwise around a rounded border — the
 /// signature "alive" edge of every Andromeda glass surface.
 public struct BorderBeam: ViewModifier {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     public var cornerRadius: CGFloat
     public var lineWidth: CGFloat
     public var duration: Double
@@ -76,6 +78,7 @@ public struct BorderBeam: ViewModifier {
                 .allowsHitTesting(false)
         )
         .onAppear {
+            guard motionActive else { return }   // frozen: beam parked at 0°
             withAnimation(.linear(duration: duration).repeatForever(autoreverses: false)) { angle = 360 }
         }
     }
@@ -178,6 +181,8 @@ public struct PillarButton: View {
 // MARK: - Fleet status
 
 public struct FleetStatus: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     public var count: Int
     @State private var beat = false
     public init(count: Int = 3) { self.count = count }
@@ -197,6 +202,6 @@ public struct FleetStatus: View {
         }
         .padding(.horizontal, 11).padding(.vertical, 7)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.andromedaLive.opacity(0.1)))
-        .onAppear { beat = true }
+        .onAppear { if motionActive { beat = true } }
     }
 }

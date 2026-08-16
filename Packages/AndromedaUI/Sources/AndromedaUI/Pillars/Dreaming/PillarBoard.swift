@@ -15,7 +15,7 @@ public final class PillarDriver {
     public var proxy: ProxyState = .streaming
     public var skills: SkillState = .installing
     public var mcp: MCPState = .discovering
-    public var fabric: FabricState = .qdrant
+    public var fabric: FabricState = .vector
     public var fleet: FleetState = .ingesting
 
     /// Seconds each state holds before the board advances.
@@ -258,11 +258,11 @@ public struct PillarBoard: View {
     private var header: some View {
         HStack(alignment: .bottom, spacing: 30) {
             VStack(alignment: .leading, spacing: 10) {
-                Eyebrow("Andromida · state studies")
+                Eyebrow("Andromida · state studies · 📐 design surface")
                 Text("Nine pillars, thirty-seven states")
                     .font(AndromedaFont.serif(46))
                     .foregroundStyle(Color.andromedaInk)
-                Text("Every state is a real mode of the system — its own motion, its own vocabulary, its own consequence for what Andromida will say tomorrow.")
+                Text("Design studies for the control plane Andromida is becoming — each state is vocabulary for a mode we intend, not a claim it ships today. Ship-state per pillar is tracked honestly (🚧 partial · 📐 specified) in the control-plane docs.")
                     .cpBody()
                     .foregroundStyle(Color.andromedaMuted)
                     .frame(maxWidth: 660, alignment: .leading)
@@ -325,7 +325,7 @@ public extension AndromedaCatalogue {
             .init("Proxy · routing", ProxyScene(state: .routing)),
             .init("Skills · invoking", SkillsScene(state: .invoking)),
             .init("MCP · tool call", MCPScene(state: .toolcall)),
-            .init("Fabric · qdrant", FabricScene(state: .qdrant)),
+            .init("Fabric · memory.vector", FabricScene(state: .vector)),
             .init("Fleet · milestone", FleetScene(state: .milestone)),
             .init("EEGMontage", EEGMontage(lead: .rem, accent: .andromedaDream, time: 0)),
             .init("NumericTicker", NumericTicker(37_612, glow: .andromedaGlow)),

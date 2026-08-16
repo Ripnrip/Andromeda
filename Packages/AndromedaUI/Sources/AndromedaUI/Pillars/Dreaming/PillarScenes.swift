@@ -161,8 +161,8 @@ public struct WritePathScene: View {
                     ("outbox depth  3", .andromedaMuted)]
         case .syncing:
             let queued = max(0, 7 - Int(t * 1.2).quotientAndRemainder(dividingBy: 9).remainder)
-            return [("→ qdrant     ok", .andromedaLive),
-                    ("→ graphiti   ok", .andromedaLive),
+            return [("→ vector     ok", .andromedaLive),
+                    ("→ graph      ok", .andromedaLive),
                     ("queued  \(queued)", .andromedaMuted)]
         }
     }
@@ -446,7 +446,7 @@ public struct FabricScene: View {
 
                 Group {
                     switch state {
-                    case .qdrant:
+                    case .vector:
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 10),
                                   spacing: 6) {
                             ForEach(0..<30, id: \.self) { i in
@@ -481,7 +481,7 @@ public struct FabricScene: View {
                         }
                         .padding(.horizontal, 16)
 
-                    case .graphiti:
+                    case .graph:
                         Circle()
                             .trim(from: 0, to: 0.62)
                             .stroke(state.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round))

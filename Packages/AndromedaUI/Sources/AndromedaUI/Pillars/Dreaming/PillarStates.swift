@@ -5,7 +5,7 @@ import SwiftUI
 public enum MemoryState: String, PillarState {
     case forming, consolidating, recalled, decaying, conflicted
 
-    public var label: String { rawValue }
+    public var label: String { "memory." + rawValue }
 
     public var accent: Color {
         switch self {
@@ -195,7 +195,7 @@ public enum PerceptionState: String, PillarState {
     public var log: String {
         switch self {
         case .listening: "mic open · 00:03 · nothing leaves this machine"
-        case .recalling: "sweeping qdrant · graphiti · episodic · web"
+        case .recalling: "sweeping vector · graph · episodic · web"
         case .whisper:   "you argued the opposite on Tuesday — want the trace?"
         case .focus:     "whispers held · 4 queued for later"
         }
@@ -238,7 +238,7 @@ public enum WritePathState: String, PillarState {
         case .capturing:  "buffering to disk before anything else"
         case .writing:    "memory.write  trace/site-split  witnesses 1"
         case .committing: "0x41f4  APPEND → outbox  durable"
-        case .syncing:    "outbox drains → qdrant · graphiti · episodic"
+        case .syncing:    "outbox drains → vector · graph · episodic"
         }
     }
     public var note: String {
@@ -276,7 +276,7 @@ public enum ProxyState: String, PillarState {
     }
     public var badge: String {
         switch self {
-        case .proxying: "proxying · warm"; case .streaming: "streaming · sonnet-4.6"
+        case .proxying: "proxying · warm"; case .streaming: "streaming · infer.deep"
         case .routing:  "routing · re-routed"; case .tokens: "token meter · live"
         }
     }
@@ -284,7 +284,7 @@ public enum ProxyState: String, PillarState {
         switch self {
         case .proxying:  "gateway warm · upstream thinking…"
         case .streaming: "decoding 41 tok/s · block 7"
-        case .routing:   "sonnet saturated → haiku-4.5 · 4ms triage"
+        case .routing:   "infer.deep saturated → infer.fast · 4ms triage"
         case .tokens:    "spend visible before it becomes a surprise"
         }
     }
@@ -301,7 +301,9 @@ public enum ProxyState: String, PillarState {
         }
     }
 
-    public static let models = ["sonnet-4.6", "haiku-4.5", "local-8b"]
+    /// Stable capability IDs only — upstream provider/model brands stay
+    /// behind the operator curtain (AGENTS.md capability hiding).
+    public static let models = ["infer.deep", "infer.fast", "infer.local"]
     /// Which upstream is carrying the request, if any.
     public var activeModel: Int? {
         switch self { case .routing: 1; case .proxying, .streaming: 0; case .tokens: nil }
@@ -372,16 +374,16 @@ public enum MCPState: String, PillarState {
     }
     public var badge: String {
         switch self {
-        case .connecting:  "connecting · linear"
+        case .connecting:  "connecting · tickets"
         case .discovering: "discovering · 12 tools"
-        case .toolcall:    "tool call · notion.search"
+        case .toolcall:    "tool call · docs.search"
         }
     }
     public var log: String {
         switch self {
         case .connecting:  "handshake · negotiating session…"
         case .discovering: "server advertises 12 · policy allows 3"
-        case .toolcall:    "notion.search(\"pooling\") → 4 results · 212ms"
+        case .toolcall:    "docs.search(\"pooling\") → 4 results · 212ms"
         }
     }
     public var note: String {
@@ -405,27 +407,29 @@ public enum MCPState: String, PillarState {
 // MARK: - Memory fabric
 
 public enum FabricState: String, PillarState {
-    case web, graphiti, qdrant, procedural
+    /// Raw values are stable client capability IDs (`memory.*`); the storage
+    /// engines behind them (graph store, vector store) stay behind the curtain.
+    case web, graph, vector, procedural
 
     public var label: String { rawValue }
 
     public var accent: Color {
         switch self {
-        case .web: .andromedaMuted; case .graphiti: .andromedaAmber
-        case .qdrant: .andromedaTeal; case .procedural: .andromedaLive
+        case .web: .andromedaMuted; case .graph: .andromedaAmber
+        case .vector: .andromedaTeal; case .procedural: .andromedaLive
         }
     }
     public var badge: String {
         switch self {
-        case .web: "web · fresh facts"; case .graphiti: "graphiti · temporal"
-        case .qdrant: "qdrant · vectors"; case .procedural: "procedural · step 3/6"
+        case .web: "memory.web · fresh facts"; case .graph: "memory.graph · temporal"
+        case .vector: "memory.vector · neighbours"; case .procedural: "memory.steps · 3/6"
         }
     }
     public var log: String {
         switch self {
         case .web:        "memory is cold on this — reaching out"
-        case .graphiti:   "traversing entity edges across 94 days"
-        case .qdrant:     "nearest neighbours · 0.86 cosine"
+        case .graph:      "traversing entity edges across 94 days"
+        case .vector:     "nearest neighbours · 0.86 cosine"
         case .procedural: "replaying how you usually answer this"
         }
     }
@@ -433,9 +437,9 @@ public enum FabricState: String, PillarState {
         switch self {
         case .web:
             "When nothing held is recent enough, Andromida says so and goes outside. It does not dress an old trace up as a current one."
-        case .graphiti:
+        case .graph:
             "The graph holds change over time — not what you believe, but when you started believing it and what moved you."
-        case .qdrant:
+        case .vector:
             "Resemblance, not keywords. This is the store that finds the note you could not remember the words for."
         case .procedural:
             "How-to memory replays in order. It is the difference between knowing your position and knowing your move."
@@ -460,9 +464,9 @@ public enum FleetState: String, PillarState {
     public var badge: String {
         switch self {
         case .milestone:  "milestone"
-        case .reindexing: "reindexing · graphiti"
+        case .reindexing: "reindexing · graph"
         case .ingesting:  "ingesting · antara-notes.md"
-        case .degraded:   "degraded · qdrant offline"
+        case .degraded:   "degraded · vector store offline"
         case .handoff:    "handoff → dreaming"
         }
     }
@@ -471,7 +475,7 @@ public enum FleetState: String, PillarState {
         case .milestone:  "memories stored"
         case .reindexing: "graph re-weaving · queries served from snapshot"
         case .ingesting:  "412 traces extracted · witnesses attached"
-        case .degraded:   "answering from graphiti + episodic only"
+        case .degraded:   "answering from graph + episodic only"
         case .handoff:    "passing 312 fragments to the dream agent"
         }
     }
@@ -496,5 +500,6 @@ public enum FleetState: String, PillarState {
         ("pooling-draft.md", "sealed · 3 witnesses", 1),
         ("zotero/instrument.pdf", "read · 0 traces yet", 0.14),
     ]
-    public static let backends = ["qdrant", "graphiti", "episodic", "web"]
+    /// Capability IDs, not engine brands (curtain law).
+    public static let backends = ["vector", "graph", "episodic", "web"]
 }
