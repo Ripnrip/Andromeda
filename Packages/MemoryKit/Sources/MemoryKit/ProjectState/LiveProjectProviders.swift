@@ -562,19 +562,16 @@ enum MulticaCLIRunner {
     static func run(arguments: [String]) async throws -> Data {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/multica")
-                process.arguments = arguments
-                let stdout = Pipe()
-                let stderr = Pipe()
-                process.standardOutput = stdout
-                process.standardError = stderr
+                // Exhibit 3: ConcurrentProcess drains both pipes before
+                // waiting on exit — the old wait-then-read shape deadlocked
+                // on any output past the pipe buffer.
                 do {
-                    try process.run()
-                    process.waitUntilExit()
-                    let out = stdout.fileHandleForReading.readDataToEndOfFile()
-                    let err = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                    guard process.terminationStatus == 0 else {
+                    let output = try ConcurrentProcess.run(
+                        executable: "/opt/homebrew/bin/multica",
+                        arguments: arguments
+                    )
+                    guard output.status == 0 else {
+                        let err = String(data: output.stderr, encoding: .utf8) ?? ""
                         continuation.resume(
                             throwing: ProjectStateError.providerFailure(
                                 "multica \(arguments.prefix(3).joined(separator: " ")) failed: \(err.prefix(160))"
@@ -582,7 +579,7 @@ enum MulticaCLIRunner {
                         )
                         return
                     }
-                    continuation.resume(returning: out)
+                    continuation.resume(returning: output.stdout)
                 } catch {
                     continuation.resume(
                         throwing: ProjectStateError.providerFailure(error.localizedDescription)
