@@ -9,6 +9,8 @@ import Combine
 
 /// Text that types itself out, holds, then erases — cursor blinking throughout.
 public struct Typewriter: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     public var text: String
     @State private var count = 0
     @State private var forward = true
@@ -24,15 +26,21 @@ public struct Typewriter: View {
         }
         .foregroundStyle(Color.andromedaGlow)
         .onReceive(step) { _ in
+            guard motionActive else { return }   // frozen: text stays at frame zero
             if forward { count += 1; if count >= text.count { forward = false } }
             else       { count -= 1; if count <= 0 { forward = true } }
         }
-        .onReceive(blink) { _ in caretOn.toggle() }
+        .onReceive(blink) { _ in
+            guard motionActive else { return }
+            caretOn.toggle()
+        }
     }
 }
 
 /// A burst of particles launching outward and fading — completions.
 public struct Fireworks: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     @State private var go = false
     public init() {}
     public var body: some View {
@@ -45,13 +53,15 @@ public struct Fireworks: View {
             }
         }
         .animation(.easeOut(duration: 1.6).repeatForever(autoreverses: false), value: go)
-        .onAppear { go = true }
+        .onAppear { if motionActive { go = true } }
     }
     private func angle(_ i: Int) -> Double { Double(i) / 8 * 2 * .pi }
 }
 
 /// A double-thump heartbeat for likes, favourites, and health signals.
 public struct PulsingHeart: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     @State private var beat = false
     public init() {}
     public var body: some View {
@@ -60,12 +70,14 @@ public struct PulsingHeart: View {
             .foregroundStyle(Color.andromedaLive)
             .scaleEffect(beat ? 1.25 : 1)
             .animation(.spring(duration: 0.35, bounce: 0.6).repeatForever(), value: beat)
-            .onAppear { beat = true }
+            .onAppear { if motionActive { beat = true } }
     }
 }
 
 /// A sheen travelling across a label — the invitation to swipe.
 public struct SlideToUnlock: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     public var text: String
     @State private var phase: CGFloat = -1
     public init(_ text: String = "slide to deploy") { self.text = text }
@@ -83,6 +95,7 @@ public struct SlideToUnlock: View {
             .padding(.horizontal, 16).padding(.vertical, 9)
             .overlay(Capsule().stroke(Color.andromedaTeal.opacity(0.3)))
             .onAppear {
+                guard motionActive else { return }
                 withAnimation(.linear(duration: 2.4).repeatForever(autoreverses: false)) { phase = 1.4 }
             }
     }
@@ -90,6 +103,8 @@ public struct SlideToUnlock: View {
 
 /// A digit fading up and out as a counter ticks — live totals.
 public struct NumericCrossfade: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     @State private var value = 428
     private let timer = Timer.publish(every: 1.4, on: .main, in: .common).autoconnect()
     public init() {}
@@ -98,12 +113,17 @@ public struct NumericCrossfade: View {
             .font(.system(size: 30, weight: .semibold, design: .monospaced))
             .foregroundStyle(Color.andromedaGlow)
             .contentTransition(.numericText(value: Double(value)))
-            .onReceive(timer) { _ in withAnimation(.easeInOut) { value += 7 } }
+            .onReceive(timer) { _ in
+            guard motionActive else { return }
+            withAnimation(.easeInOut) { value += 7 }
+        }
     }
 }
 
 /// A tile cycling through the palette on a hue wheel — highlights.
 public struct HueRotation: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     @State private var hue = 0.0
     public init() {}
     public var body: some View {
@@ -114,6 +134,7 @@ public struct HueRotation: View {
             .shadow(color: .andromedaTeal.opacity(0.5), radius: 12)
             .hueRotation(.degrees(hue))
             .onAppear {
+                guard motionActive else { return }
                 withAnimation(.linear(duration: 5).repeatForever(autoreverses: false)) { hue = 360 }
             }
     }
@@ -121,6 +142,8 @@ public struct HueRotation: View {
 
 /// Each glyph tumbling on its Y axis in sequence — status words.
 public struct CharacterFlip: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     public var text: String
     @State private var flip = false
     public init(_ text: String = "ONLINE") { self.text = text }
@@ -135,12 +158,14 @@ public struct CharacterFlip: View {
                         .delay(Double(i) * 0.12).repeatForever(autoreverses: true), value: flip)
             }
         }
-        .onAppear { flip = true }
+        .onAppear { if motionActive { flip = true } }
     }
 }
 
 /// A dashed outline crawling around a shape — active selection.
 public struct DashMarch: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     @State private var phase: CGFloat = 0
     public init() {}
     public var body: some View {
@@ -149,6 +174,7 @@ public struct DashMarch: View {
                     style: StrokeStyle(lineWidth: 2, dash: [10, 6], dashPhase: phase))
             .frame(width: 58, height: 58)
             .onAppear {
+                guard motionActive else { return }
                 withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) { phase = -32 }
             }
     }
@@ -156,6 +182,8 @@ public struct DashMarch: View {
 
 /// A path drawing itself on, then erasing — signatures and route reveals.
 public struct SignatureDraw: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     @State private var to: CGFloat = 0
     public init() {}
     public var body: some View {
@@ -165,6 +193,7 @@ public struct SignatureDraw: View {
                     style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
             .frame(width: 120, height: 52)
             .onAppear {
+                guard motionActive else { return }
                 withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) { to = 1 }
             }
     }
@@ -184,6 +213,8 @@ struct SignatureShape: Shape {
 
 /// Reaction chips popping in with overshoot — messenger-style bursts.
 public struct SpringReactions: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     private let symbols = ["heart.fill", "sparkles", "hand.thumbsup.fill"]
     @State private var shown = false
     public init() {}
@@ -200,12 +231,14 @@ public struct SpringReactions: View {
                         .delay(Double(i) * 0.12).repeatForever(autoreverses: true), value: shown)
             }
         }
-        .onAppear { shown = true }
+        .onAppear { if motionActive { shown = true } }
     }
 }
 
 /// A heart that thumps while sparks radiate — the tap-to-like moment.
 public struct LikeBurst: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     @State private var go = false
     public init() {}
     public var body: some View {
@@ -220,13 +253,15 @@ public struct LikeBurst: View {
                 .scaleEffect(go ? 1 : 0.6)
         }
         .animation(.spring(duration: 0.7, bounce: 0.5).repeatForever(autoreverses: true), value: go)
-        .onAppear { go = true }
+        .onAppear { if motionActive { go = true } }
     }
     private func angle(_ i: Int) -> Double { Double(i) / 6 * 2 * .pi }
 }
 
 /// An element dropping in and settling past its mark — playful entrances.
 public struct OvershootBounce: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+
     @State private var dropped = false
     public init() {}
     public var body: some View {
@@ -234,7 +269,7 @@ public struct OvershootBounce: View {
             .shadow(color: .andromedaTeal, radius: 10)
             .offset(y: dropped ? 0 : -26)
             .animation(.spring(duration: 0.6, bounce: 0.55).repeatForever(autoreverses: true), value: dropped)
-            .onAppear { dropped = true }
+            .onAppear { if motionActive { dropped = true } }
     }
 }
 

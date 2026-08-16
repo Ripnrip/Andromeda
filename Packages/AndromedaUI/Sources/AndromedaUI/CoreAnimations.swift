@@ -5,6 +5,7 @@ import SwiftUI
 
 /// Health & liveness — the heartbeat of every status dot.
 public struct LivePulse: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var color: Color
     public var size: CGFloat
     @State private var on = false
@@ -18,12 +19,13 @@ public struct LivePulse: View {
             .opacity(on ? 0.45 : 1)
             .scaleEffect(on ? 0.92 : 1)
             .animation(Motion.pulse, value: on)
-            .onAppear { on = true }
+            .onAppear { if motionActive { on = true } }
     }
 }
 
 /// The core at rest — a slow expanding halo.
 public struct BreathingRing: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var color: Color
     @State private var open = false
     public init(color: Color = .andromedaTeal) { self.color = color }
@@ -33,12 +35,13 @@ public struct BreathingRing: View {
             .scaleEffect(open ? 1.18 : 0.85)
             .opacity(open ? 0.25 : 0.95)
             .animation(Motion.breathe, value: open)
-            .onAppear { open = true }
+            .onAppear { if motionActive { open = true } }
     }
 }
 
 /// A node circling the core — background work in flight.
 public struct OrbitingSatellite: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var radius: CGFloat
     @State private var spin = false
     public init(radius: CGFloat = 26) { self.radius = radius }
@@ -52,12 +55,13 @@ public struct OrbitingSatellite: View {
                 .rotationEffect(.degrees(spin ? 360 : 0))
         }
         .animation(Motion.orbit, value: spin)
-        .onAppear { spin = true }
+        .onAppear { if motionActive { spin = true } }
     }
 }
 
 /// Staggered bars for streaming inference or memory recall.
 public struct RecallWaveform: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var bars: Int
     @State private var tall = false
     public init(bars: Int = 5) { self.bars = bars }
@@ -70,12 +74,13 @@ public struct RecallWaveform: View {
                     .animation(Motion.wave.delay(Double(i) * 0.1), value: tall)
             }
         }
-        .onAppear { tall = true }
+        .onAppear { if motionActive { tall = true } }
     }
 }
 
 /// A comet-tail arc for scans, syncs, and provider resolution.
 public struct ScanSweep: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     @State private var spin = false
     public init() {}
     public var body: some View {
@@ -87,7 +92,7 @@ public struct ScanSweep: View {
             .frame(width: 44, height: 44)
             .rotationEffect(.degrees(spin ? 360 : 0))
             .animation(Motion.sweep, value: spin)
-            .onAppear { spin = true }
+            .onAppear { if motionActive { spin = true } }
     }
 }
 
@@ -107,6 +112,7 @@ public struct HUDCore: View {
 
 /// Fleet members coming online, phase-offset so the grid shimmers.
 public struct FleetConstellation: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var columns: Int
     @State private var lit = false
     public init(columns: Int = 4) { self.columns = columns }
@@ -123,12 +129,13 @@ public struct FleetConstellation: View {
             }
         }
         .fixedSize()
-        .onAppear { lit = true }
+        .onAppear { if motionActive { lit = true } }
     }
 }
 
 /// Loading placeholders — a teal sheen crossing redacted rows.
 public struct ShimmerSkeleton: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     @State private var phase: CGFloat = -1
     public init() {}
     public var body: some View {
@@ -147,6 +154,7 @@ public struct ShimmerSkeleton: View {
             }
         }
         .onAppear {
+            guard motionActive else { return }
             withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) { phase = 2 }
         }
     }

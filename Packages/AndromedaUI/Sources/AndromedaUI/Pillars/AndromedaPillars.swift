@@ -205,7 +205,7 @@ public enum AndromedaPillarsData {
     public static let retrievalLanes: [RetrievalLane] = [
         .init("web", "web search", "fresh facts", latencyMS: 410, recall: 0.64, tone: .dim),
         .init("graffiti", "graffiti", "change over time", latencyMS: 96, recall: 0.84, tone: .partial),
-        .init("qdrant", "qdrant", "resemblance", latencyMS: 22, recall: 0.78, tone: .specified),
+        .init("memory.vector", "vector", "resemblance", latencyMS: 22, recall: 0.78, tone: .specified),
         .init("procedural", "procedural", "how you act", latencyMS: 9, recall: 0.51, tone: .live),
         .init("episodic", "episodic log", "what happened", latencyMS: 37, recall: 0.88, tone: .partial),
     ]
