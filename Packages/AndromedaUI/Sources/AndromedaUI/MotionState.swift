@@ -158,3 +158,5 @@ public struct AndromedaTile<Content: View>: View {
 }
 
 // Baselines regenerate via the [record-snapshots] tip (runner-image-bound).
+
+// Baselines re-record via the [record-snapshots] tip on the macos-15 lane.
