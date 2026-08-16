@@ -156,3 +156,5 @@ public struct AndromedaTile<Content: View>: View {
     }
     .preferredColorScheme(.dark)
 }
+
+// Baselines regenerate via the [record-snapshots] tip (runner-image-bound).
