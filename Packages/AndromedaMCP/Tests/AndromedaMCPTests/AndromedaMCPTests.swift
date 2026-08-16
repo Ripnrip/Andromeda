@@ -75,7 +75,22 @@ struct AndromedaMCPTests {
 
         var responses: [String] = []
         var buffer = Data()
-        while responses.count < expected {
+        // Watchdog: a broken exchange must fail assertions, not hang the
+        // suite — force EOF after 10s no matter what.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 10) { [weak process] in
+            if process?.isRunning == true { process?.terminate() }
+        }
+        // Read until EOF: once the expected count is reached the server is
+        // terminated, then any further output is drained so spurious extra
+        // responses (e.g. a notification handler wrongly replying) are
+        // captured instead of silently discarded — count assertions see
+        // them and fail.
+        var terminating = false
+        while true {
+            if !terminating && responses.count >= expected {
+                process.terminate()
+                terminating = true
+            }
             let chunk = stdout.fileHandleForReading.availableData
             guard !chunk.isEmpty else { break }
             buffer.append(chunk)
@@ -83,10 +98,9 @@ struct AndromedaMCPTests {
                 let line = buffer[buffer.startIndex..<newline]
                 buffer = Data(buffer[buffer.index(after: newline)...])
                 responses.append(String(decoding: line, as: UTF8.self))
-                if responses.count == expected { break }
             }
         }
-        process.terminate()
+        if !terminating { process.terminate() }
         return responses
     }
 
