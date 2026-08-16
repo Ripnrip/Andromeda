@@ -6,6 +6,9 @@ name: Web Visual Diff
 # table as a PR comment. Orchestration lives in the typed Swift runner
 # (scripts/visual, per the no-shell-automation repo policy); composites are
 # pushed to visual/pr-<n> for embedding.
+#
+# Fork PRs: GitHub downgrades GITHUB_TOKEN to read-only there, so publish +
+# comment are gated to same-repo heads; forks still get the artifact upload.
 
 on:
   pull_request:
@@ -28,9 +31,6 @@ jobs:
     name: Screenshot diff (base vs head)
     # macOS runner: Swift toolchain is preinstalled for the orchestrator.
     runs-on: macos-15
-    env:
-      TOOLING: ${{ runner.temp }}/visual-tooling
-      RUNNER: ${{ runner.temp }}/visual-tooling/.build/release/visual-diff
     steps:
       - name: Checkout (full history for base checkout)
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -44,6 +44,8 @@ jobs:
           node-version: "22"
 
       - name: Install visual tooling
+        env:
+          TOOLING: ${{ runner.temp }}/visual-tooling
         run: |
           npm --prefix scripts/visual ci
           swift build -c release --package-path scripts/visual
@@ -51,15 +53,23 @@ jobs:
           cp -R scripts/visual/. "$TOOLING/"
 
       - name: Install Chromium
+        env:
+          TOOLING: ${{ runner.temp }}/visual-tooling
         run: npx --prefix "$TOOLING" playwright install --with-deps chromium
 
       - name: Build + shoot BASE
+        env:
+          RUNNER: ${{ runner.temp }}/visual-tooling/.build/release/visual-diff
         run: '"$RUNNER" capture --side base --sha ${{ github.event.pull_request.base.sha }} --port 4173'
 
       - name: Build + shoot HEAD
+        env:
+          RUNNER: ${{ runner.temp }}/visual-tooling/.build/release/visual-diff
         run: '"$RUNNER" capture --side head --sha ${{ github.event.pull_request.head.sha }} --port 4174'
 
       - name: Pixel diff + markdown table
+        env:
+          RUNNER: ${{ runner.temp }}/visual-tooling/.build/release/visual-diff
         run: '"$RUNNER" diff --base shots/base --head shots/head --out out'
 
       - name: Upload full-size shots (90-day retention)
@@ -70,9 +80,16 @@ jobs:
           retention-days: 90
 
       - name: Publish composites to visual/pr-${{ github.event.pull_request.number }}
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          RUNNER: ${{ runner.temp }}/visual-tooling/.build/release/visual-diff
         run: '"$RUNNER" publish --pr ${{ github.event.pull_request.number }} --repo ${{ github.repository }}'
 
       - name: Upsert PR comment with diff table
+        # Fork PRs cannot be commented on with the downgraded token; the
+        # artifact + this check staying green is their evidence surface.
+        if: github.event.pull_request.head.repo.full_name == github.repository
         env:
+          RUNNER: ${{ runner.temp }}/visual-tooling/.build/release/visual-diff
           GH_TOKEN: ${{ github.token }}
         run: '"$RUNNER" comment --pr ${{ github.event.pull_request.number }} --repo ${{ github.repository }}'

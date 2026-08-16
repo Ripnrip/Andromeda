@@ -48,25 +48,40 @@ if !forbidden.isEmpty {
 }
 
 // 2. Swift format gate — best effort; skipped when swift-format is absent.
-//    Only files that still exist on disk: a staged deletion must not put a
-//    nonexistent path on the formatter's command line.
-let swiftFiles = staged.filter {
-    $0.hasSuffix(".swift") && FileManager.default.fileExists(atPath: $0)
-}
-if !swiftFiles.isEmpty && toolExists("swift-format") {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["swift-format", "lint", "--parallel"] + swiftFiles
-    process.standardError = FileHandle.standardError
-    let out = Pipe()
-    process.standardOutput = out
-    try? process.run()
-    process.waitUntilExit()
-    if process.terminationStatus != 0 {
-        FileHandle.standardError.write(Data(
-            "✋ commit blocked — swift-format found violations (fix: swift-format -i <files>).\n".utf8))
-        exit(1)
+//    Lints the STAGED content (index blobs), not the working tree: a
+//    partially staged file must be judged by exactly what is committed.
+//    Staged-but-deleted paths have no blob and are skipped.
+let stagedSwift = staged.filter { $0.hasSuffix(".swift") }
+if !stagedSwift.isEmpty && toolExists("swift-format") {
+    let mirrorRoot = NSTemporaryDirectory() + "andromeda-precommit-\(UUID().uuidString)"
+    var mirrorPaths: [String] = []
+    for file in stagedSwift {
+        let stagedBlob = run(["git", "show", ":\(file)"])
+        guard !stagedBlob.isEmpty else { continue }  // deleted in index
+        let destination = mirrorRoot + "/" + file
+        let directory = (destination as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(
+            atPath: directory, withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(atPath: destination, contents: Data(stagedBlob.utf8))
+        mirrorPaths.append(destination)
     }
+    if !mirrorPaths.isEmpty {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["swift-format", "lint", "--parallel"] + mirrorPaths
+        process.standardError = FileHandle.standardError
+        let out = Pipe()
+        process.standardOutput = out
+        try? process.run()
+        process.waitUntilExit()
+        if process.terminationStatus != 0 {
+            FileHandle.standardError.write(Data(
+                "✋ commit blocked — swift-format found violations in the staged snapshot (fix: swift-format -i <files> and re-stage).\n".utf8))
+            exit(1)
+        }
+    }
+    try? FileManager.default.removeItem(atPath: mirrorRoot)
 }
 
 // 3. Lockfile churn without a manifest change is usually accidental.
