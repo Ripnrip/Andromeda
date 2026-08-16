@@ -329,11 +329,23 @@ public struct VerticalMarquee: View {
     }
     public var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            ForEach(lines + lines, id: \.self) { line in
+            // Enumerate with offset indices: `lines + lines` under `id: \.self`
+            // would give every duplicated row the same identity (duplicate-ID
+            // diagnostics + undefined reuse); the offset keeps the marquee
+            // copy distinct while rendering identical content.
+            ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                 Text(line)
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(Color.andromedaMuted)
                     .frame(height: 14, alignment: .leading)
+                    .id(index)
+            }
+            ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                Text(line)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(Color.andromedaMuted)
+                    .frame(height: 14, alignment: .leading)
+                    .id(lines.count + index)
             }
         }
         .frame(width: 110, alignment: .leading)

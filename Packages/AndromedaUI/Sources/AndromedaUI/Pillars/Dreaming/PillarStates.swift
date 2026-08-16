@@ -411,7 +411,8 @@ public enum FabricState: String, PillarState {
     /// engines behind them (graph store, vector store) stay behind the curtain.
     case web, graph, vector, procedural
 
-    public var label: String { rawValue }
+    /// The label clients see — namespaced, never a bare store category.
+    public var label: String { "memory." + (self == .procedural ? "steps" : rawValue) }
 
     public var accent: Color {
         switch self {
