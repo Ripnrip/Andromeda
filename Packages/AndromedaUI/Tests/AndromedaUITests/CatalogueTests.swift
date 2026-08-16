@@ -5,8 +5,8 @@ import XCTest
 final class AndromedaCatalogueTests: XCTestCase {
 
     func testCatalogueShipsEveryAnimation() {
-        // 8 core + 25 in-the-wild + 2 event-driven
-        XCTAssertEqual(AndromedaCatalogue.specimens.count, 35)
+        // 8 core + 25 extended + 24 transitions + 27 wild
+        XCTAssertEqual(AndromedaCatalogue.specimens.count, 84)
     }
 
     func testSpecimenNamesAreUnique() {

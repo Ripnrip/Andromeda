@@ -2,90 +2,207 @@ import SwiftUI
 
 // MARK: - Registry
 
-/// A named specimen in the library — used by the gallery and the
-/// snapshot-test sweep so both stay in lock-step with the catalogue.
+/// A named specimen in the library — the gallery, the snapshot sweep, and
+/// the docs all read from this one list so nothing drifts.
 public struct AndromedaSpecimen: Identifiable {
-    public var id: String { name }
+    public let id = UUID()
     public let name: String
+    public let group: AndromedaGroup
     public let view: AnyView
-    public init(_ name: String, _ view: some View) {
+    public init(_ name: String, group: AndromedaGroup = .core, _ view: some View) {
         self.name = name
+        self.group = group
         self.view = AnyView(view)
     }
+}
+
+/// The four shelves of the library.
+public enum AndromedaGroup: String, CaseIterable, Identifiable, Sendable {
+    case core       = "Core signals"
+    case extended   = "Loaders, feedback & ambient"
+    case transition = "Transitions, text & texture"
+    case wild       = "In the wild"
+
+    public var id: String { rawValue }
 }
 
 public enum AndromedaCatalogue {
     /// Every animation the package ships, in gallery order.
     @MainActor public static var specimens: [AndromedaSpecimen] {
-        [
-            // Core
-            .init("LivePulse", LivePulse()),
-            .init("BreathingRing", BreathingRing()),
-            .init("OrbitingSatellite", OrbitingSatellite()),
-            .init("RecallWaveform", RecallWaveform()),
-            .init("ScanSweep", ScanSweep()),
-            .init("HUDCore", HUDCore()),
-            .init("FleetConstellation", FleetConstellation()),
-            .init("ShimmerSkeleton", ShimmerSkeleton()),
-            // In the wild
-            .init("Typewriter", Typewriter()),
-            .init("Fireworks", Fireworks()),
-            .init("PulsingHeart", PulsingHeart()),
-            .init("SlideToUnlock", SlideToUnlock()),
-            .init("NumericCrossfade", NumericCrossfade()),
-            .init("HueRotation", HueRotation()),
-            .init("CharacterFlip", CharacterFlip()),
-            .init("DashMarch", DashMarch()),
-            .init("SignatureDraw", SignatureDraw()),
-            .init("SpringReactions", SpringReactions()),
-            .init("LikeBurst", LikeBurst()),
-            .init("OvershootBounce", OvershootBounce()),
-            .init("PetalBloom", PetalBloom()),
-            .init("Jiggle", Jiggle()),
-            .init("JelloSquash", JelloSquash()),
-            .init("EasingTrio", EasingTrio()),
-            .init("Thinking", Thinking()),
-            .init("InnerOuterBorder", InnerOuterBorder()),
-            .init("IncomingCall", IncomingCall()),
-            .init("GlassMorph", GlassMorph()),
-            .init("BookmarkTuck", BookmarkTuck()),
-            .init("Panel3DSway", Panel3DSway()),
-            .init("AnchorHop", AnchorHop()),
-            .init("ConfettiBurst", ConfettiBurst()),
-            .init("RubberBand", RubberBand()),
-            // Event-driven
-            .init("RecallSkeletonRow", RecallSkeletonRow(width: 150)),
-            .init("MemoryRecallControl", MemoryRecallControl()),
-        ]
+        core + extended + transitions + wild
     }
+
+    @MainActor public static func specimens(in group: AndromedaGroup) -> [AndromedaSpecimen] {
+        specimens.filter { $0.group == group }
+    }
+
+    // The eight signals that anchor the control plane.
+    @MainActor public static let core: [AndromedaSpecimen] = [
+        .init("LivePulse", group: .core, LivePulse()),
+        .init("BreathingRing", group: .core, BreathingRing()),
+        .init("OrbitingSatellite", group: .core, OrbitingSatellite()),
+        .init("RecallWaveform", group: .core, RecallWaveform()),
+        .init("ScanSweep", group: .core, ScanSweep()),
+        .init("HUDCore", group: .core, HUDCore()),
+        .init("FleetConstellation", group: .core, FleetConstellation()),
+        .init("ShimmerSkeleton", group: .core, ShimmerSkeleton()),
+    ]
+
+    // Loaders, feedback, ambient motion.
+    @MainActor public static let extended: [AndromedaSpecimen] = [
+        .init("DataStream", group: .extended, DataStream()),
+        .init("SignalBars", group: .extended, SignalBars()),
+        .init("TypingCaret", group: .extended, TypingCaret()),
+        .init("SpinnerArc", group: .extended, SpinnerArc()),
+        .init("ProgressFill", group: .extended, ProgressFill()),
+        .init("RadarPing", group: .extended, RadarPing()),
+        .init("Heartbeat", group: .extended, Heartbeat()),
+        .init("DotLoader", group: .extended, DotLoader()),
+        .init("Aurora", group: .extended, Aurora()),
+        .init("TokenRoll", group: .extended, TokenRoll()),
+        .init("RippleTap", group: .extended, RippleTap()),
+        .init("SuccessCheck", group: .extended, SuccessCheck()),
+        .init("ErrorShake", group: .extended, ErrorShake()),
+        .init("BadgePop", group: .extended, BadgePop()),
+        .init("RouteTrace", group: .extended, RouteTrace()),
+        .init("EdgePulse", group: .extended, EdgePulse()),
+        .init("SegmentedLoader", group: .extended, SegmentedLoader()),
+        .init("IdleFloat", group: .extended, IdleFloat()),
+        .init("AmbientGlow", group: .extended, AmbientGlow()),
+        .init("FlipTile", group: .extended, FlipTile()),
+        .init("Scanline", group: .extended, Scanline()),
+        .init("OrbitCluster", group: .extended, OrbitCluster()),
+        .init("ElasticToggle", group: .extended, ElasticToggle()),
+        .init("Broadcast", group: .extended, Broadcast()),
+        .init("Ignition", group: .extended, Ignition()),
+    ]
+
+    // State swaps, text motion, background texture.
+    @MainActor public static let transitions: [AndromedaSpecimen] = [
+        .init("CrossFade", group: .transition, CrossFade()),
+        .init("SlideSwap", group: .transition, SlideSwap()),
+        .init("ScalePop", group: .transition, ScalePop()),
+        .init("MatchedGeometrySwap", group: .transition, MatchedGeometrySwap()),
+        .init("PhaseCycle", group: .transition, PhaseCycle()),
+        .init("ExpandCollapse", group: .transition, ExpandCollapse()),
+        .init("BlurFade", group: .transition, BlurFade()),
+        .init("WordRotate", group: .transition, WordRotate()),
+        .init("MorphingText", group: .transition, MorphingText()),
+        .init("TabUnderline", group: .transition, TabUnderline()),
+        .init("CheckmarkToggle", group: .transition, CheckmarkToggle()),
+        .init("ChevronRotate", group: .transition, ChevronRotate()),
+        .init("Marquee", group: .transition, Marquee()),
+        .init("VerticalMarquee", group: .transition, VerticalMarquee()),
+        .init("BorderBeam", group: .transition, RoundedRectangle(cornerRadius: 18)
+            .fill(Color.andromedaPanel.opacity(0.8))
+            .frame(width: 128, height: 62)
+            .borderBeam(cornerRadius: 18)),
+        .init("ShimmerSweep", group: .transition, ShimmerSweep()),
+        .init("Meteors", group: .transition, Meteors()),
+        .init("AnimatedBeam", group: .transition, AnimatedBeam()),
+        .init("RetroGrid", group: .transition, RetroGrid()),
+        .init("RippleField", group: .transition, RippleField()),
+        .init("PulsatingButton", group: .transition, PulsatingButton()),
+        .init("GradientText", group: .transition, GradientText()),
+        .init("SpinningText", group: .transition, SpinningText(radius: 36)),
+        .init("FlickeringGrid", group: .transition, FlickeringGrid()),
+    ]
+
+    // Re-tuned from the open SwiftUI animation canon.
+    @MainActor public static let wild: [AndromedaSpecimen] = [
+        .init("Typewriter", group: .wild, Typewriter()),
+        .init("Fireworks", group: .wild, Fireworks()),
+        .init("PulsingHeart", group: .wild, PulsingHeart()),
+        .init("SlideToUnlock", group: .wild, SlideToUnlock()),
+        .init("NumericCrossfade", group: .wild, NumericCrossfade()),
+        .init("HueRotation", group: .wild, HueRotation()),
+        .init("CharacterFlip", group: .wild, CharacterFlip()),
+        .init("DashMarch", group: .wild, DashMarch()),
+        .init("SignatureDraw", group: .wild, SignatureDraw()),
+        .init("SpringReactions", group: .wild, SpringReactions()),
+        .init("LikeBurst", group: .wild, LikeBurst()),
+        .init("OvershootBounce", group: .wild, OvershootBounce()),
+        .init("PetalBloom", group: .wild, PetalBloom()),
+        .init("Jiggle", group: .wild, Jiggle()),
+        .init("JelloSquash", group: .wild, JelloSquash()),
+        .init("EasingTrio", group: .wild, EasingTrio()),
+        .init("Thinking", group: .wild, Thinking()),
+        .init("InnerOuterBorder", group: .wild, InnerOuterBorder()),
+        .init("IncomingCall", group: .wild, IncomingCall()),
+        .init("GlassMorph", group: .wild, GlassMorph()),
+        .init("BookmarkTuck", group: .wild, BookmarkTuck()),
+        .init("Panel3DSway", group: .wild, Panel3DSway()),
+        .init("AnchorHop", group: .wild, AnchorHop()),
+        .init("ConfettiBurst", group: .wild, ConfettiBurst()),
+        .init("RubberBand", group: .wild, RubberBand()),
+        .init("RecallSkeletonRow", group: .wild, RecallSkeletonRow(width: 150)),
+        .init("MemoryRecallControl", group: .wild, MemoryRecallControl()),
+    ]
 }
 
 // MARK: - Gallery
 
-/// A scrolling grid of every specimen, on the theme-aware surface.
+/// A scrolling wall of every specimen, grouped by shelf.
 public struct AndromedaGallery: View {
     public init() {}
-    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 16)]
+    private let columns = [GridItem(.adaptive(minimum: 152), spacing: 16)]
+
     public var body: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(AndromedaCatalogue.specimens) { specimen in
-                    VStack(spacing: 8) {
-                        ZStack { AndromedaSurface(); specimen.view }
-                            .frame(height: 120)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.andromedaTeal.opacity(0.12)))
-                        Text(specimen.name)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.secondary)
+            LazyVStack(alignment: .leading, spacing: 26, pinnedViews: [.sectionHeaders]) {
+                ForEach(AndromedaGroup.allCases) { group in
+                    Section {
+                        LazyVGrid(columns: columns, spacing: 16) {
+                            ForEach(AndromedaCatalogue.specimens(in: group)) { specimen in
+                                AndromedaTile(specimen.name) { specimen.view }
+                            }
+                        }
+                    } header: {
+                        HStack(spacing: 10) {
+                            Text(group.rawValue)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Color.andromedaInk)
+                            Text("\(AndromedaCatalogue.specimens(in: group).count)")
+                                .font(.system(size: 10.5, design: .monospaced))
+                                .foregroundStyle(Color.andromedaMuted)
+                            Spacer()
+                        }
+                        .padding(.vertical, 8)
+                        .background(AndromedaSurface().opacity(0.96))
                     }
                 }
             }
-            .padding(16)
+            .padding(18)
         }
         .background(AndromedaSurface().ignoresSafeArea())
     }
 }
 
-#Preview("Gallery · Dark")  { AndromedaGallery().preferredColorScheme(ColorScheme.dark) }
-#Preview("Gallery · Light") { AndromedaGallery().preferredColorScheme(ColorScheme.light) }
+/// A wall of the joined surfaces — each composite at its natural size.
+public struct AndromedaCompositeGallery: View {
+    public init() {}
+    public var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 26) {
+                ForEach(AndromedaComposites.all) { composite in
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text(composite.name)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(Color.andromedaMuted)
+                        composite.view
+                            .frame(width: composite.size.width, height: composite.size.height)
+                            .clipShape(RoundedRectangle(cornerRadius: 18))
+                            .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.andromedaTeal.opacity(0.12)))
+                    }
+                }
+            }
+            .padding(24)
+        }
+        .background(AndromedaSurface().ignoresSafeArea())
+    }
+}
+
+#Preview("Gallery · dark")   { AndromedaGallery().preferredColorScheme(.dark) }
+#Preview("Gallery · light")  { AndromedaGallery().preferredColorScheme(.light) }
+#Preview("Gallery · frozen") { AndromedaGallery().andromedaFrozen().preferredColorScheme(.dark) }
+#Preview("Composites")       { AndromedaCompositeGallery().preferredColorScheme(.dark) }
