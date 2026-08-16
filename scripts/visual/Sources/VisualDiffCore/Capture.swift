@@ -53,6 +53,13 @@ public enum Capture {
              "http://localhost:\(options.port)", shotsDir.path],
             cwd: root
         )
+        // Reinstalls may have rewritten the lockfile; restore the committed
+        // state so the NEXT capture's checkout can never be blocked by a
+        // locally-modified file (e.g. a PR that changes package-lock.json).
+        _ = try? Shell.runChecked(
+            ["git", "checkout", "-q", "--", "package-lock.json", "web/package-lock.json"],
+            cwd: root
+        )
         log("captured \(options.side)")
         return ShellResult(exitCode: 0, stdout: "", stderr: "")
     }
