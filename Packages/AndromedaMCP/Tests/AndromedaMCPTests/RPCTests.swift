@@ -36,6 +36,16 @@ struct RPCTests {
         }
     }
 
+    @Test("error responses encode an explicit null id, never drop the key")
+    func errorResponsesCarryNullID() throws {
+        let encoded = try JSONEncoder().encode(
+            RPCErrorResponse(id: nil, code: .parseError, message: "unparseable")
+        )
+        let text = String(decoding: encoded, as: UTF8.self)
+        #expect(text.contains(#""id":null"#))
+        #expect(text.contains("-32700"))
+    }
+
     // MARK: - Envelope encoding is deterministic
 
     struct EmptyResult: Encodable {}

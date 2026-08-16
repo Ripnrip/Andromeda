@@ -37,8 +37,13 @@ struct AndromedaMCPTests {
     private func runExchange(
         _ requests: [String],
         fixtureName: String,
+        expectedResponses: Int? = nil,
         setup: ((URL) throws -> Void)? = nil
     ) throws -> [String] {
+        // Tests that deliberately provoke silence get fewer responses than
+        // requests — waiting for requests.count would block on a read with
+        // no EOF guarantee while the child still holds the pipe.
+        let expected = expectedResponses ?? requests.count
         let fixtureDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("andromeda-mcp-\(fixtureName)-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: fixtureDirectory, withIntermediateDirectories: true)
@@ -70,7 +75,29 @@ struct AndromedaMCPTests {
 
         var responses: [String] = []
         var buffer = Data()
-        while responses.count < requests.count {
+        // Watchdog: a broken exchange must fail assertions, not hang the
+        // suite — force EOF after 10s no matter what.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 10) { [weak process] in
+            if process?.isRunning == true { process?.terminate() }
+        }
+        // Read until EOF: once the expected count is reached the server is
+        // terminated, then any further output is drained so spurious extra
+        // responses (e.g. a notification handler wrongly replying) are
+        // captured instead of silently discarded — count assertions see
+        // them and fail.
+        var graceScheduled = false
+        while true {
+            // Grace period: once the expected responses are in, give the
+            // server a bounded window (0.5s) to process any remaining
+            // queued stdin before termination — a buggy handler gets the
+            // chance to emit its spurious reply, which the drain then
+            // captures and the count assertion fails on. No false passes.
+            if !graceScheduled && responses.count >= expected {
+                graceScheduled = true
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { [weak process] in
+                    if process?.isRunning == true { process?.terminate() }
+                }
+            }
             let chunk = stdout.fileHandleForReading.availableData
             guard !chunk.isEmpty else { break }
             buffer.append(chunk)
@@ -78,7 +105,6 @@ struct AndromedaMCPTests {
                 let line = buffer[buffer.startIndex..<newline]
                 buffer = Data(buffer[buffer.index(after: newline)...])
                 responses.append(String(decoding: line, as: UTF8.self))
-                if responses.count == requests.count { break }
             }
         }
         process.terminate()
@@ -204,6 +230,54 @@ struct AndromedaMCPTests {
         #expect(responses.count == 2)
         #expect(responses[1].contains(#""id":7"#), "got: \(responses.count > 1 ? responses[1] : "no response")")
         #expect(responses[1].contains("Invalid request"))
+    }
+
+    @Test("ping requests get an empty result with the id echoed")
+    func pingResponds() throws {
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+            #"{"jsonrpc":"2.0","id":42,"method":"ping"}"#,
+        ], fixtureName: "ping")
+        #expect(responses.count == 2, "got \(responses.count): \(responses)")
+        #expect(responses[1].contains(#""id":42"#))
+        #expect(responses[1].contains(#""result":{}"#))
+        #expect(!responses[1].contains("error"))
+    }
+
+    @Test("notification-form pings (no id) get no reply at all")
+    func notificationPingStaysSilent() throws {
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+            #"{"jsonrpc":"2.0","method":"ping"}"#,
+            #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+            #"{"jsonrpc":"2.0","method":"tools/list"}"#,
+        ], fixtureName: "notification-silence", expectedResponses: 1)
+        // Only the initialize request (which carries an id) is answered —
+        // notifications never produce responses, even for request methods
+        // sent in notification form.
+        #expect(responses.count == 1, "got \(responses.count): \(responses)")
+        #expect(responses[0].contains(#""id":1"#))
+    }
+
+    @Test("explicit null ids get an invalid-request error, not silence")
+    func explicitNullIDGetsError() throws {
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":null,"method":"ping"}"#,
+        ], fixtureName: "null-id", expectedResponses: 1)
+        #expect(responses.count == 1, "got \(responses.count): \(responses)")
+        #expect(responses[0].contains("-32600"))
+        #expect(responses[0].contains(#""id":null"#))
+    }
+
+    @Test("unparseable lines answer -32700 with an explicit null id")
+    func parseErrorCarriesNullID() throws {
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+            "this is not json",
+        ], fixtureName: "parse-null-id")
+        #expect(responses.count == 2, "got \(responses.count): \(responses)")
+        #expect(responses[1].contains(#""id":null"#))
+        #expect(responses[1].contains("-32700"))
     }
 
     @Test("symlinks pivoting outside the workspace root are rejected")

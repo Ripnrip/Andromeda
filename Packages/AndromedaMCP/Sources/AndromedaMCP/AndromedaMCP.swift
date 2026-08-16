@@ -27,6 +27,21 @@ struct AndromedaMCPServer {
     private static func dispatch(_ data: Data, engine: URL?) async {
         guard let header = decode(RPCRequestHeader.self, from: data, id: nil) else { return }
 
+        // JSON-RPC 2.0: a message whose `id` key is OMITTED is a
+        // notification — the server MUST NOT reply, whatever the method.
+        // An explicit `"id": null` is not a notification (and not a valid
+        // id either) — it gets an invalid-request error so the caller is
+        // never left waiting.
+        if header.id == nil {
+            if header.idOmitted { return }
+            send(RPCErrorResponse(
+                id: nil,
+                code: .invalidRequest,
+                message: "Invalid request: id must be a number or string when present, not null"
+            ))
+            return
+        }
+
         switch header.method {
         case "initialize":
             struct InitializeParams: Decodable {}
@@ -34,8 +49,13 @@ struct AndromedaMCPServer {
                 send(RPCResult(id: request.id, result: InitializeResult()))
             }
 
-        case "notifications/initialized":
-            break // notification — no response
+        case "ping":
+            // MCP 2025-06-18: the receiver MUST respond to a ping request
+            // promptly with an (empty) result — a -32601 here reads as
+            // server failure in strict clients.
+            if let request = decode(RPCRequest<EmptyArguments>.self, from: data, id: header.id) {
+                send(RPCResult(id: request.id, result: EmptyResult()))
+            }
 
         case "tools/list":
             struct NoParams: Decodable {}
@@ -47,15 +67,13 @@ struct AndromedaMCPServer {
             await toolCall(data, engine: engine, requestID: header.id)
 
         default:
-            // Unknown notifications are dropped silently; unknown requests
-            // get a method-not-found error.
-            if let id = header.id {
-                send(RPCErrorResponse(
-                    id: id,
-                    code: .methodNotFound,
-                    message: "Method not found: \(header.method)"
-                ))
-            }
+            // Unknown requests get a method-not-found error; unknown
+            // notifications never reach here (silenced by the guard above).
+            send(RPCErrorResponse(
+                id: header.id,
+                code: .methodNotFound,
+                message: "Method not found: \(header.method)"
+            ))
         }
     }
 

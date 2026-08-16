@@ -42,13 +42,51 @@ extension RPCID: Codable {
     }
 }
 
+// MARK: - Optional-wire-key encoding
+
+/// Encodes the wrapped optional as a present key — `null` when nil —
+/// instead of letting synthesized conformance drop the key entirely.
+///
+/// JSON-RPC 2.0: the `id` member is REQUIRED on responses and MUST be
+/// null — not absent — when the request id could not be determined
+/// (parse errors, invalid requests). Synthesized conformance would
+/// `encodeIfPresent` and silently omit the key.
+@propertyWrapper
+struct EncodeNull<Value: Encodable & Sendable>: Encodable, Sendable {
+    var wrappedValue: Value?
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+
+        if let wrappedValue {
+            try container.encode(wrappedValue)
+        } else {
+            try container.encodeNil()
+        }
+    }
+}
+
 // MARK: - Envelopes
 
-/// First decode pass: enough of any message to route it.
+/// First decode pass: enough of any message to route it. `idOmitted`
+/// distinguishes a notification (id key absent — no reply, ever) from a
+/// malformed request carrying an explicit `"id": null` (discouraged by
+/// JSON-RPC 2.0, but NOT a notification — it must get an error reply).
 struct RPCRequestHeader: Decodable, Sendable {
     let jsonrpc: String?
     let id: RPCID?
+    let idOmitted: Bool
     let method: String
+
+    private enum CodingKeys: String, CodingKey { case jsonrpc, id, method }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        idOmitted = !container.contains(.id)
+        jsonrpc = try container.decodeIfPresent(String.self, forKey: .jsonrpc)
+        id = try container.decodeIfPresent(RPCID.self, forKey: .id)
+        method = try container.decode(String.self, forKey: .method)
+    }
 }
 
 /// Second decode pass: a full request with typed params.
@@ -77,6 +115,7 @@ struct RPCResult<Response: Encodable>: Encodable {
 struct RPCErrorResponse: Encodable, Sendable {
     enum Code: Int, Sendable {
         case parseError = -32700
+        case invalidRequest = -32600
         case methodNotFound = -32601
         case invalidParams = -32602
         case internalError = -32603
@@ -88,11 +127,13 @@ struct RPCErrorResponse: Encodable, Sendable {
     }
 
     let jsonrpc = "2.0"
-    let id: RPCID?
+
+    @EncodeNull var id: RPCID?
+
     let error: Error
 
     init(id: RPCID?, code: Code, message: String) {
-        self.id = id
+        self._id = EncodeNull(wrappedValue: id)
         self.error = Error(code: code.rawValue, message: message)
     }
 }
@@ -137,6 +178,9 @@ struct CallToolResult: Encodable, Sendable {
 /// Arguments payload for `tools/call` requests whose tool is not recognized;
 /// only the id is needed to reply.
 struct EmptyArguments: Decodable, Sendable {}
+
+/// Empty `{}` result payload — the reply shape for `ping`.
+struct EmptyResult: Encodable, Sendable {}
 
 // MARK: - Decode evidence
 
