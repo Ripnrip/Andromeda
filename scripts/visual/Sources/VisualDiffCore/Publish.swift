@@ -31,13 +31,29 @@ public enum Publish {
         // Reinstalls may have touched the lockfile; never ship that churn.
         _ = try? Shell.runChecked(["git", "checkout", "-q", "--", "package-lock.json"], cwd: root)
 
-        try Shell.runChecked(["git", "checkout", "-q", "--orphan", options.branch], cwd: root)
-        _ = try Shell.runChecked(["git", "rm", "-rq", "--cached", "."], cwd: root, allowFailure: true)
+        // Publish through git plumbing with a temporary index
+        // (`GIT_INDEX_FILE`) — the orphan tree is built without touching the
+        // working tree at all. The porcelain `checkout --orphan` flow mutates
+        // the live checkout (clearing its index and stranding later steps on
+        // a tree that contains only `out/`); plumbing keeps the runner's own
+        // sources, `.build`, and any untracked state intact.
+        let tmpIndex = NSTemporaryDirectory() + "visual-diff-\(UUID().uuidString).index"
+        defer { try? FileManager.default.removeItem(atPath: tmpIndex) }
+        let indexEnv = ["GIT_INDEX_FILE": tmpIndex]
 
+        try Shell.runChecked(["git", "read-tree", "--empty"], cwd: root, environment: indexEnv)
         // out/ is gitignored for local runs — CI artifacts are added with -f.
-        try Shell.runChecked(["git", "add", "-f", "out/composites", "out/diffs"], cwd: root)
         try Shell.runChecked(
-            ["git", "commit", "-qm", "visual diff artifacts for PR #\(options.pr)"], cwd: root
+            ["git", "add", "-f", "out/composites", "out/diffs"], cwd: root, environment: indexEnv
+        )
+        let tree = try Shell.runChecked(["git", "write-tree"], cwd: root, environment: indexEnv)
+            .stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        let commit = try Shell.runChecked(
+            ["git", "commit-tree", tree, "-m", "visual diff artifacts for PR #\(options.pr)"],
+            cwd: root
+        ).stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        try Shell.runChecked(
+            ["git", "update-ref", "refs/heads/\(options.branch)", commit], cwd: root
         )
         try Shell.runChecked(["git", "push", "-qf", "origin", options.branch], cwd: root)
         FileHandle.standardError.write(Data("[visual-diff] published \(options.branch)\n".utf8))
