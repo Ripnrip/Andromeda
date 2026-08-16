@@ -238,6 +238,16 @@ struct AndromedaMCPTests {
         #expect(responses[0].contains(#""id":1"#))
     }
 
+    @Test("explicit null ids get an invalid-request error, not silence")
+    func explicitNullIDGetsError() throws {
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":null,"method":"ping"}"#,
+        ], fixtureName: "null-id", expectedResponses: 1)
+        #expect(responses.count == 1, "got \(responses.count): \(responses)")
+        #expect(responses[0].contains("-32600"))
+        #expect(responses[0].contains(#""id":null"#))
+    }
+
     @Test("unparseable lines answer -32700 with an explicit null id")
     func parseErrorCarriesNullID() throws {
         let responses = try runExchange([
