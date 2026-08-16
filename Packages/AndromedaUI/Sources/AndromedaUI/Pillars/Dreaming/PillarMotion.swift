@@ -58,19 +58,33 @@ public struct TrimDraw<S: Shape>: View {
     public var color: Color
     public var lineWidth: CGFloat
     public var period: Double
+    @Environment(\.andromedaMotionActive) private var motionActive
 
     public init(_ shape: S, color: Color, lineWidth: CGFloat = 1.6, period: Double = 2.6) {
         self.shape = shape; self.color = color; self.lineWidth = lineWidth; self.period = period
     }
 
     public var body: some View {
-        PhaseAnimator([0.0, 1.0], trigger: false) { phase in
-            shape
-                .trim(from: 0, to: phase)
-                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-        } animation: { _ in
-            .easeInOut(duration: period)
+        // The cycling (triggerless) overload actually advances phases; the
+        // old `trigger: false` variant fired once and stalled at the first
+        // phase. Frozen mode renders the initial phase deterministically.
+        Group {
+            if motionActive {
+                PhaseAnimator([0.0, 1.0]) { phase in
+                    trimmed(phase)
+                } animation: { _ in
+                    .easeInOut(duration: period)
+                }
+            } else {
+                trimmed(0)
+            }
         }
+    }
+
+    private func trimmed(_ to: Double) -> some View {
+        shape
+            .trim(from: 0, to: to)
+            .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
     }
 }
 
@@ -237,19 +251,31 @@ public extension View {
 public struct PhasePulse<Content: View>: View {
     public var color: Color
     private let content: Content
+    @Environment(\.andromedaMotionActive) private var motionActive
 
     public init(color: Color = .andromedaTeal, @ViewBuilder _ content: () -> Content) {
         self.color = color; self.content = content()
     }
 
     public var body: some View {
-        PhaseAnimator([0, 1, 2], trigger: false) { phase in
-            content
-                .scaleEffect(phase == 1 ? 1.14 : (phase == 2 ? 0.97 : 1))
-                .shadow(color: color.opacity(phase == 1 ? 0.75 : 0.25), radius: phase == 1 ? 14 : 5)
-        } animation: { phase in
-            phase == 1 ? .bouncy(duration: 0.28) : .easeOut(duration: 0.6)
+        // Cycling overload (the constant-trigger variant never advanced).
+        Group {
+            if motionActive {
+                PhaseAnimator([0, 1, 2]) { phase in
+                    beat(phase)
+                } animation: { phase in
+                    phase == 1 ? .bouncy(duration: 0.28) : .easeOut(duration: 0.6)
+                }
+            } else {
+                beat(0)
+            }
         }
+    }
+
+    private func beat(_ phase: Int) -> some View {
+        content
+            .scaleEffect(phase == 1 ? 1.14 : (phase == 2 ? 0.97 : 1))
+            .shadow(color: color.opacity(phase == 1 ? 0.75 : 0.25), radius: phase == 1 ? 14 : 5)
     }
 }
 
@@ -258,21 +284,33 @@ public struct PhasePulse<Content: View>: View {
 public struct ThinkingDots: View {
     public var color: Color
     public var dotSize: CGFloat
+    @Environment(\.andromedaMotionActive) private var motionActive
     public init(color: Color = .andromedaTeal, dotSize: CGFloat = 5) {
         self.color = color; self.dotSize = dotSize
     }
 
     public var body: some View {
-        PhaseAnimator([0, 1, 2], trigger: false) { phase in
-            HStack(spacing: 5) {
-                ForEach(0..<3, id: \.self) { i in
-                    Circle().fill(color)
-                        .frame(width: dotSize, height: dotSize)
-                        .scaleEffect(phase == i ? 1.5 : 0.85)
-                        .opacity(phase == i ? 1 : 0.4)
-                }
+        // Cycling overload (the constant-trigger variant never advanced).
+        Group {
+            if motionActive {
+                PhaseAnimator([0, 1, 2]) { phase in
+                    dots(phase)
+                } animation: { _ in .easeInOut(duration: 0.32) }
+            } else {
+                dots(0)
             }
-        } animation: { _ in .easeInOut(duration: 0.32) }
+        }
+    }
+
+    private func dots(_ phase: Int) -> some View {
+        HStack(spacing: 5) {
+            ForEach(0..<3, id: \.self) { i in
+                Circle().fill(color)
+                    .frame(width: dotSize, height: dotSize)
+                    .scaleEffect(phase == i ? 1.5 : 0.85)
+                    .opacity(phase == i ? 1 : 0.4)
+            }
+        }
     }
 }
 
