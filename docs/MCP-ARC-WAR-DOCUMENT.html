@@ -170,7 +170,7 @@
 
     <div class="card">
       <h3>② The masquerade — a <code>multica</code> MCP that never talks to Multica</h3>
-      <p>The <code>multica</code> entry in <code>~/.claude/settings.json</code> doesn't reach Multica at all. It boots OMC's <strong>31,908-line, 1.1 MB <code>mcp-server.cjs</code></strong> — <code>MULTICA_SERVER_URL</code> is referenced <strong>zero times</strong>. A provider name on a config key, hiding a giant Node blob. This is exactly what the charter's pillar 8 forbids: <em>"Capability names beat provider names."</em></p>
+      <p>The <code>multica</code> entry in <code>~/.claude/settings.json</code> doesn't reach Multica at all. It boots OMC's <strong>31,908-line, 1.1 MB <code>mcp-server.cjs</code></strong> — <code>MULTICA_SERVER_URL</code> is referenced <strong>zero times</strong>. A provider name on a config key, hiding a giant Node blob. This is exactly what the charter's non-negotiable 8 forbids: <em>"Capability names beat provider names."</em></p>
     </div>
 
     <div class="card">
@@ -248,9 +248,9 @@
   <section>
     <div class="kicker"><span class="no">05</span> Order of battle — the six pillars</div>
     <h2>Where each pillar stands</h2>
-    <p class="lead" style="font-size:14px">Site status as of 2026-07-19: <b style="color:var(--live)">7 shipped</b> · <b style="color:var(--hold)">3 partial</b> · <b style="color:var(--ink-dim)">7 specified, not built</b>. The MCP arc advances pillar 2 from <em>within</em> the partial band — first native binary landed, the shared host itself still to come.</p>
+    <p class="lead" style="font-size:14px">Site status as of 2026-07-19: <b style="color:var(--live)">6 shipped</b> · <b style="color:var(--hold)">4 partial</b> · <b style="color:var(--ink-dim)">7 specified, not built</b>. The MCP arc advances pillar 2 from <em>within</em> the partial band — first native binary landed, the shared host itself still to come.</p>
     <div class="pillars">
-      <div class="pil s-live s-hot"><span class="st">live</span><h4>① Memory / Anima</h4><div class="d">Graph + vector fabric. "Similar is not the same as related." Restored + patched today.</div><div class="n">vault-sync relay · v0.1.1</div></div>
+      <div class="pil s-part s-hot"><span class="st">partial</span><h4>① Memory / Anima</h4><div class="d">Graph + vector fabric. "Similar is not the same as related." Restored + patched today.</div><div class="n">MemoryKit curtain live · CloudKit GUI + Letta WS open</div></div>
       <div class="pil s-part s-hot"><span class="st">partial</span><h4>② MCP Host</h4><div class="d">Consolidate every tool server behind one roster + capability IDs.</div><div class="n">advancing · PR #46 AndromedaMCP</div></div>
       <div class="pil s-spec"><span class="st">specified</span><h4>③ Skills Registry</h4><div class="d">Centralized skill discovery; ends the mirror-across-hosts sprawl.</div><div class="n">HAB-39</div></div>
       <div class="pil s-part"><span class="st">partial</span><h4>④ LLM Proxy</h4><div class="d">Capability-based routing — clients ask for <code>fast-reasoning</code>, not a vendor.</div><div class="n">router in progress</div></div>
