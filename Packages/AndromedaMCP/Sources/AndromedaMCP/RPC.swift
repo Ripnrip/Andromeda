@@ -42,6 +42,30 @@ extension RPCID: Codable {
     }
 }
 
+// MARK: - Optional-wire-key encoding
+
+/// Encodes the wrapped optional as a present key — `null` when nil —
+/// instead of letting synthesized conformance drop the key entirely.
+///
+/// JSON-RPC 2.0: the `id` member is REQUIRED on responses and MUST be
+/// null — not absent — when the request id could not be determined
+/// (parse errors, invalid requests). Synthesized conformance would
+/// `encodeIfPresent` and silently omit the key.
+@propertyWrapper
+struct EncodeNull<Value: Encodable & Sendable>: Encodable, Sendable {
+    var wrappedValue: Value?
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+
+        if let wrappedValue {
+            try container.encode(wrappedValue)
+        } else {
+            try container.encodeNil()
+        }
+    }
+}
+
 // MARK: - Envelopes
 
 /// First decode pass: enough of any message to route it.
@@ -88,29 +112,14 @@ struct RPCErrorResponse: Encodable, Sendable {
     }
 
     let jsonrpc = "2.0"
-    let id: RPCID?
+
+    @EncodeNull var id: RPCID?
+
     let error: Error
 
     init(id: RPCID?, code: Code, message: String) {
-        self.id = id
+        self._id = EncodeNull(wrappedValue: id)
         self.error = Error(code: code.rawValue, message: message)
-    }
-
-    enum CodingKeys: String, CodingKey { case jsonrpc, id, error }
-
-    /// JSON-RPC 2.0: the `id` member is REQUIRED on responses and MUST be
-    /// null — not absent — when the request id could not be determined
-    /// (parse errors, invalid requests). Synthesized conformance would
-    /// `encodeIfPresent` and silently drop the key.
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(jsonrpc, forKey: .jsonrpc)
-        if let id {
-            try container.encode(id, forKey: .id)
-        } else {
-            try container.encodeNil(forKey: .id)
-        }
-        try container.encode(error, forKey: .error)
     }
 }
 

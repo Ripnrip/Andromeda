@@ -218,6 +218,21 @@ struct AndromedaMCPTests {
         #expect(!responses[1].contains("error"))
     }
 
+    @Test("notification-form pings (no id) get no reply at all")
+    func notificationPingStaysSilent() throws {
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+            #"{"jsonrpc":"2.0","method":"ping"}"#,
+            #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+            #"{"jsonrpc":"2.0","method":"tools/list"}"#,
+        ], fixtureName: "notification-silence")
+        // Only the initialize request (which carries an id) is answered —
+        // notifications never produce responses, even for request methods
+        // sent in notification form.
+        #expect(responses.count == 1, "got \(responses.count): \(responses)")
+        #expect(responses[0].contains(#""id":1"#))
+    }
+
     @Test("unparseable lines answer -32700 with an explicit null id")
     func parseErrorCarriesNullID() throws {
         let responses = try runExchange([

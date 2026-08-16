@@ -27,15 +27,18 @@ struct AndromedaMCPServer {
     private static func dispatch(_ data: Data, engine: URL?) async {
         guard let header = decode(RPCRequestHeader.self, from: data, id: nil) else { return }
 
+        // JSON-RPC 2.0: a message without an `id` is a notification — the
+        // server MUST NOT reply to it, whatever the method. This covers
+        // `notifications/initialized` and notification-form `ping` alike;
+        // replies to notifications are unsolicited traffic.
+        guard header.id != nil else { return }
+
         switch header.method {
         case "initialize":
             struct InitializeParams: Decodable {}
             if let request = decode(RPCRequest<InitializeParams>.self, from: data, id: header.id) {
                 send(RPCResult(id: request.id, result: InitializeResult()))
             }
-
-        case "notifications/initialized":
-            break // notification — no response
 
         case "ping":
             // MCP 2025-06-18: the receiver MUST respond to a ping request
@@ -55,15 +58,13 @@ struct AndromedaMCPServer {
             await toolCall(data, engine: engine, requestID: header.id)
 
         default:
-            // Unknown notifications are dropped silently; unknown requests
-            // get a method-not-found error.
-            if let id = header.id {
-                send(RPCErrorResponse(
-                    id: id,
-                    code: .methodNotFound,
-                    message: "Method not found: \(header.method)"
-                ))
-            }
+            // Unknown requests get a method-not-found error; unknown
+            // notifications never reach here (silenced by the guard above).
+            send(RPCErrorResponse(
+                id: header.id,
+                code: .methodNotFound,
+                message: "Method not found: \(header.method)"
+            ))
         }
     }
 
