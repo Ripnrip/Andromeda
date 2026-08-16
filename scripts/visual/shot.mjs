@@ -50,26 +50,26 @@ for (const vp of VIEWPORTS) {
   for (const route of ROUTES) {
     const url = `${base}${route.path}`;
     await page.goto(url, { waitUntil: "networkidle" });
-    let theme = await page.evaluate(() =>
-      document.documentElement.classList.contains("dark") ? "dark" : "light"
-    );
-    if (theme === "dark") {
-      const toggle = page
-        .locator('button[aria-label^="Switch to"]')
-        .first();
-      if ((await toggle.count()) > 0) {
-        try {
-          await toggle.click({ timeout: 2000 });
-          await page.evaluate(() => document.fonts.ready);
-          await page.waitForTimeout(500);
-          theme = await page.evaluate(() =>
-            document.documentElement.classList.contains("dark") ? "dark" : "light"
-          );
-        } catch {
-          theme = "toggle-failed";
-        }
-      } else {
-        theme = null;
+    // Light pass: only meaningful when the surface actually has a theme
+    // toggle. A class-less dark site (palette on :root, no .dark class)
+    // must NOT be captured as "light" — that mislabels dark renders.
+    const toggle = page.locator('button[aria-label^="Switch to"]').first();
+    const hasToggle = (await toggle.count()) > 0;
+    let theme = hasToggle
+      ? await page.evaluate(() =>
+          document.documentElement.classList.contains("dark") ? "dark" : "light"
+        )
+      : null;
+    if (theme === "dark" && hasToggle) {
+      try {
+        await toggle.click({ timeout: 2000 });
+        await page.evaluate(() => document.fonts.ready);
+        await page.waitForTimeout(500);
+        theme = await page.evaluate(() =>
+          document.documentElement.classList.contains("dark") ? "dark" : "light"
+        );
+      } catch {
+        theme = "toggle-failed";
       }
     }
     if (theme === "light") {
