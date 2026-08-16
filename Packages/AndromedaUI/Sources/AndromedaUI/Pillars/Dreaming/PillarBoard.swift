@@ -27,7 +27,14 @@ public final class PillarDriver {
     private var tick = 0
     private var task: Task<Void, Never>?
 
-    public init(interval: TimeInterval = 4.2) { self.interval = interval }
+    /// Smallest allowed hold time — a nonpositive interval would turn the
+    /// driver loop into a main-actor busy spin (Task.sleep(0) returns
+    /// immediately and `advance()` never yields).
+    private static let minimumInterval: TimeInterval = 0.1
+
+    public init(interval: TimeInterval = 4.2) {
+        self.interval = max(interval, Self.minimumInterval)
+    }
 
     public func start() {
         guard !isRunning else { return }
@@ -35,7 +42,9 @@ public final class PillarDriver {
         task = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                try? await Task.sleep(for: .seconds(self.interval))
+                // Clamp at use too: `interval` is a settable var, so a later
+                // assignment of 0 (or negative) must not revive the busy spin.
+                try? await Task.sleep(for: .seconds(max(self.interval, Self.minimumInterval)))
                 guard !Task.isCancelled else { return }
                 self.advance()
             }

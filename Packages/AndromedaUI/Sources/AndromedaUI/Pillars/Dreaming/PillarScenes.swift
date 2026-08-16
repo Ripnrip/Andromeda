@@ -6,9 +6,15 @@ public struct PerceptionScene: View {
     public var state: PerceptionState
     public init(state: PerceptionState) { self.state = state }
 
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Timelines pause (one static frame, t = 0) under frozen snapshots or
+    /// system Reduce Motion — `.animation` alone would keep firing frames.
+    private var live: Bool { motionActive && !reduceMotion }
+
     public var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(minimumInterval: nil, paused: !live)) { context in
+            let t = live ? context.date.timeIntervalSinceReferenceDate : 0
             ZStack(alignment: .top) {
                 PillarLog(state.log, tint: state.accent)
                     .padding(.horizontal, 14).padding(.top, 12)
@@ -92,9 +98,15 @@ public struct WritePathScene: View {
     public var state: WritePathState
     public init(state: WritePathState) { self.state = state }
 
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Timelines pause (one static frame, t = 0) under frozen snapshots or
+    /// system Reduce Motion — `.animation` alone would keep firing frames.
+    private var live: Bool { motionActive && !reduceMotion }
+
     public var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(minimumInterval: nil, paused: !live)) { context in
+            let t = live ? context.date.timeIntervalSinceReferenceDate : 0
             VStack(alignment: .leading, spacing: 0) {
                 PillarLog(state.log, tint: state.accent, typing: state == .writing || state == .committing)
 
@@ -174,9 +186,15 @@ public struct ProxyScene: View {
     public var state: ProxyState
     public init(state: ProxyState) { self.state = state }
 
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Timelines pause (one static frame, t = 0) under frozen snapshots or
+    /// system Reduce Motion — `.animation` alone would keep firing frames.
+    private var live: Bool { motionActive && !reduceMotion }
+
     public var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(minimumInterval: nil, paused: !live)) { context in
+            let t = live ? context.date.timeIntervalSinceReferenceDate : 0
             ZStack(alignment: .top) {
                 PillarLog(state.log, tint: state.accent)
                     .padding(.horizontal, 14).padding(.top, 12)
@@ -285,9 +303,15 @@ public struct SkillsScene: View {
     public var state: SkillState
     public init(state: SkillState) { self.state = state }
 
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Timelines pause (one static frame, t = 0) under frozen snapshots or
+    /// system Reduce Motion — `.animation` alone would keep firing frames.
+    private var live: Bool { motionActive && !reduceMotion }
+
     public var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(minimumInterval: nil, paused: !live)) { context in
+            let t = live ? context.date.timeIntervalSinceReferenceDate : 0
             ZStack {
                 VStack(alignment: .leading, spacing: 0) {
                     PillarLog(state.log, tint: state.accent)
@@ -360,9 +384,15 @@ public struct MCPScene: View {
     public var state: MCPState
     public init(state: MCPState) { self.state = state }
 
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Timelines pause (one static frame, t = 0) under frozen snapshots or
+    /// system Reduce Motion — `.animation` alone would keep firing frames.
+    private var live: Bool { motionActive && !reduceMotion }
+
     public var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(minimumInterval: nil, paused: !live)) { context in
+            let t = live ? context.date.timeIntervalSinceReferenceDate : 0
             ZStack(alignment: .top) {
                 PillarLog(state.log, tint: state.accent, typing: state == .toolcall)
                     .padding(.horizontal, 14).padding(.top, 12)
@@ -437,9 +467,15 @@ public struct FabricScene: View {
     public var state: FabricState
     public init(state: FabricState) { self.state = state }
 
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Timelines pause (one static frame, t = 0) under frozen snapshots or
+    /// system Reduce Motion — `.animation` alone would keep firing frames.
+    private var live: Bool { motionActive && !reduceMotion }
+
     public var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(minimumInterval: nil, paused: !live)) { context in
+            let t = live ? context.date.timeIntervalSinceReferenceDate : 0
             ZStack(alignment: .top) {
                 PillarLog(state.log, tint: state.accent)
                     .padding(.horizontal, 14).padding(.top, 12)
@@ -512,9 +548,15 @@ public struct FleetScene: View {
     public var state: FleetState
     public init(state: FleetState) { self.state = state }
 
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Timelines pause (one static frame, t = 0) under frozen snapshots or
+    /// system Reduce Motion — `.animation` alone would keep firing frames.
+    private var live: Bool { motionActive && !reduceMotion }
+
     public var body: some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(minimumInterval: nil, paused: !live)) { context in
+            let t = live ? context.date.timeIntervalSinceReferenceDate : 0
             ZStack(alignment: .top) {
                 PillarLog(state.log, tint: state.accent)
                     .padding(.horizontal, 16).padding(.top, 12)
