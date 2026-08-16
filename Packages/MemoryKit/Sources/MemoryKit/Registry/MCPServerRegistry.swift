@@ -48,21 +48,15 @@ public struct ShellMCPProcessEnumerator: MCPProcessEnumerating {
     public init() {}
 
     public func listMCPProcesses() -> [MCPProcessSnapshot] {
-        // 🌙 Gentle `ps` peek — never `kill`, never `pkill`.
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/ps")
-        task.arguments = ["-axo", "pid=,rss=,command="]
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
-        do {
-            try task.run()
-            task.waitUntilExit()
-        } catch {
-            return []
-        }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let text = String(data: data, encoding: .utf8) else { return [] }
+        // 🌙 Gentle `ps` peek — never `kill`, never `pkill`. Drains
+        // concurrently (Exhibit 3): fleet-scale `ps -axo` command lines
+        // exceed the 64KB pipe buffer, and wait-then-read deadlocks there.
+        guard let output = try? ConcurrentProcess.run(
+            executable: "/bin/ps",
+            arguments: ["-axo", "pid=,rss=,command="]
+        ), output.status == 0,
+            let text = String(data: output.stdout, encoding: .utf8)
+        else { return [] }
         return Self.parsePSOutput(text)
     }
 
