@@ -34,6 +34,7 @@ Examples: Andromeda overall → Multica+Linear; Slack issue → Linear first the
 ## Repository Rules
 
 - **Hard flag:** do not add project-maintained shell automation (`.sh`, Bash, Zsh, and similar). If an operation can be implemented in Swift, it must be Swift. Shell snippets are allowed only as documentation examples.
+- Install the repo hooks once per clone: `git config core.hooksPath .githooks`. The `pre-commit` hook is Swift-native (policy scan compliant): blocks staged build artifacts (`node_modules/`, `.next/`, `DerivedData/`), runs `swift-format lint` on staged Swift when installed, and warns on lockfile churn without a manifest change.
 - Keep `RepositoryPolicyTests` green; its shell-automation scan is the executable guardrail for this rule. Do not add exceptions merely to make the test pass.
 - Do not add invisible `launchctl` jobs, hidden watchdogs, or unsurfaced background daemons.
 - Any background behavior must have visible status, telemetry, ownership, and controls.
