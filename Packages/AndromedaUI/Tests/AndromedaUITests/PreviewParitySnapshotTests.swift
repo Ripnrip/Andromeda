@@ -173,6 +173,18 @@ final class PreviewParitySnapshotTests: XCTestCase {
 
     // MARK: - Kit primitives
 
+    /// Twin of `#Preview("Gallery · Dark/Light")` — the gallery root itself,
+    /// so grid layout, labels, and specimen ordering cannot drift without
+    /// failing the parity guarantee. The catalogue test checks membership;
+    /// this checks the rendered whole.
+    func testGalleryPreviewRoot() throws {
+        try verify(
+            AndromedaGallery().frame(width: 1000, height: 2400),
+            CGSize(width: 1000, height: 2400),
+            name: "gallery-root"
+        )
+    }
+
     func testKitPrimitives() throws {
         let kit = VStack(alignment: .leading, spacing: 14) {
             Eyebrow("control plane")
