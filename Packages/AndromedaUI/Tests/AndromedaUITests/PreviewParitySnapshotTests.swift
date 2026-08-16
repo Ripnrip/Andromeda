@@ -56,9 +56,14 @@ final class PreviewParitySnapshotTests: XCTestCase {
 
     // MARK: - Floating bar (menu-bar accessory content)
 
+    // `AndromedaBarContent` is declared inside `#if os(macOS)` (the whole
+    // FloatingBarPanel file is AppKit-bound) while the package advertises
+    // iOS/tvOS/watchOS — an unguarded reference breaks every non-macOS build.
+    #if os(macOS)
     func testFloatingBarContent() throws {
         try verify(shell { AndromedaBarContent() }, CGSize(width: 640, height: 64), name: "floating-bar")
     }
+    #endif
 
     func testHUDCoreGlyph() throws {
         try verify(shell { HUDCoreGlyph(size: 40) }, CGSize(width: 120, height: 120), name: "hud-core-glyph")
@@ -127,6 +132,30 @@ final class PreviewParitySnapshotTests: XCTestCase {
         }
         .padding(20)
         try verify(ZStack { AndromedaSurface(); grid }, CGSize(width: 640, height: 320), name: "pillar-cards")
+    }
+
+    // MARK: - Pillar previews (parity twins for AndromedaPillars.swift previews)
+
+    /// Twin of `#Preview("Pillars showcase · dark/light")` — the actual
+    /// preview root, not generic cards, so specialized pillar cards cannot
+    /// drift without failing the parity guarantee.
+    func testPillarsShowcasePreviewRoot() throws {
+        try verify(
+            AndromedaPillarsShowcase().frame(width: 1160, height: 980),
+            CGSize(width: 1160, height: 980),
+            name: "pillars-showcase"
+        )
+    }
+
+    /// Twin of `#Preview("Pillar cards")` — the two specialized cards the
+    /// preview actually renders.
+    func testSpecializedPillarCardsPreviewRoot() throws {
+        let stack = VStack(spacing: 12) {
+            LLMProxyPillarCard()
+            RetrievalBenchPillarCard()
+        }
+        .frame(width: 420)
+        try verify(shell { stack }, CGSize(width: 460, height: 640), name: "specialized-pillar-cards")
     }
 
     func testStatusBadgeMatrix() throws {
