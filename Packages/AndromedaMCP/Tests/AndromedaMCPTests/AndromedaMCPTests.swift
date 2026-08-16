@@ -85,11 +85,18 @@ struct AndromedaMCPTests {
         // responses (e.g. a notification handler wrongly replying) are
         // captured instead of silently discarded — count assertions see
         // them and fail.
-        var terminating = false
+        var graceScheduled = false
         while true {
-            if !terminating && responses.count >= expected {
-                process.terminate()
-                terminating = true
+            // Grace period: once the expected responses are in, give the
+            // server a bounded window (0.5s) to process any remaining
+            // queued stdin before termination — a buggy handler gets the
+            // chance to emit its spurious reply, which the drain then
+            // captures and the count assertion fails on. No false passes.
+            if !graceScheduled && responses.count >= expected {
+                graceScheduled = true
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { [weak process] in
+                    if process?.isRunning == true { process?.terminate() }
+                }
             }
             let chunk = stdout.fileHandleForReading.availableData
             guard !chunk.isEmpty else { break }
@@ -100,7 +107,7 @@ struct AndromedaMCPTests {
                 responses.append(String(decoding: line, as: UTF8.self))
             }
         }
-        if !terminating { process.terminate() }
+        process.terminate()
         return responses
     }
 
