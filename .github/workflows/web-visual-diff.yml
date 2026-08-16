@@ -118,7 +118,7 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          RAW="https://raw.githubusercontent.com/${{ github.repository }}/visual/pr-$PR"
+          RAW="https://raw.githubusercontent.com/${{ github.repository }}/visual/pr-$PR/out"
           {
             echo "<!-- web-visual-diff -->"
             cat out/report.md
@@ -132,7 +132,7 @@ jobs:
               echo "![diff: $name]($RAW/composites/$name)"
               echo ""
             done < out/changed.txt
-            echo "_Heatmap overlays on the [\`visual/pr-$PR\`](https://github.com/${{ github.repository }}/tree/visual/pr-$PR) branch · full-size shots in workflow artifacts · regenerated on every push._"
+            echo "_Heatmap overlays on the [\`visual/pr-$PR\`](https://github.com/${{ github.repository }}/tree/visual/pr-$PR/out) branch · full-size shots in workflow artifacts · regenerated on every push._"
           } > comment.md
           ID=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" \
             --jq ".[] | select(.body | startswith(\"<!-- web-visual-diff -->\")) | .id" | head -1)
