@@ -1,0 +1,317 @@
+<title>Andromeda — Document of War: The MCP Arc</title>
+<style>
+  /* Committed single world: a deep-space war-room console. Dark by design;
+     the tokens hold under a forced light theme rather than invert the concept. */
+  :root{
+    --void:#080a12; --deep:#0d1020; --panel:#12162a; --panel-2:#161b34;
+    --line:#232a48; --line-hot:#33406e;
+    --ink:#e9e7f4; --ink-soft:#a7a6c8; --ink-dim:#6f6e93;
+    --plasma:#ff8a3d;      /* war / action / the strike */
+    --plasma-soft:#3a2415;
+    --violet:#8f7dff;      /* andromeda identity */
+    --violet-soft:#211d3f;
+    --live:#43d18a; --live-soft:#10301f;   /* shipped / green */
+    --enemy:#ef5b64; --enemy-soft:#2c1418; /* the enemy / down */
+    --hold:#e8b13d; --hold-soft:#2c2410;   /* partial / verify */
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  :root[data-theme="light"]{ /* committed dark world holds even if the viewer forces light */
+    --void:#0b0e18; --deep:#10142a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(1200px 700px at 80% -10%, rgba(143,125,255,.10), transparent 60%),
+      radial-gradient(900px 600px at -10% 10%, rgba(255,138,61,.07), transparent 55%),
+      var(--void);
+    color:var(--ink);font-family:var(--sans);line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:clamp(20px,4vw,52px)}
+
+  /* ── HERO ── */
+  .hero{position:relative;border:1px solid var(--line);border-radius:16px;overflow:hidden;
+    background:linear-gradient(180deg,var(--deep),var(--void));padding:clamp(26px,5vw,54px)}
+  #stars{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:.7}
+  .hero > *{position:relative;z-index:1}
+  .classmark{font-family:var(--mono);font-size:11.5px;letter-spacing:.32em;text-transform:uppercase;
+    color:var(--plasma);display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:22px}
+  .classmark .dot{width:7px;height:7px;border-radius:50%;background:var(--plasma);
+    box-shadow:0 0 10px var(--plasma);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+  @media (prefers-reduced-motion:reduce){.classmark .dot{animation:none}}
+  h1{font-size:clamp(30px,6.5vw,58px);line-height:1.02;letter-spacing:-.025em;margin:0 0 14px;
+    text-wrap:balance;font-weight:800}
+  h1 .em{color:var(--plasma)}
+  .thesis{font-size:clamp(16px,2.4vw,20px);color:var(--ink-soft);max-width:62ch;margin:0 0 8px}
+  .thesis b{color:var(--ink)}
+  .creed{font-family:var(--mono);font-size:12.5px;color:var(--violet);margin-top:20px;
+    display:flex;gap:8px 16px;flex-wrap:wrap}
+  .creed span{white-space:nowrap}
+  .creed span::before{content:"◆ ";color:var(--ink-dim)}
+
+  /* ── SITUATION BOARD ── */
+  .board{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0 4px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px}
+  .stat .n{font-family:var(--mono);font-size:clamp(24px,4vw,32px);font-variant-numeric:tabular-nums;
+    line-height:1;letter-spacing:-.02em}
+  .stat .l{font-size:12px;color:var(--ink-soft);margin-top:9px;line-height:1.4}
+  .stat.enemy .n{color:var(--enemy)} .stat.plasma .n{color:var(--plasma)}
+  .stat.live .n{color:var(--live)} .stat.violet .n{color:var(--violet)}
+
+  /* ── SECTIONS ── */
+  section{margin-top:46px}
+  .kicker{font-family:var(--mono);font-size:11.5px;letter-spacing:.24em;text-transform:uppercase;
+    color:var(--ink-dim);display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .kicker .no{color:var(--plasma);font-weight:600}
+  .kicker::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line-hot),transparent)}
+  h2{font-size:clamp(21px,3.6vw,30px);letter-spacing:-.018em;margin:0 0 10px;font-weight:750;text-wrap:balance}
+  h2 .en{color:var(--enemy)} h2 .pl{color:var(--plasma)} h2 .vi{color:var(--violet)}
+  p{margin:0 0 14px;max-width:74ch}
+  p.lead{color:var(--ink-soft)}
+  strong{color:var(--ink)}
+  a{color:var(--violet)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel-2);border:1px solid var(--line);
+    padding:1px 6px;border-radius:5px;color:var(--ink);word-break:break-word}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:14px 0}
+  .card.strike{border-color:var(--line-hot);
+    background:linear-gradient(180deg,var(--panel-2),var(--panel))}
+  .card h3{margin:0 0 8px;font-size:16.5px;font-family:var(--mono);letter-spacing:-.01em}
+  .card h3 .tag{font-size:11px;color:var(--void);background:var(--plasma);padding:2px 8px;border-radius:999px;
+    margin-left:8px;vertical-align:middle;font-weight:700;letter-spacing:.02em}
+
+  /* intel rows */
+  .intel{display:grid;gap:10px;margin:14px 0}
+  .row{display:grid;grid-template-columns:132px 1fr;gap:14px;padding:13px 15px;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;border-left:3px solid var(--line-hot)}
+  .row.hit{border-left-color:var(--plasma)}
+  .row .front{font-family:var(--mono);font-size:11.5px;color:var(--plasma);text-transform:uppercase;
+    letter-spacing:.06em;line-height:1.5}
+  .row .front small{display:block;color:var(--ink-dim);letter-spacing:0;text-transform:none;margin-top:3px;font-size:11px}
+  .row .body{color:var(--ink-soft);font-size:14px}
+  .row .body b{color:var(--ink)}
+  @media (max-width:560px){.row{grid-template-columns:1fr;gap:6px}}
+
+  /* phased campaign */
+  .phase{display:grid;grid-template-columns:auto 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+  .phase:last-child{border-bottom:none}
+  .phase .mark{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--plasma);
+    border:1px solid var(--line-hot);border-radius:8px;padding:6px 10px;height:max-content;white-space:nowrap;
+    background:var(--plasma-soft)}
+  .phase.done .mark{color:var(--live);background:var(--live-soft);border-color:#1c4d33}
+  .phase.now .mark{color:var(--hold);background:var(--hold-soft);border-color:#4d3f14}
+  .phase h4{margin:0 0 5px;font-size:15.5px}
+  .phase p{margin:0;font-size:13.5px;color:var(--ink-soft)}
+
+  /* pillars */
+  .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:11px;margin-top:14px}
+  .pil{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px 15px;position:relative}
+  .pil .st{position:absolute;top:13px;right:14px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;
+    text-transform:uppercase;padding:2px 7px;border-radius:999px}
+  .pil.s-live .st{color:var(--live);background:var(--live-soft)}
+  .pil.s-part .st{color:var(--hold);background:var(--hold-soft)}
+  .pil.s-spec .st{color:var(--ink-dim);background:var(--panel-2)}
+  .pil.s-hot{border-color:var(--line-hot)}
+  .pil h4{margin:0 0 4px;font-size:14.5px;padding-right:64px}
+  .pil .d{font-size:12.5px;color:var(--ink-soft);line-height:1.45}
+  .pil .n{font-family:var(--mono);font-size:11px;color:var(--plasma);margin-top:8px}
+
+  .rules{columns:2;column-gap:26px;margin-top:12px}
+  @media (max-width:560px){.rules{columns:1}}
+  .rules li{break-inside:avoid;margin-bottom:9px;color:var(--ink-soft);font-size:13.5px;list-style:none;
+    padding-left:20px;position:relative}
+  .rules li::before{content:"▹";position:absolute;left:0;color:var(--plasma)}
+  .rules li b{color:var(--ink)}
+
+  blockquote{margin:20px 0;padding:16px 20px;border-left:3px solid var(--violet);
+    background:var(--violet-soft);border-radius:0 10px 10px 0;color:var(--ink);font-size:15px}
+  blockquote .src{display:block;font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);margin-top:8px}
+
+  footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--line);
+    color:var(--ink-dim);font-size:12.5px;font-family:var(--mono);line-height:1.8}
+  footer a{color:var(--violet)}
+  .sig{color:var(--plasma)}
+</style>
+
+<div class="wrap">
+
+  <!-- ══ HERO ══ -->
+  <header class="hero">
+    <canvas id="stars" aria-hidden="true"></canvas>
+    <div class="classmark"><span class="dot"></span> Document of War · Andromeda · The MCP Arc <span style="color:var(--ink-dim)">— filed 2026-08-15</span></div>
+    <h1>Control the chaos.<br><span class="em">Conceal the complexity.</span></h1>
+    <p class="thesis">Andromeda is a <b>local-first, Swift-native control plane for the machinery around AI work</b>. Its founding promise is a single sentence with teeth: <b>every agent, every job — visible</b>. This document declares the war that promise implies, names the enemy, logs the reconnaissance run of 2026-08-15, and marks the first landing party: <b>PR #46, AndromedaMCP</b>.</p>
+    <div class="creed">
+      <span>No silent loss</span><span>No invisible automation</span><span>No provider lock-in</span><span>No knowledge without provenance</span><span>No migration without rollback</span><span>Local-first, always</span>
+    </div>
+  </header>
+
+  <!-- ══ SITUATION BOARD ══ -->
+  <div class="board">
+    <div class="stat enemy"><div class="n">31,908</div><div class="l">lines in the OMC Node bridge posing as the <code>multica</code> MCP</div></div>
+    <div class="stat enemy"><div class="n">55–60</div><div class="l"><code>npm exec</code> MCP parents on one host — 15× duplicated servers</div></div>
+    <div class="stat plasma"><div class="n">819</div><div class="l">lines of typed Swift 6 that replace the blob (PR #46)</div></div>
+    <div class="stat live"><div class="n">2 / 2</div><div class="l">PR #46 CI checks green · <b>merged 2026-08-15</b></div></div>
+  </div>
+
+  <!-- ══ 01 THE ENEMY ══ -->
+  <section>
+    <div class="kicker"><span class="no">01</span> The enemy</div>
+    <h2>Sprawl, invisibility, and <span class="en">provider-name masquerade</span></h2>
+    <p class="lead">Andromeda's charter isn't abstract idealism — it's a list of specific, measured messes on the Studio host. Three of them are the whole war:</p>
+
+    <div class="card">
+      <h3>① MCP sprawl — the invisible process tax</h3>
+      <p>Every agent host — Cursor, Claude Code, Codex, Hermes — boots its own MCP servers via <code>npm exec</code>. No shared registry, no dedupe, no roster. The 2026-07-15 Studio snapshot: <strong>60 <code>npm exec</code> parents</strong>, including <strong>15× filesystem, 15× memory, 15× sequential-thinking</strong>, each ~71 MB in Activity Monitor. Config for the same servers is scattered across <code>~/.cursor/mcp.json</code>, Claude Desktop, <code>~/.claude.json</code>, Codex <code>config.toml</code>, and the Hermes VM — with no source of truth.</p>
+    </div>
+
+    <div class="card">
+      <h3>② The masquerade — a <code>multica</code> MCP that never talks to Multica</h3>
+      <p>The <code>multica</code> entry in <code>~/.claude/settings.json</code> doesn't reach Multica at all. It boots OMC's <strong>31,908-line, 1.1 MB <code>mcp-server.cjs</code></strong> — <code>MULTICA_SERVER_URL</code> is referenced <strong>zero times</strong>. A provider name on a config key, hiding a giant Node blob. This is exactly what the charter's pillar 8 forbids: <em>"Capability names beat provider names."</em></p>
+    </div>
+
+    <div class="card">
+      <h3>③ Invisible daemons — launchd with no roster</h3>
+      <p>The charter's second non-negotiable: <em>"No invisible launch agents, watchdogs, or hidden daemons."</em> The sprawl doc names this a parallel problem class → the planned <code>LaunchEntity</code>. On 2026-08-04, ~36 KeepAlive jobs were swept into a quarantine folder by hand, with <strong>no roster and no alerting</strong> — and nobody noticed until a memory service started returning 502 eleven days later.</p>
+    </div>
+  </section>
+
+  <!-- ══ 02 FIELD INTEL ══ -->
+  <section>
+    <div class="kicker"><span class="no">02</span> Field intel — reconnaissance run, 2026-08-15</div>
+    <h2>Today wasn't firefighting. It was <span class="pl">reconnaissance across all three fronts.</span></h2>
+    <p class="lead">Each incident resolved today is a live, dated data point proving the enemy above is real and load-bearing — not a slide-deck abstraction.</p>
+
+    <div class="intel">
+      <div class="row hit">
+        <div class="front">Front ②<small>masquerade</small></div>
+        <div class="body"><b>Proved <code>multica</code> MCP ≠ Multica, live.</b> The MCP wrapper 500'd on every write. The real Multica turned out to be a healthy native PG17 stack (<code>:5442</code> / backend <code>:3637</code>) with nothing to do with the MCP name — the outage was a DB counter drift (<code>issue_counter</code> 257 vs. <code>max(number)</code> 289). Repaired; ticket filed as <b>HAB-290</b>. The name lied; the plumbing was elsewhere.</div>
+      </div>
+      <div class="row hit">
+        <div class="front">Front ③<small>invisible daemons</small></div>
+        <div class="body"><b>Audited the 2026-08-04 launchd quarantine.</b> 36 jobs, no roster. 13 already covered, <b>6 down-and-wanted</b> (incl. <code>vault-backup</code> — dark for 11 days), 5 verify, 12 leave-disabled. This is the <code>LaunchEntity</code> / Fleet-Runtime pillar's exact justification, produced as evidence.</div>
+      </div>
+      <div class="row hit">
+        <div class="front">Front ①<small>memory fabric</small></div>
+        <div class="body"><b>Anima (pillar 1) was down behind a live proxy.</b> The vault-sync relay returned 502 — Tailscale Serve was up, its upstream relay dead (swept in the same quarantine). Restored under launchd; the iOS pull bug (<em>"Parent folder doesn't exist"</em>) fixed in plugin <b>v0.1.1</b> and shipped to the phone. A "thin HTTP door until Andromeda hosts it natively" — which is the point.</div>
+      </div>
+      <div class="row hit">
+        <div class="front">Front ②<small>the blob</small></div>
+        <div class="body"><b>Pulled OMC out of the terminal welcome.</b> Small cut, same body: OMC is the very 31,908-line bridge PR #46 exists to retire. Every place it surfaces is a place the Swift-native replacement will own.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 03 FIRST STRIKE ══ -->
+  <section>
+    <div class="kicker"><span class="no">03</span> First strike — the landing party</div>
+    <h2><span class="pl">PR&nbsp;#46 — AndromedaMCP</span>: 819 lines of Swift against a 31,908-line blob</h2>
+    <div class="card strike">
+      <h3>feat/andromeda-mcp <span class="tag">MERGED · 2026-08-15</span></h3>
+      <p>The first Andromeda-managed MCP server: a <strong>dependency-free Swift 6 package</strong> (<code>Packages/AndromedaMCP</code>) exposing <code>code.search</code> and <code>code.replace</code> over MCP stdio (JSON-RPC 2.0, line-delimited) — capability IDs; the ast-grep engine behind them stays behind the server boundary. ~819 lines of typed Swift + 485 lines of tests that drive the real built binary over stdio with parallel-safe fixtures. macOS 14+, Swift 6 language mode, zero external deps.</p>
+      <p style="margin-bottom:0;color:var(--ink-soft);font-size:13.5px"><b style="color:var(--live)">✓ Build &amp; Test (macOS)</b> · <b style="color:var(--live)">✓ Cursor Security Reviewer</b> · +2,952 / −1 across 36 files · also lands the <b>swift-skill canon</b> (21 reference files) and <code>AndromedaStatusline</code>. Follow-ups (id echo, CI truth, drain regression) landed same-day in #47. Diff-tested against a live exchange: <code>APPLIED: 1 replacement — print("old") → logger.debug("old")</code>, file rewritten on disk.</p>
+    </div>
+    <p style="color:var(--ink-dim);font-size:13px">Craft, per the canon: ast-grep output decoded into a typed <code>Decodable</code> model (no <code>JSONSerialization</code> casting); the dry-run/writer two-pass documented and covered by tests. This is the charter's Definition of Done, not a spike.</p>
+  </section>
+
+  <!-- ══ 04 CAMPAIGN ══ -->
+  <section>
+    <div class="kicker"><span class="no">04</span> The campaign — phased offensive</div>
+    <h2>From one server to <span class="vi">one registry</span></h2>
+
+    <div class="phase done">
+      <div class="mark">SECURED</div>
+      <div><h4>Beachhead — AndromedaMCP merged</h4><p>One MCP server, Swift-native, CI-green, replacing the OMC bridge's first job. PR #46 (+ follow-ups #47, spec fixes #48).</p></div>
+    </div>
+    <div class="phase now">
+      <div class="mark">IN CONTACT</div>
+      <div><h4>Rewire &amp; retire</h4><p>Point <code>~/.claude/settings.json</code> <code>mcpServers</code> at the built binary; retire the 75 MB <code>marketplaces/omc</code> clone; install the swift canon skill. The masquerade key gets an honest owner.</p></div>
+    </div>
+    <div class="phase">
+      <div class="mark">PHASE II</div>
+      <div><h4>MCPServerRegistry — the roster</h4><p>Every MCP server becomes a visible Swift entity under one registry: process ownership, dedupe policy, health, no silent duplicates. Kills the 15×-copy tax at the root. (BIN-41 · <code>MCPServerRegistry</code>.)</p></div>
+    </div>
+    <div class="phase">
+      <div class="mark">PHASE III</div>
+      <div><h4>LaunchEntity &amp; SkillRegistry — the parallel fronts</h4><p>Today's quarantine audit becomes a typed roster with alerting on <em>unregistered ≠ crashed</em>. Skills get the same treatment (HAB-39). No invisible daemons; no mystery folders.</p></div>
+    </div>
+    <div class="phase">
+      <div class="mark">PHASE IV</div>
+      <div><h4>Fleet rollout</h4><p>Push the consolidated config across hosts via <code>fleet-settings.json</code> — Studio, Mini, habitat VM — one source of truth, replayable.</p></div>
+    </div>
+  </section>
+
+  <!-- ══ 05 ORDER OF BATTLE ══ -->
+  <section>
+    <div class="kicker"><span class="no">05</span> Order of battle — the six pillars</div>
+    <h2>Where each pillar stands</h2>
+    <p class="lead" style="font-size:14px">Site status as of 2026-07-19: <b style="color:var(--live)">7 shipped</b> · <b style="color:var(--hold)">3 partial</b> · <b style="color:var(--ink-dim)">7 specified, not built</b>. The MCP arc moves pillar 2 off the "partial" line.</p>
+    <div class="pillars">
+      <div class="pil s-live s-hot"><span class="st">live</span><h4>① Memory / Anima</h4><div class="d">Graph + vector fabric. "Similar is not the same as related." Restored + patched today.</div><div class="n">vault-sync relay · v0.1.1</div></div>
+      <div class="pil s-part s-hot"><span class="st">advancing</span><h4>② MCP Host</h4><div class="d">Consolidate every tool server behind one roster + capability IDs.</div><div class="n">PR #46 · AndromedaMCP</div></div>
+      <div class="pil s-spec"><span class="st">specified</span><h4>③ Skills Registry</h4><div class="d">Centralized skill discovery; ends the mirror-across-hosts sprawl.</div><div class="n">HAB-39</div></div>
+      <div class="pil s-part"><span class="st">partial</span><h4>④ LLM Proxy</h4><div class="d">Capability-based routing — clients ask for <code>fast-reasoning</code>, not a vendor.</div><div class="n">router in progress</div></div>
+      <div class="pil s-spec"><span class="st">specified</span><h4>⑤ Secrets Broker</h4><div class="d">Keychain-backed credential brokerage; no secrets in config files.</div><div class="n">specified</div></div>
+      <div class="pil s-part"><span class="st">partial</span><h4>⑥ Fleet Runtime</h4><div class="d">LaunchAgents + observability. Today's audit is its charter evidence.</div><div class="n">LaunchEntity</div></div>
+    </div>
+  </section>
+
+  <!-- ══ 06 RULES OF ENGAGEMENT ══ -->
+  <section>
+    <div class="kicker"><span class="no">06</span> Rules of engagement — the non-negotiables</div>
+    <h2>Why the Swift rewrite isn't optional</h2>
+    <blockquote>
+      No silent loss. No invisible automation. No provider lock-in disguised as configuration. No knowledge without provenance. No automation without visibility. No migration without rollback.
+      <span class="src">— Andromeda Charter, Core Promise</span>
+    </blockquote>
+    <ul class="rules">
+      <li><b>No Bash implementation surface.</b> Behavior lives in Swift modules and typed CLIs — shell only as documentation.</li>
+      <li><b>No invisible launch agents.</b> Background work must appear in a command bar, menu bar, or console.</li>
+      <li><b>Everything observable.</b> Structured logs, owner, failure class, privacy class on every operation.</li>
+      <li><b>Append before processing.</b> Observations are journaled durably before enrichment or routing.</li>
+      <li><b>Human authority explicit.</b> Observation ≠ suggestion ≠ reversible ≠ destructive ≠ privileged.</li>
+      <li><b>Capability names beat provider names.</b> The <code>multica</code>-that-isn't-Multica is the anti-pattern in one word.</li>
+    </ul>
+    <p style="margin-top:20px;color:var(--ink-soft)">The through-line: today's three fires all trace to the same root — <strong>configuration pretending to be a system</strong>. A key named for a thing it isn't; a proxy over a corpse; a folder of daemons nobody can see. Andromeda's answer is not more config. It's a control plane that makes all of it a typed, observable, replayable Swift entity. PR #46 is where that answer stops being a charter and starts being a binary.</p>
+  </section>
+
+  <footer>
+    <div>SOURCES · <a href="https://github.com/Ripnrip/Andromeda/pull/46">github.com/Ripnrip/Andromeda/pull/46</a> · <a href="https://github.com/Ripnrip/Andromeda/pull/47">/pull/47</a> · <a href="https://github.com/Ripnrip/Andromeda/pull/48">/pull/48</a> · <a href="https://andromeda-lac-theta.vercel.app/">andromeda-lac-theta.vercel.app</a></div>
+    <div>REFS · ANDROMEDA-CHARTER.md · docs/MCP-SPRAWL-PROBLEM.md · docs/MCP-SPRAWL-BEFORE-AFTER.md (BIN-41) · MemoryKit/Registry/MCPServerRegistry.swift · HAB-224 · HAB-290</div>
+    <div>PERSISTED · committed to the repo 2026-08-16 by Berserker — the 2026-08-15 field draft lived in an ephemeral Claude artifact (tmp scratchpad + an empty Slack shell). Tool names corrected to <code>code.search</code> / <code>code.replace</code> per the capability-hiding law; counts updated to merged state.</div>
+    <div class="sig">// filed from the field, 2026-08-15 — Observe → Evolve → Execute → Internalize</div>
+  </footer>
+</div>
+
+<script>
+  // Quiet starfield for the hero only. Static under reduced-motion.
+  (function(){
+    var c = document.getElementById('stars'); if(!c) return;
+    var ctx = c.getContext('2d'), stars = [], W, H, dpr = Math.min(window.devicePixelRatio||1, 2);
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    function size(){
+      var r = c.getBoundingClientRect(); W = r.width; H = r.height;
+      c.width = W*dpr; c.height = H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+      var n = Math.round((W*H)/9000);
+      stars = []; for(var i=0;i<n;i++) stars.push({
+        x:Math.random()*W, y:Math.random()*H, r:Math.random()*1.3+0.2,
+        a:Math.random()*0.6+0.2, tw:Math.random()*0.02+0.004, ph:Math.random()*6.28
+      });
+    }
+    function frame(t){
+      ctx.clearRect(0,0,W,H);
+      for(var i=0;i<stars.length;i++){ var s=stars[i];
+        var a = reduce ? s.a : s.a*(0.6+0.4*Math.sin(s.ph + t*s.tw));
+        var hue = i%9===0 ? '143,125,255' : (i%13===0 ? '255,138,61' : '233,231,244');
+        ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,6.2832);
+        ctx.fillStyle='rgba('+hue+','+a.toFixed(3)+')'; ctx.fill();
+      }
+      if(!reduce) requestAnimationFrame(frame);
+    }
+    size(); window.addEventListener('resize', size);
+    if(reduce){ frame(0); } else { requestAnimationFrame(frame); }
+  })();
+</script>
