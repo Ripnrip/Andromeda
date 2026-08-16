@@ -27,11 +27,28 @@ public struct AndromedaAmbientBackdrop<Content: View>: View {
 
 /// The compact HUD: core, live recall waveform, the capability being
 /// written, and fleet health — the thing that sits above every space.
+/// Observed fleet vital for the HUD. `unverified` is the default: the
+/// capsule has no `FleetObserveReport` of its own, so a bare render must
+/// not manufacture "healthy" (AGENTS.md fleet observation law — callers
+/// with a real report pass the observed value).
+public enum FleetVital: String {
+    case healthy, degraded, unverified
+
+    var tint: Color {
+        switch self {
+        case .healthy: .andromedaLive
+        case .degraded: .andromedaAmber
+        case .unverified: .andromedaMuted
+        }
+    }
+}
+
 public struct AndromedaHUDCapsule: View {
     public var capability: String
     public var fleet: Int
-    public init(capability: String = "infer.write", fleet: Int = 3) {
-        self.capability = capability; self.fleet = fleet
+    public var fleetVital: FleetVital
+    public init(capability: String = "infer.write", fleet: Int = 3, fleetVital: FleetVital = .unverified) {
+        self.capability = capability; self.fleet = fleet; self.fleetVital = fleetVital
     }
     public var body: some View {
         HStack(spacing: 13) {
@@ -47,9 +64,9 @@ public struct AndromedaHUDCapsule: View {
                     Text("fleet · \(fleet)")
                         .font(.system(size: 11.5, weight: .medium, design: .monospaced))
                         .foregroundStyle(Color.andromedaInk)
-                    Text("healthy")
+                    Text(fleetVital.rawValue)
                         .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(Color.andromedaMuted)
+                        .foregroundStyle(fleetVital.tint)
                 }
             }
         }
@@ -60,7 +77,7 @@ public struct AndromedaHUDCapsule: View {
         )
         .borderBeam(cornerRadius: 20)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Andromeda HUD, \(capability), fleet \(fleet) healthy")
+        .accessibilityLabel("Andromeda HUD, \(capability), fleet \(fleet) \(fleetVital.rawValue)")
     }
 }
 
