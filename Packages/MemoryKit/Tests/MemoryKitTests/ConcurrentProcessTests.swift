@@ -26,13 +26,16 @@ struct ConcurrentProcessTests {
 
     @Test("exit status and stderr round-trip")
     func statusAndStderr() throws {
-        // /bin/false does not exist on every macOS (binutils consolidation);
-        // sh is universal and lets the test pin stderr content too.
+        // Direct executable, no shell (repo law: no shell automation, even
+        // in fixtures — review caught the /bin/sh -c version). A missing
+        // input makes head exit non-zero with a message on stderr.
+        // /bin/false does not exist on this macOS (binutils consolidation).
+        let missing = "/nonexistent/andromeda-drain-probe-\(UUID().uuidString)"
         let output = try ConcurrentProcess.run(
-            executable: "/bin/sh",
-            arguments: ["-c", "echo oops >&2; exit 3"]
+            executable: "/usr/bin/head",
+            arguments: ["-c", "10", missing]
         )
-        #expect(output.status == 3)
-        #expect(String(data: output.stderr, encoding: .utf8)?.trimmingCharacters(in: .newlines) == "oops")
+        #expect(output.status != 0)
+        #expect(!output.stderr.isEmpty)
     }
 }
