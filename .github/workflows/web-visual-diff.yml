@@ -1,0 +1,144 @@
+name: Web Visual Diff
+
+# Browser equivalent of the pointfree snapshot suite: on every PR touching the
+# web surface, build base + head, screenshot every route at desktop/mobile in
+# dark + light, pixel-diff them, and post a left-right diff strip + markdown
+# table as a PR comment. Composites are pushed to visual/pr-<n> for embedding.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "web/**"
+      - "scripts/visual/**"
+      - ".github/workflows/web-visual-diff.yml"
+
+concurrency:
+  group: web-visual-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  visual-diff:
+    name: Screenshot diff (base vs head)
+    runs-on: ubuntu-latest
+    env:
+      BASE_PORT: "4173"
+      HEAD_PORT: "4174"
+    steps:
+      - name: Checkout (full history for base checkout)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Install visual tooling
+        run: npm --prefix scripts/visual ci
+
+      - name: Install Chromium
+        run: npx --prefix scripts/visual playwright install --with-deps chromium
+
+      - name: Build + shoot BASE
+        env:
+          SIDE: base
+          SHA: ${{ github.event.pull_request.base.sha }}
+          PORT: "4173"
+        run: |
+          set -euo pipefail
+          git checkout -q "$SHA"
+          npm install
+          # npm/cli#4828 workaround: optional platform binaries can go missing.
+          node -e "require('lightningcss')" || {
+            rm -rf node_modules web/node_modules package-lock.json && npm install
+          }
+          npm run build
+          (cd web && npx next start -p "$PORT" &)
+          for i in $(seq 1 30); do curl -sf "http://localhost:$PORT/" >/dev/null && break; sleep 2; done
+          curl -sf "http://localhost:$PORT/" >/dev/null
+          node scripts/visual/shot.mjs "http://localhost:$PORT" "shots/$SIDE"
+          pkill -f "next start" || true
+
+      - name: Build + shoot HEAD
+        env:
+          SIDE: head
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PORT: "4174"
+        run: |
+          set -euo pipefail
+          git checkout -q "$SHA"
+          git checkout -q "${{ github.event.pull_request.head.sha }}"
+          npm install
+          node -e "require('lightningcss')" || {
+            rm -rf node_modules web/node_modules package-lock.json && npm install
+          }
+          npm run build
+          (cd web && npx next start -p "$PORT" &)
+          for i in $(seq 1 30); do curl -sf "http://localhost:$PORT/" >/dev/null && break; sleep 2; done
+          curl -sf "http://localhost:$PORT/" >/dev/null
+          node scripts/visual/shot.mjs "http://localhost:$PORT" "shots/$SIDE"
+          pkill -f "next start" || true
+
+      - name: Pixel diff + markdown table
+        run: |
+          node scripts/visual/diff.mjs shots/base shots/head out
+          cat out/report.md
+
+      - name: Upload full-size shots (90-day retention)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: web-visual-shots
+          path: shots/
+          retention-days: 90
+
+      - name: Publish composites to visual/pr-${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          BRANCH="visual/pr-${{ github.event.pull_request.number }}"
+          git config user.name "andromeda-ci"
+          git config user.email "ci@andromeda.local"
+          git checkout -q -- package-lock.json 2>/dev/null || true
+          git checkout -q --orphan "$BRANCH"
+          git rm -rq --cached .
+          # Only composites + heatmaps live on this branch (raw URLs embed in comments).
+          git add out/composites out/diffs
+          git commit -qm "visual diff artifacts for PR #${{ github.event.pull_request.number }}"
+          git push -qf origin "$BRANCH"
+
+      - name: Upsert PR comment with diff table
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          RAW="https://raw.githubusercontent.com/${{ github.repository }}/visual/pr-$PR"
+          {
+            echo "<!-- web-visual-diff -->"
+            cat out/report.md
+            echo ""
+            echo "### Left–right strips (base | head)"
+            echo ""
+            while IFS= read -r name; do
+              [ -z "$name" ] && continue
+              echo "#### $name"
+              echo ""
+              echo "![diff: $name]($RAW/composites/$name)"
+              echo ""
+            done < out/changed.txt
+            echo "_Heatmap overlays on the [\`visual/pr-$PR\`](https://github.com/${{ github.repository }}/tree/visual/pr-$PR) branch · full-size shots in workflow artifacts · regenerated on every push._"
+          } > comment.md
+          ID=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" \
+            --jq ".[] | select(.body | startswith(\"<!-- web-visual-diff -->\")) | .id" | head -1)
+          if [ -n "$ID" ]; then
+            gh api --method PATCH "repos/${{ github.repository }}/issues/comments/$ID" \
+              -F body=@comment.md --jq '.html_url'
+          else
+            gh pr comment "$PR" --body-file comment.md
+          fi

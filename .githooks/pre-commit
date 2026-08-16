@@ -1,0 +1,75 @@
+#!/usr/bin/env swift
+// Andromeda pre-commit hook — Swift-native per repository policy
+// (project-maintained shell automation is forbidden; see RepositoryPolicyTests).
+//
+// Install once per clone:
+//   git config core.hooksPath .githooks
+//
+// Checks (fast, dependency-free):
+//   1. Blocks build artifacts / dependencies from being committed.
+//   2. Swift-format lints staged .swift files when swift-format is installed.
+//   3. Warns (does not block) on lockfile churn without a manifest change.
+
+import Foundation
+
+func run(_ command: [String]) -> String {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = command
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    process.standardInput = FileHandle.nullDevice
+    guard (try? process.run()) != nil else { return "" }
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    return String(data: data, encoding: .utf8) ?? ""
+}
+
+func toolExists(_ name: String) -> Bool {
+    !run(["which", name]).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+}
+
+let staged = run(["git", "diff", "--cached", "--name-only"])
+    .split(separator: "\n").map(String.init)
+
+guard !staged.isEmpty else { exit(0) }
+
+// 1. Build artifacts and dependency trees never belong in the repository.
+let forbiddenPatterns = ["node_modules/", ".next/", ".DS_Store", "DerivedData/", "/.build/"]
+let forbidden = staged.filter { path in forbiddenPatterns.contains { path.contains($0) } }
+if !forbidden.isEmpty {
+    FileHandle.standardError.write(Data(
+        "✋ commit blocked — build artifacts staged:\n"
+            .appending(forbidden.joined(separator: "\n"))
+            .appending("\nunstage them (git restore --staged <path>) and commit again.\n")
+            .utf8))
+    exit(1)
+}
+
+// 2. Swift format gate — best effort; skipped when swift-format is absent.
+let swiftFiles = staged.filter { $0.hasSuffix(".swift") }
+if !swiftFiles.isEmpty && toolExists("swift-format") {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["swift-format", "lint", "--parallel"] + swiftFiles
+    process.standardError = FileHandle.standardError
+    let out = Pipe()
+    process.standardOutput = out
+    try? process.run()
+    process.waitUntilExit()
+    if process.terminationStatus != 0 {
+        FileHandle.standardError.write(Data(
+            "✋ commit blocked — swift-format found violations (fix: swift-format -i <files>).\n".utf8))
+        exit(1)
+    }
+}
+
+// 3. Lockfile churn without a manifest change is usually accidental.
+let touchedLock = staged.contains { $0.hasSuffix("package-lock.json") }
+let touchedManifest = staged.contains { $0.hasSuffix("package.json") }
+if touchedLock && !touchedManifest {
+    print("⚠️  lockfile changed without package.json — intentional? (commit proceeds)")
+}
+
+exit(0)
