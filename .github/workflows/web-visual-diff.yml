@@ -111,8 +111,9 @@ jobs:
           git checkout -q -- package-lock.json 2>/dev/null || true
           git checkout -q --orphan "$BRANCH"
           git rm -rq --cached .
-          # Only composites + heatmaps live on this branch (raw URLs embed in comments).
-          git add out/composites out/diffs
+          # Only composites + heatmaps live on this branch (raw URLs embed in
+          # comments). -f: local runs gitignore out/, CI artifacts override.
+          git add -f out/composites out/diffs
           git commit -qm "visual diff artifacts for PR #${{ github.event.pull_request.number }}"
           git push -qf origin "$BRANCH"
 
