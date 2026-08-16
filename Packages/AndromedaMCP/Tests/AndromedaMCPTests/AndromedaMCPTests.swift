@@ -37,8 +37,13 @@ struct AndromedaMCPTests {
     private func runExchange(
         _ requests: [String],
         fixtureName: String,
+        expectedResponses: Int? = nil,
         setup: ((URL) throws -> Void)? = nil
     ) throws -> [String] {
+        // Tests that deliberately provoke silence get fewer responses than
+        // requests — waiting for requests.count would block on a read with
+        // no EOF guarantee while the child still holds the pipe.
+        let expected = expectedResponses ?? requests.count
         let fixtureDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("andromeda-mcp-\(fixtureName)-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: fixtureDirectory, withIntermediateDirectories: true)
@@ -70,7 +75,7 @@ struct AndromedaMCPTests {
 
         var responses: [String] = []
         var buffer = Data()
-        while responses.count < requests.count {
+        while responses.count < expected {
             let chunk = stdout.fileHandleForReading.availableData
             guard !chunk.isEmpty else { break }
             buffer.append(chunk)
@@ -78,7 +83,7 @@ struct AndromedaMCPTests {
                 let line = buffer[buffer.startIndex..<newline]
                 buffer = Data(buffer[buffer.index(after: newline)...])
                 responses.append(String(decoding: line, as: UTF8.self))
-                if responses.count == requests.count { break }
+                if responses.count == expected { break }
             }
         }
         process.terminate()
@@ -225,7 +230,7 @@ struct AndromedaMCPTests {
             #"{"jsonrpc":"2.0","method":"ping"}"#,
             #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
             #"{"jsonrpc":"2.0","method":"tools/list"}"#,
-        ], fixtureName: "notification-silence")
+        ], fixtureName: "notification-silence", expectedResponses: 1)
         // Only the initialize request (which carries an id) is answered —
         // notifications never produce responses, even for request methods
         // sent in notification form.
