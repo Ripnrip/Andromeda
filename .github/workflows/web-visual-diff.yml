@@ -41,10 +41,14 @@ jobs:
           node-version: "22"
 
       - name: Install visual tooling
-        run: npm --prefix scripts/visual ci
+        run: |
+          npm --prefix scripts/visual ci
+          # The shooters must survive base checkouts (they do not exist on
+          # main yet) — park them outside the working tree.
+          cp -R scripts/visual "$HOME/visual-tooling"
 
       - name: Install Chromium
-        run: npx --prefix scripts/visual playwright install --with-deps chromium
+        run: npx --prefix "$HOME/visual-tooling" playwright install --with-deps chromium
 
       - name: Build + shoot BASE
         env:
@@ -63,7 +67,7 @@ jobs:
           (cd web && npx next start -p "$PORT" &)
           for i in $(seq 1 30); do curl -sf "http://localhost:$PORT/" >/dev/null && break; sleep 2; done
           curl -sf "http://localhost:$PORT/" >/dev/null
-          node scripts/visual/shot.mjs "http://localhost:$PORT" "shots/$SIDE"
+          node "$HOME/visual-tooling/shot.mjs" "http://localhost:$PORT" "shots/$SIDE"
           pkill -f "next start" || true
 
       - name: Build + shoot HEAD
@@ -83,12 +87,12 @@ jobs:
           (cd web && npx next start -p "$PORT" &)
           for i in $(seq 1 30); do curl -sf "http://localhost:$PORT/" >/dev/null && break; sleep 2; done
           curl -sf "http://localhost:$PORT/" >/dev/null
-          node scripts/visual/shot.mjs "http://localhost:$PORT" "shots/$SIDE"
+          node "$HOME/visual-tooling/shot.mjs" "http://localhost:$PORT" "shots/$SIDE"
           pkill -f "next start" || true
 
       - name: Pixel diff + markdown table
         run: |
-          node scripts/visual/diff.mjs shots/base shots/head out
+          node "$HOME/visual-tooling/diff.mjs" shots/base shots/head out
           cat out/report.md
 
       - name: Upload full-size shots (90-day retention)
