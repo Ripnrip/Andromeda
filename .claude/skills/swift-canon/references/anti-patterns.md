@@ -243,6 +243,81 @@ parsing, not bulk transfer.
 
 ---
 
+## Exhibit 5 — Hand-rolled `encode(to:)` for an entire struct to keep one key null
+
+One optional key with special wire semantics (`id` must encode as `null`,
+never be omitted — JSON-RPC 2.0 requires it present on error responses) does
+not justify taking over the whole type's encoding.
+
+### ❌ DO NOT WRITE LIKE THIS
+
+```swift
+struct RPCErrorResponse: Encodable, Sendable {
+    let jsonrpc = "2.0"
+    let id: RPCID?
+    let error: Error
+
+    enum CodingKeys: String, CodingKey { case jsonrpc, id, error }
+
+    /// JSON-RPC 2.0: the `id` member is REQUIRED on responses and MUST be
+    /// null — not absent — when the request id could not be determined
+    /// (parse errors, invalid requests). Synthesized conformance would
+    /// `encodeIfPresent` and silently drop the key.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(jsonrpc, forKey: .jsonrpc)
+        if let id {
+            try container.encode(id, forKey: .id)
+        } else {
+            try container.encodeNil(forKey: .id)
+        }
+        try container.encode(error, forKey: .error)
+    }
+}
+```
+
+The custom `encode(to:)` fixes the one key and assumes custody of all the
+rest. Every future field becomes a manual `encode(_:forKey:)` line; miss one
+and it silently vanishes from the wire — a regression no compiler diagnostic
+catches. The intent ("this key is present, `null` when nil") lives in the
+type's plumbing instead of at the property where it belongs.
+
+### ✅ Write like this instead
+
+A property wrapper that states the wire rule once, reusable by any key on
+any type; the struct keeps fully synthesized encoding:
+
+```swift
+@propertyWrapper
+struct EncodeNull<Value: Encodable & Sendable>: Encodable, Sendable {
+    var wrappedValue: Value?
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+
+        if let wrappedValue {
+            try container.encode(wrappedValue)
+        } else {
+            try container.encodeNil()
+        }
+    }
+}
+
+struct RPCErrorResponse: Encodable, Sendable {
+    let jsonrpc = "2.0"
+
+    @EncodeNull var id: RPCID?
+
+    let error: Error
+}
+```
+
+The rule is visible at the declaration site, the mechanism is tested once in
+the wrapper, and new fields encode themselves. Same technique generalizes to
+other key-presence semantics (always-empty-array, explicit booleans).
+
+---
+
 ## How to use this file in review
 
 When a diff matches an exhibit's shape, cite the exhibit, name which
@@ -256,5 +331,7 @@ them.
 Exhibits 1–2: a Swift-native MCP stdio server's first draft and its PR
 review cycle (Aug 2026). Exhibit 3: the same review's deadlock reproduction
 at 10,000 matches. Exhibit 4: the over-correction that followed — an async
-rewrite that was itself caught by a 3,000-match regression test. Project-
-specific scar details live in the project skill layered on this canon.
+rewrite that was itself caught by a 3,000-match regression test. Exhibit 5:
+the same server's error-response encoder (PR #48) — hand-rolled keyed
+encoding replaced by an `@EncodeNull` property wrapper proposed in review.
+Project-specific scar details live in the project skill layered on this canon.
