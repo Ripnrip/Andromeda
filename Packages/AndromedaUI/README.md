@@ -74,8 +74,9 @@ Shared kit: `StatusBadge`, `GlassCard`, `SegTab`, `AddButton`.
 - **`ControlPlaneA11yTests`** — Dynamic Type snapshots + UIKit accessibility-tree labels
 - **`AndromedaSnapshotTests`** — animation catalogue × {dark, light} (UIKit)
 
-Seed baselines with `SNAPSHOT_TESTING_RECORD=1 swift test` on macOS, then commit
-`__Snapshots__/`.
+Baselines are recorded (119 PNGs, macos-15 + Xcode 16.4) — CI runs in compare
+mode on every PR. Re-record only via a tip-commit subject marker on the runner
+(see the record-detect step in `.github/workflows/ci.yml`).
 
 ## License
 
