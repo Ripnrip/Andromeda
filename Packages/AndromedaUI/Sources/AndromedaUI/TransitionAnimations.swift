@@ -32,11 +32,15 @@ public struct CrossFade: View {
 public struct SlideSwap: View {
     public var values: [String]
     @State private var shifted = false
-    public init(values: [String] = ["claude-4.7", "gpt-5-mini"]) { self.values = values }
+    /// Capability IDs by default — provider brands stay behind the curtain.
+    public init(values: [String] = ["infer.deep", "infer.fast"]) { self.values = values }
     public var body: some View {
-        ZStack {
-            chip(values[0]).offset(y: shifted ? -26 : 0).opacity(shifted ? 0 : 1)
-            chip(values.count > 1 ? values[1] : values[0]).offset(y: shifted ? 0 : 26).opacity(shifted ? 1 : 0)
+        // Empty input renders a quiet placeholder instead of trapping on
+        // `values[0]` — a library client passing [] gets a blank chip.
+        let slots = values.isEmpty ? ["", ""] : values
+        return ZStack {
+            chip(slots[0]).offset(y: shifted ? -26 : 0).opacity(shifted ? 0 : 1)
+            chip(slots.count > 1 ? slots[1] : slots[0]).offset(y: shifted ? 0 : 26).opacity(shifted ? 1 : 0)
         }
         .frame(width: 140, height: 34)
         .clipped()
