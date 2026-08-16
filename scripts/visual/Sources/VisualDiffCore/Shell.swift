@@ -1,33 +1,48 @@
 import Foundation
 
 /// Result of one subprocess run.
-public struct ShellResult {
+public struct ShellResult: Sendable {
     public let exitCode: Int32
     public let stdout: String
     public let stderr: String
     public var succeeded: Bool { exitCode == 0 }
 }
 
-enum ShellError: Error, CustomStringConvertible {
+public enum ShellError: Error, CustomStringConvertible {
     case failed(command: String, result: ShellResult)
+    case timedOut(command: String, seconds: Double)
 
-    var description: String {
-        guard case let .failed(command, result) = self else { return "shell error" }
-        return """
-        command failed (\(result.exitCode)): \(command)
-        --- stderr ---
-        \(result.stderr)
-        """
+    public var description: String {
+        switch self {
+        case let .failed(command, result):
+            return """
+            command failed (\(result.exitCode)): \(command)
+            --- stderr ---
+            \(result.stderr)
+            """
+        case let .timedOut(command, seconds):
+            return "command timed out after \(Int(seconds))s: \(command)"
+        }
     }
 }
 
 /// Sequential subprocess helpers. The pipeline is strictly step-by-step,
 /// so no concurrency surface is needed.
-enum Shell {
-    static func run(
+///
+/// Output streams are file-backed, not pipes: a child that fills a pipe
+/// buffer on one stream while we block reading the other would deadlock
+/// (a noisy failing `npm run build` does exactly this). Files have no
+/// bounded buffer, so both streams drain as the child writes.
+public enum Shell {
+    /// Default ceiling for any single command — builds are slow, hangs are
+    /// worse.
+    public static let defaultTimeout: Double = 900
+
+    public static func run(
         _ arguments: [String],
         cwd: URL? = nil,
-        environment: [String: String] = [:]
+        environment: [String: String] = [:],
+        timeout: Double = Shell.defaultTimeout
     ) throws -> ShellResult {
         guard let command = arguments.first, !command.isEmpty else {
             throw CLIError(description: "empty command")
@@ -44,30 +59,58 @@ enum Shell {
             for (key, value) in environment { env[key] = value }
             process.environment = env
         }
-        let stdout = Pipe()
-        let stderr = Pipe()
-        process.standardOutput = stdout
-        process.standardError = stderr
+
+        let outURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("visual-diff-\(UUID().uuidString).out")
+        let errURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("visual-diff-\(UUID().uuidString).err")
+        FileManager.default.createFile(atPath: outURL.path, contents: nil)
+        FileManager.default.createFile(atPath: errURL.path, contents: nil)
+        defer {
+            try? FileManager.default.removeItem(at: outURL)
+            try? FileManager.default.removeItem(at: errURL)
+        }
+        process.standardOutput = try FileHandle(forWritingTo: outURL)
+        process.standardError = try FileHandle(forWritingTo: errURL)
+
         try process.run()
-        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
-        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+
+        // Bounded wait: hang → terminate → report, instead of a stuck job.
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning && Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+        if process.isRunning {
+            process.terminate()
+            process.waitUntilExit()
+            throw ShellError.timedOut(command: arguments.joined(separator: " "), seconds: timeout)
+        }
         process.waitUntilExit()
+
+        // The child is done writing; reading the files now cannot block.
+        func contents(_ url: URL) -> String {
+            guard let handle = try? FileHandle(forReadingFrom: url),
+                  let data = try? handle.readToEnd()
+            else { return "" }
+            return String(data: data, encoding: .utf8) ?? ""
+        }
         return ShellResult(
             exitCode: process.terminationStatus,
-            stdout: String(data: outData, encoding: .utf8) ?? "",
-            stderr: String(data: errData, encoding: .utf8) ?? ""
+            stdout: contents(outURL),
+            stderr: contents(errURL)
         )
     }
 
     /// Runs a command, throwing a descriptive error on non-zero exit.
     @discardableResult
-    static func runChecked(
+    public static func runChecked(
         _ arguments: [String],
         cwd: URL? = nil,
         environment: [String: String] = [:],
-        allowFailure: Bool = false
+        allowFailure: Bool = false,
+        timeout: Double = Shell.defaultTimeout
     ) throws -> ShellResult {
-        let result = try run(arguments, cwd: cwd, environment: environment)
+        let result = try run(arguments, cwd: cwd, environment: environment, timeout: timeout)
         if !result.succeeded && !allowFailure {
             throw ShellError.failed(command: arguments.joined(separator: " "), result: result)
         }
@@ -75,8 +118,8 @@ enum Shell {
     }
 
     static func toolExists(_ name: String) -> Bool {
-        guard let result = try? run(["/usr/bin/which", name]) else { return false }
-        return result.succeeded && !result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard let result = try? run(["/usr/bin/which", name], timeout: 10) else { return false }
+        return result.succeeded && !result.stdout.trimmed().isEmpty
     }
 }
 

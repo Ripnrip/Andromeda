@@ -94,13 +94,22 @@ public enum Publish {
     }
 
     private static func listComments(pr: Int, repo: String) throws -> [PRComment] {
+        // --slurp wraps paginated pages into one top-level array-of-arrays;
+        // without it, concatenated page objects fail JSON decoding and the
+        // marker would never be found (duplicate comments on busy PRs).
         let result = try Shell.runChecked(
-            ["gh", "api", "repos/\(repo)/issues/\(pr)/comments", "--paginate"], cwd: nil
+            ["gh", "api", "repos/\(repo)/issues/\(pr)/comments", "--paginate", "--slurp"]
         )
         guard let data = result.stdout.data(using: .utf8),
-              let array = try JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+              let pages = try JSONSerialization.jsonObject(with: data) as? [Any]
         else { return [] }
-        return array.compactMap { entry in
+        // Tolerate both shapes: slurped [[page], [page]] and single [page].
+        let entries: [[String: Any]] = pages.flatMap { page in
+            if let array = page as? [[String: Any]] { return array }
+            if let single = page as? [String: Any] { return [single] }
+            return []
+        }
+        return entries.compactMap { entry in
             guard let id = entry["id"] as? Int,
                   let body = entry["body"] as? String
             else { return nil }
