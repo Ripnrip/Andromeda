@@ -1,0 +1,243 @@
+name: Web Snapshots
+
+# Browser screenshot tests for the Next.js marketing site — the web-side analogue
+# of the Point-Free snapshot suites guarding the Swift surfaces (see ci.yml).
+#
+# Separate workflow rather than a lane in ci.yml: that job runs on macos-15 for the
+# AppKit-guarded Swift snapshots, while these baselines are recorded on Linux with
+# a pinned Chromium. Sharing a runner would mean either paying macOS minutes for
+# web-only diffs or recording Swift baselines on the wrong image.
+#
+# Baselines are image-bound. They MUST be recorded on this runner
+# (`ubuntu-24.04` + the `agent-browser` pin in package.json); a locally recorded
+# PNG will not pixel-match and must not be committed.
+
+on:
+  pull_request:
+    paths:
+      - "web/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/web-snapshots.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "web/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/web-snapshots.yml"
+
+concurrency:
+  group: web-snapshots-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: the sticky PR comment needs `pull-requests: write`; nothing here
+# pushes code, so `contents` stays read-only.
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  snapshots:
+    name: Screenshot diff
+    # Pinned, not `ubuntu-latest`: a runner image bump silently re-rasterises text
+    # and would turn every baseline red at once.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        # Pinned to an immutable SHA, matching the supply-chain posture in ci.yml.
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 2
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `[record-web-snapshots]` on the PR head tip rewrites baselines, mirroring the
+      # `[record-snapshots]` convention in ci.yml. The pull_request checkout is a merge
+      # commit whose message often mirrors the PR title, so only the head tip counts.
+      - name: Detect record mode
+        id: mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_HEAD_SHA" ]; then
+            git fetch --no-tags --depth=1 origin "$PR_HEAD_SHA"
+            MSG="$(git log -1 --pretty=%B "$PR_HEAD_SHA")"
+          else
+            MSG="$(git log -1 --pretty=%B)"
+          fi
+          if printf '%s' "$MSG" | grep -q '\[record-web-snapshots\]'; then
+            echo "record=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "record=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Chromium
+        run: npx --no-install agent-browser install --with-deps
+
+      - name: Run snapshot tests
+        id: run
+        env:
+          WEB_SNAPSHOT_RECORD: ${{ steps.mode.outputs.record == 'true' && '1' || '0' }}
+          WEB_SNAPSHOT_ARTIFACT_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        # `continue-on-error` so the diff table still gets posted on failure; the
+        # "Enforce result" step below restores the non-zero exit so the check is a
+        # real gate and not advisory.
+        continue-on-error: true
+        run: npm run test:web-snapshots
+
+      - name: Upload diff report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: web-snapshot-report-${{ github.sha }}
+          path: web/tests/snapshots/__Output__/
+          if-no-files-found: warn
+
+      # Record mode rewrites the committed PNGs; upload them so the author can
+      # download and commit the new baselines.
+      - name: Upload rewritten baselines
+        if: always() && steps.mode.outputs.record == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: web-snapshot-baselines-${{ github.sha }}
+          path: web/tests/snapshots/__Snapshots__/
+          if-no-files-found: error
+
+      # Publish composites so the PR table can render them inline.
+      #
+      # GitHub comments cannot reference workflow-artifact contents, so the images
+      # need a real URL. They are pushed to an orphan `web-snapshot-images` branch
+      # under a per-commit directory and served from raw.githubusercontent.com.
+      # Orphan + per-commit path keeps this off the source history and makes the
+      # images garbage-collectable without rewriting anything.
+      #
+      # Skipped for forks: `GITHUB_TOKEN` is read-only there, so the table falls
+      # back to the artifact link (handled in report.mjs) instead of failing.
+      - name: Publish composite images
+        id: images
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: web-snapshot-images
+        run: |
+          set -euo pipefail
+
+          composite_dir="web/tests/snapshots/__Output__/composite"
+          if [ -z "$(ls -A "$composite_dir" 2>/dev/null)" ]; then
+            echo "No composites to publish."
+            exit 0
+          fi
+
+          staging="$(mktemp -d)"
+          cp "$composite_dir"/*.png "$staging/"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Fetch the existing image branch, or start a fresh orphan if absent.
+          if git fetch --depth=1 origin "$BRANCH" 2>/dev/null; then
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+          else
+            git checkout --orphan "$BRANCH"
+            git rm -rf --cached . >/dev/null 2>&1 || true
+            find . -maxdepth 1 -mindepth 1 -not -name '.git' -exec rm -rf {} +
+          fi
+
+          target="${GITHUB_SHA}"
+          mkdir -p "$target"
+          cp "$staging"/*.png "$target/"
+
+          git add "$target"
+          if git diff --cached --quiet; then
+            echo "Composites already published for this commit."
+          else
+            git commit -m "web snapshots: composites for ${GITHUB_SHA}"
+            git push origin "$BRANCH"
+          fi
+
+          echo "base_url=https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${BRANCH}/${target}" >> "$GITHUB_OUTPUT"
+
+      # Re-render the report now that the images have a public URL, so the table
+      # embeds them instead of pointing at the artifact.
+      - name: Re-render report with images
+        if: always() && steps.images.outputs.base_url != ''
+        env:
+          WEB_SNAPSHOT_IMAGE_BASE_URL: ${{ steps.images.outputs.base_url }}
+          WEB_SNAPSHOT_ARTIFACT_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node web/tests/snapshots/render-report.mjs
+
+      - name: Comment diff table on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'web/tests/snapshots/__Output__/report.md';
+
+            if (!fs.existsSync(path)) {
+              core.warning('No snapshot report produced; skipping comment.');
+              return;
+            }
+
+            const body = fs.readFileSync(path, 'utf8');
+            const marker = '<!-- andromeda-web-snapshots -->';
+
+            // Sticky comment: update in place so a PR with several pushes keeps one
+            // authoritative table instead of accumulating stale ones.
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+
+            const existing = comments.find(
+              (comment) => comment.user.type === 'Bot' && comment.body.includes(marker),
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f web/tests/snapshots/__Output__/report.md ]; then
+            cat web/tests/snapshots/__Output__/report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Restores the real exit status after `continue-on-error` above. Record mode
+      # always fails by design, matching SnapshotTesting: a recording run is not a
+      # verification run and must never read as green.
+      - name: Enforce result
+        if: always()
+        run: |
+          if [ "${{ steps.run.outcome }}" != "success" ]; then
+            echo "::error::Web snapshot tests failed — review the diff table on the PR."
+            exit 1
+          fi
