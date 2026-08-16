@@ -75,14 +75,23 @@ public enum Shell {
 
         try process.run()
 
-        // Bounded wait: hang → terminate → report, instead of a stuck job.
+        // Bounded wait: hang → escalate terminate → interrupt → SIGKILL, so a
+        // stubborn child can never wedge the job either running or reaping.
         let deadline = Date().addingTimeInterval(timeout)
         while process.isRunning && Date() < deadline {
             Thread.sleep(forTimeInterval: 0.2)
         }
         if process.isRunning {
             process.terminate()
-            process.waitUntilExit()
+            waitForExit(process, seconds: 3)
+            if process.isRunning {
+                process.interrupt()
+                waitForExit(process, seconds: 2)
+            }
+            if process.isRunning {
+                Shell.runChecked(["/bin/kill", "-9", String(process.processIdentifier)], timeout: 10)
+                waitForExit(process, seconds: 5)
+            }
             throw ShellError.timedOut(command: arguments.joined(separator: " "), seconds: timeout)
         }
         process.waitUntilExit()
@@ -99,6 +108,14 @@ public enum Shell {
             stdout: contents(outURL),
             stderr: contents(errURL)
         )
+    }
+
+    /// Polls a process for up to `seconds`, returning when it exits.
+    private static func waitForExit(_ process: Process, seconds: Double) {
+        let deadline = Date().addingTimeInterval(seconds)
+        while process.isRunning && Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
     }
 
     /// Runs a command, throwing a descriptive error on non-zero exit.
