@@ -9,8 +9,10 @@ const FOUNDERS = [
     href: "https://github.com/Ripnrip",
     image: "/founders/gurinder-full.png",
     alt: "Full illustrated portrait of Gurinder Singh at an arcade",
-    frameClass: "aspect-square",
-    imageClass: "object-cover object-center",
+    // Natural 2:3 portrait ratio — the complete illustration, uncropped.
+    frameClass: "aspect-[2/3]",
+    imageClass: "object-contain object-center",
+    wrapperClass: "",
   },
   {
     name: "@hashimotolabs",
@@ -20,6 +22,8 @@ const FOUNDERS = [
     alt: "Portrait of the Hashimoto Labs founder in a terminal-filled workspace",
     frameClass: "aspect-square",
     imageClass: "object-cover object-top",
+    // Editorial offset — keeps the two cards from reading as a matched pair.
+    wrapperClass: "sm:mt-14",
   },
 ] as const
 
@@ -78,11 +82,10 @@ export function FounderStory() {
                   href={founder.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="group overflow-hidden rounded-2xl border border-border bg-card/40 transition-colors hover:border-primary/40"
+                  className={`group overflow-hidden rounded-2xl border border-border bg-card/40 transition-colors hover:border-primary/40 ${founder.wrapperClass}`}
                 >
                   <div
                     className={`relative overflow-hidden border-b border-border/60 bg-secondary ${founder.frameClass}`}
-                    style={{ position: "relative", overflow: "hidden", aspectRatio: "1 / 1" }}
                   >
                     <Image
                       src={founder.image}
