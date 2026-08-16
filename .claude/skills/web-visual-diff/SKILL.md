@@ -11,6 +11,29 @@ base vs head, posted as a PR comment with a markdown table and left–right
 strips. Composites live on the `visual/pr-<n>` branch; full-size shots in the
 workflow artifacts.
 
+## Architecture (policy-compliant)
+
+The repo forbids project-maintained shell automation, so the pipeline
+orchestrator is a **typed Swift executable** (`scripts/visual` SwiftPM
+package, `VisualDiffCore` library + thin `visual-diff` main). The browser
+capture/differ stay Node (`shot.mjs` / `diff.mjs`) — Playwright and pixelmatch
+are JS-native — and the runner invokes them as subprocesses. The workflow only
+calls the runner:
+
+```text
+visual-diff capture --side base|head --sha <sha> --port <n>
+visual-diff diff    --base shots/base --head shots/head --out out
+visual-diff publish --pr <n> --repo <owner/name>
+visual-diff comment --pr <n> --repo <owner/name>
+```
+
+Build + test the runner: `swift build && swift test --package-path scripts/visual`
+(9 tests: comment builder embed cap, flag parsing, tooling-dir resolution).
+
+CI copies `scripts/visual` to `$RUNNER_TEMP/visual-tooling` **before** any
+base checkout — the tooling must survive the tree being rewritten to the base
+SHA (which predates `scripts/visual`).
+
 ## What the pipeline does
 
 1. Builds **base** (`pull_request.base.sha`) and **head** separately.
@@ -42,23 +65,17 @@ Height changes are expected for content-affecting PRs — the % is against the
 ## Running it locally (before pushing)
 
 ```console
-npm --prefix scripts/visual ci
-npx --prefix scripts/visual playwright install chromium
-# terminal A — base
-git checkout <base-sha> && npm install && npm run build
-(cd web && npx next start -p 4173)
-# terminal B — head (separate clone or after stopping A)
-git checkout <head-sha> && npm install && npm run build
-(cd web && npx next start -p 4174)
-node scripts/visual/shot.mjs http://localhost:4173 shots/base
-node scripts/visual/shot.mjs http://localhost:4174 shots/head
-node scripts/visual/diff.mjs shots/base shots/head out
+cd scripts/visual && swift build && cd ../..
+scripts/visual/.build/debug/visual-diff capture --side base --sha <base-sha> --port 4173
+scripts/visual/.build/debug/visual-diff capture --side head --sha <head-sha> --port 4174
+scripts/visual/.build/debug/visual-diff diff --base shots/base --head shots/head --out out
 ```
 
 `npm install` (not `ci`) at the repo root is deliberate when the optional
 native binary is missing — npm/cli#4828 can skip `lightningcss-*` platform
 packages; deleting `package-lock.json` + `node_modules` and reinstalling fixes
-it. **Never commit the regenerated lockfile as part of a fix** — restore it.
+it (the runner probes and does this automatically). **Never commit the
+regenerated lockfile as part of a fix** — the publish step restores it.
 
 ## Adding a page
 
