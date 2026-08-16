@@ -89,7 +89,9 @@ public enum Shell {
                 waitForExit(process, seconds: 2)
             }
             if process.isRunning {
-                Shell.runChecked(["/bin/kill", "-9", String(process.processIdentifier)], timeout: 10)
+                _ = try? Shell.runChecked(
+                    ["/bin/kill", "-9", String(process.processIdentifier)], timeout: 10
+                )
                 waitForExit(process, seconds: 5)
             }
             throw ShellError.timedOut(command: arguments.joined(separator: " "), seconds: timeout)
