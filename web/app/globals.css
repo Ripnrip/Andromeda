@@ -54,9 +54,43 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* Light mode — same 5-token system, inverted. Cyan primary/accent stay
+   legible on a bright surface by deepening slightly; status hues hold. */
 :root {
   --radius: 0.875rem;
 
+  --background: oklch(0.985 0.004 210);
+  --foreground: oklch(0.22 0.02 210);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.02 210);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.02 210);
+
+  --primary: oklch(0.56 0.13 195);
+  --primary-foreground: oklch(0.99 0.005 200);
+
+  --accent: oklch(0.5 0.11 196);
+  --accent-foreground: oklch(0.99 0.005 200);
+
+  --secondary: oklch(0.94 0.008 210);
+  --secondary-foreground: oklch(0.28 0.02 210);
+
+  --muted: oklch(0.94 0.008 210);
+  --muted-foreground: oklch(0.46 0.02 210);
+
+  --border: oklch(0.88 0.012 210);
+  --input: oklch(0.9 0.012 210);
+  --ring: oklch(0.56 0.13 195);
+
+  --shipped: oklch(0.5 0.13 195);
+  --partial: oklch(0.55 0.13 80);
+  --spec: oklch(0.55 0.015 220);
+  --signal: oklch(0.5 0.15 150);
+}
+
+.dark {
   --background: oklch(0.16 0.018 210);
   --foreground: oklch(0.95 0.012 200);
 
