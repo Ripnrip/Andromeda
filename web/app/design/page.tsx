@@ -7,14 +7,17 @@ import { AndromedaMark } from "@/components/andromeda-mark"
 import { Wordmark } from "@/components/wordmark"
 import { StatusDot } from "@/components/status-dot"
 import { TerminalPreview } from "@/components/terminal-preview"
+import { ThemeToggle } from "@/components/theme-toggle"
 
+// Live tokens — read the active CSS variable, so the swatch always shows
+// whichever theme (dark / light) is currently applied to <html>.
 const SWATCHES = [
-  { name: "Void", token: "--background", css: "oklch(0.16 0.018 210)", note: "Base surface" },
-  { name: "Panel", token: "--card", css: "oklch(0.19 0.02 210)", note: "Cards / bars" },
-  { name: "Slate", token: "--secondary", css: "oklch(0.24 0.022 210)", note: "Chips / hover" },
-  { name: "Cyan Glow", token: "--primary", css: "oklch(0.83 0.14 190)", note: "Brand / action" },
-  { name: "Teal", token: "--accent", css: "oklch(0.66 0.12 196)", note: "Accent" },
-  { name: "Light", token: "--foreground", css: "oklch(0.95 0.012 200)", note: "Text" },
+  { name: "Background", token: "--background", note: "Base surface" },
+  { name: "Card", token: "--card", note: "Cards / bars" },
+  { name: "Secondary", token: "--secondary", note: "Chips / hover" },
+  { name: "Primary", token: "--primary", note: "Brand / action" },
+  { name: "Accent", token: "--accent", note: "Accent" },
+  { name: "Foreground", token: "--foreground", note: "Text" },
 ]
 
 const SERIF_SCALE = [
@@ -35,12 +38,15 @@ export default function DesignPage() {
       <SiteNav />
 
       <div className="mx-auto max-w-6xl px-6 py-16">
-        <Link
-          href="/"
-          className="mb-8 inline-flex items-center gap-2 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> back to landing
-        </Link>
+        <div className="mb-8 flex items-center justify-between">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" /> back to landing
+          </Link>
+          <ThemeToggle />
+        </div>
 
         <div className="mb-3 flex items-center gap-3">
           <span className="h-px w-8 bg-primary/60" />
@@ -77,11 +83,18 @@ export default function DesignPage() {
         </Block>
 
         {/* Color */}
-        <Block title="Color" desc="Five-token palette. Cyan is the only saturated hue — used sparingly for action and glow.">
+        <Block
+          title="Color"
+          desc="Five-token palette. Cyan is the only saturated hue — used sparingly for action and glow. Swatches read the live CSS variable, so they update the instant you toggle theme."
+        >
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+            <ThemeToggle />
+            <span className="text-sm text-muted-foreground">Toggle theme to preview the palette swap live</span>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {SWATCHES.map((s) => (
               <div key={s.token} className="overflow-hidden rounded-xl border border-border bg-card">
-                <div className="h-20 w-full" style={{ background: s.css }} />
+                <div className="h-20 w-full border-b border-border/60" style={{ background: `var(${s.token})` }} />
                 <div className="flex items-center justify-between p-3">
                   <div>
                     <p className="text-sm font-medium">{s.name}</p>
