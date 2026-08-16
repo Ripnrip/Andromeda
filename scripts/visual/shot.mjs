@@ -20,12 +20,34 @@ const VIEWPORTS = [
   { name: "mobile", width: 390, height: 844 },
 ];
 
+// Motion is disabled in every context: the site's CSS runs perpetual
+// marquee/pan/pulse animations that only stop under prefers-reduced-motion.
+// Without this, identical base and head pages can be captured at different
+// animation phases and report false visual changes.
+const CONTEXT_OPTIONS = (vp) => ({
+  viewport: { width: vp.width, height: vp.height },
+  deviceScaleFactor: 2,
+  reducedMotion: "reduce",
+});
+
+/// Mean luminance of a saved screenshot (0–255), sampled for speed.
+async function meanLuminance(file) {
+  const png = PNG.sync.read(fs.readFileSync(file));
+  let sum = 0;
+  let n = 0;
+  const stride = 4 * 97; // sample ~1% of pixels
+  for (let i = 0; i < png.data.length; i += stride) {
+    sum += (png.data[i] + png.data[i + 1] + png.data[i + 2]) / 3;
+    n++;
+  }
+  return sum / n;
+}
+
+const LIGHT_MIN_LUMINANCE = 150;
+
 const browser = await chromium.launch();
 for (const vp of VIEWPORTS) {
-  const ctx = await browser.newContext({
-    viewport: { width: vp.width, height: vp.height },
-    deviceScaleFactor: 2,
-  });
+  const ctx = await browser.newContext(CONTEXT_OPTIONS(vp));
   const page = await ctx.newPage();
   for (const route of ROUTES) {
     const url = `${base}${route.path}`;
@@ -40,20 +62,15 @@ for (const vp of VIEWPORTS) {
   await ctx.close();
 }
 
-// Light theme capture (only meaningful on branches with the toggle).
-// The toggle button is the last button in the nav / design header.
+// Light theme capture. Only meaningful when the surface actually has a theme
+// toggle; a shot only earns the `--light` name when its pixels measure
+// bright — class/DOM heuristics alone have mislabeled dark renders before.
 for (const vp of VIEWPORTS) {
-  const ctx = await browser.newContext({
-    viewport: { width: vp.width, height: vp.height },
-    deviceScaleFactor: 2,
-  });
+  const ctx = await browser.newContext(CONTEXT_OPTIONS(vp));
   const page = await ctx.newPage();
   for (const route of ROUTES) {
     const url = `${base}${route.path}`;
     await page.goto(url, { waitUntil: "networkidle" });
-    // Light pass: only meaningful when the surface actually has a theme
-    // toggle. A class-less dark site (palette on :root, no .dark class)
-    // must NOT be captured as "light" — that mislabels dark renders.
     const toggle = page.locator('button[aria-label^="Switch to"]').first();
     const hasToggle = (await toggle.count()) > 0;
     let theme = hasToggle
@@ -76,7 +93,17 @@ for (const vp of VIEWPORTS) {
     if (theme === "light") {
       const file = `${outDir}/${route.name}--${vp.name}--light.png`;
       await page.screenshot({ path: file, fullPage: true });
-      console.log(`shot ${route.name} ${vp.name} light: on`);
+      const luminance = await meanLuminance(file);
+      if (luminance >= LIGHT_MIN_LUMINANCE) {
+        console.log(`shot ${route.name} ${vp.name} light: on (luminance ${luminance.toFixed(0)})`);
+      } else {
+        // The DOM claimed light but the render stayed dark — refuse the
+        // label instead of shipping a mislabeled duplicate.
+        fs.unlinkSync(file);
+        console.log(
+          `skip light ${route.name} ${vp.name}: rendered dark (luminance ${luminance.toFixed(0)} < ${LIGHT_MIN_LUMINANCE})`
+        );
+      }
     } else {
       console.log(`skip light ${route.name} ${vp.name}: theme=${theme}`);
     }

@@ -69,14 +69,17 @@ public enum Capture {
 
     /// The server runs the real `next` entrypoint under `node`, so terminating
     /// the process kills the server itself (no orphaned shim children).
+    /// Startup output is teed to our stderr: a config error inside `next
+    /// start` must be visible in the CI log, not swallowed into a health-loop
+    /// timeout.
     private static func startServer(port: Int, root: URL) throws -> (process: Process, url: String) {
         let nextBin = resolveNextBin(root: root)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["node", nextBin, "start", "-p", String(port)]
         process.currentDirectoryURL = root.appendingPathComponent("web")
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
+        process.standardOutput = FileHandle.standardError
+        process.standardError = FileHandle.standardError
         try process.run()
         return (process, "http://localhost:\(port)")
     }

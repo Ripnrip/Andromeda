@@ -36,8 +36,12 @@ let staged = run(["git", "diff", "--cached", "--name-only"])
 guard !staged.isEmpty else { exit(0) }
 
 // 1. Build artifacts and dependency trees never belong in the repository.
+//    "/.build/" catches nested packages; hasPrefix(".build/") catches the
+//    root package's own build products.
 let forbiddenPatterns = ["node_modules/", ".next/", ".DS_Store", "DerivedData/", "/.build/"]
-let forbidden = staged.filter { path in forbiddenPatterns.contains { path.contains($0) } }
+let forbidden = staged.filter { path in
+    path.hasPrefix(".build/") || forbiddenPatterns.contains { path.contains($0) }
+}
 if !forbidden.isEmpty {
     FileHandle.standardError.write(Data(
         "✋ commit blocked — build artifacts staged:\n"
