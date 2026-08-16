@@ -1,3 +1,5 @@
+
+
 import SwiftUI
 
 // MARK: - Driver
@@ -88,12 +90,15 @@ public final class PillarDriver {
 
 /// What the current dream state does to the memory lattice.
 public struct CouplingStrip: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var liveMotion: Bool { motionActive && !reduceMotion }
     public var dream: DreamState
     public var memory: MemoryState
     public init(dream: DreamState, memory: MemoryState) { self.dream = dream; self.memory = memory }
 
     public var body: some View {
-        TimelineView(.animation) { context in
+        TimelineView(.animation(minimumInterval: nil, paused: !liveMotion)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 14) {
@@ -154,6 +159,9 @@ public struct CouplingStrip: View {
 
 /// All nine pillars, thirty-seven states, on one surface.
 public struct PillarBoard: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var liveMotion: Bool { motionActive && !reduceMotion }
     @State private var driver: PillarDriver
 
     public init(driver: PillarDriver = PillarDriver()) {
@@ -175,7 +183,7 @@ public struct PillarBoard: View {
                         state: $driver.dream, stageHeight: 270, glow: driver.dream != .awake,
                         onPick: { driver.pin("dream") }
                     ) {
-                        TimelineView(.animation) { ctx in
+                        TimelineView(.animation(minimumInterval: nil, paused: !liveMotion)) { ctx in
                             DreamingMark(accent: driver.dream.accent, awake: driver.dream == .awake,
                                          spin: ctx.date.timeIntervalSinceReferenceDate
                                              * (driver.dream == .lucid ? 90 : 40))
@@ -189,7 +197,7 @@ public struct PillarBoard: View {
                         state: $driver.memory, stageHeight: 270,
                         onPick: { driver.pin("memory") }
                     ) {
-                        TimelineView(.animation) { ctx in
+                        TimelineView(.animation(minimumInterval: nil, paused: !liveMotion)) { ctx in
                             let t = ctx.date.timeIntervalSinceReferenceDate
                             MemoryMark(accent: driver.memory.accent,
                                        corePulse: driver.memory == .recalled ? 1 + 0.2 * sin(t * 3.4) : 1)

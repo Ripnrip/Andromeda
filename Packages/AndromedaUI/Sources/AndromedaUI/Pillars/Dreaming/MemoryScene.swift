@@ -1,3 +1,6 @@
+
+
+
 import SwiftUI
 
 // MARK: - Memory lattice
@@ -89,6 +92,9 @@ public struct TraceNodeView: View {
         switch mood { case .hit, .onPath, .clashing, .fresh: true; default: false }
     }
 
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var liveMotion: Bool { motionActive && !reduceMotion }
     public var body: some View {
         VStack(spacing: 4) {
             ZStack {
@@ -171,11 +177,14 @@ public struct SalienceMeters: View {
 
 /// The full Memory stage.
 public struct MemoryScene: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var liveMotion: Bool { motionActive && !reduceMotion }
     public var state: MemoryState
     public init(state: MemoryState) { self.state = state }
 
     public var body: some View {
-        TimelineView(.animation) { context in
+        TimelineView(.animation(minimumInterval: nil, paused: !liveMotion)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             VStack(alignment: .leading, spacing: 10) {
                 PillarLog(state.log, tint: state.accent)

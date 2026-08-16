@@ -80,12 +80,19 @@ final class Gate0CompileSmokeTests: XCTestCase {
             surfaces.append(state.badge)
             surfaces.append(state.log)
         }
+        // FleetScene renders backends directly as node labels — they must
+        // carry the memory.* capability namespace, never bare categories.
+        surfaces.append(contentsOf: FleetState.backends)
         for surface in surfaces {
             let lower = surface.lowercased()
             for brand in banned {
                 XCTAssertFalse(lower.contains(brand),
                                "dreaming surface leaked brand \(brand) in \(surface)")
             }
+        }
+        for backend in FleetState.backends {
+            XCTAssertTrue(backend.hasPrefix("memory."),
+                          "fleet backend \(backend) must be namespaced memory.*")
         }
     }
 

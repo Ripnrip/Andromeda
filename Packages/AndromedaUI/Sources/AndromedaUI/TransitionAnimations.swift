@@ -109,17 +109,31 @@ public struct MatchedGeometrySwap: View {
 
 /// `PhaseAnimator` — a multi-step loop that a single boolean can't express.
 public struct PhaseCycle: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     public init() {}
     public var body: some View {
-        PhaseAnimator([0, 1, 2]) { phase in
-            RoundedRectangle(cornerRadius: phase == 1 ? 26 : 10)
-                .fill(phase == 2 ? Color.andromedaLive : Color.andromedaTeal)
-                .frame(width: 52, height: 52)
-                .scaleEffect(phase == 1 ? 1.16 : 0.9)
-                .rotationEffect(.degrees(Double(phase) * 45))
-                .shadow(color: (phase == 2 ? Color.andromedaLive : Color.andromedaTeal).opacity(0.6), radius: 12)
-        } animation: { _ in .easeInOut(duration: 0.9) }
-        .accessibilityHidden(true)
+        // Frozen / Reduce Motion renders the deterministic phase-0 frame;
+        // the cycling animator runs only when motion is live, so specimen
+        // captures never sample different phases.
+        if motionActive && !reduceMotion {
+            PhaseAnimator([0, 1, 2]) { phase in
+                phaseBody(phase)
+            } animation: { _ in .easeInOut(duration: 0.9) }
+            .accessibilityHidden(true)
+        } else {
+            phaseBody(0)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func phaseBody(_ phase: Int) -> some View {
+        RoundedRectangle(cornerRadius: phase == 1 ? 26 : 10)
+            .fill(phase == 2 ? Color.andromedaLive : Color.andromedaTeal)
+            .frame(width: 52, height: 52)
+            .scaleEffect(phase == 1 ? 1.16 : 0.9)
+            .rotationEffect(.degrees(Double(phase) * 45))
+            .shadow(color: (phase == 2 ? Color.andromedaLive : Color.andromedaTeal).opacity(0.6), radius: 12)
     }
 }
 
