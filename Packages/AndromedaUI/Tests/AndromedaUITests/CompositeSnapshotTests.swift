@@ -44,10 +44,13 @@ final class AndromedaCompositeSnapshotTests: XCTestCase {
     }
 
     /// The specimen wall — same idea for the individual components.
+    /// 3400pt captures every registered specimen; the previous 2600 viewport
+    /// cut the wall off after JelloSquash, leaving 12 wild specimens
+    /// unverified.
     func testSpecimenGallery() {
         let host = andromedaHost(
             AndromedaGallery().andromedaFrozen(),
-            CGSize(width: 1000, height: 2600),
+            CGSize(width: 1000, height: 3400),
             dark: true
         )
         assertSnapshot(of: host, as: .image(precision: 0.97, perceptualPrecision: 0.95), named: "specimen-wall")
