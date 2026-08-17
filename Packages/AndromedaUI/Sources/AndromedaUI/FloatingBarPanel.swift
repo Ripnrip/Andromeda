@@ -99,6 +99,7 @@ public struct AndromedaBarContent: View {
     ]
     @State private var beat = false
     public init() {}
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         HStack(spacing: 8) {
             AndromedaCore(size: 34)
@@ -118,7 +119,7 @@ public struct AndromedaBarContent: View {
                 Circle().fill(Color.andromedaLive).frame(width: 8, height: 8)
                     .shadow(color: .andromedaLive, radius: beat ? 6 : 2)
                     .scaleEffect(beat ? 1.15 : 1)
-                    .animation(.easeInOut(duration: 1.2).repeatForever(), value: beat)
+                    .andromedaLoop(.easeInOut(duration: 1.2).repeatForever(), value: beat)
                 VStack(alignment: .leading, spacing: 0) {
                     Text("fleet · 3").font(.system(size: 11, weight: .medium, design: .monospaced))
                     Text("healthy").font(.system(size: 8.5, design: .monospaced)).foregroundStyle(.secondary)
@@ -134,7 +135,7 @@ public struct AndromedaBarContent: View {
                 .shadow(color: .black.opacity(0.5), radius: 30, y: 18)
         )
         .foregroundStyle(Color.andromedaGlow)
-        .onAppear { beat = true }
+        .onAppear { guard motionActive else { return }; beat = true }
     }
 }
 #endif

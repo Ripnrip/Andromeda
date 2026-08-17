@@ -12,6 +12,7 @@ public struct RecallSkeletonRow: View {
     public var width: CGFloat
     public var delay: Double
     @State private var phase: CGFloat = -1
+    @Environment(\.andromedaMotionActive) private var motionActive
     public init(width: CGFloat = 200, delay: Double = 0) {
         self.width = width; self.delay = delay
     }
@@ -27,6 +28,9 @@ public struct RecallSkeletonRow: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: 5))
             .onAppear {
+                // Frozen captures pin the shimmer offscreen at its start
+                // phase; the sweep exists only when motion is live.
+                guard motionActive else { return }
                 withAnimation(.linear(duration: 1.2).delay(delay).repeatForever(autoreverses: false)) {
                     phase = 1
                 }
@@ -49,7 +53,9 @@ public struct MemoryPulse: View {
                     .frame(width: 22, height: 22)
                     .scaleEffect(trigger ? 2.6 : 0.55)
                     .opacity(trigger ? 0 : 0.85)
-                    .animation(
+                    // Loop gate: frozen captures pin the pulse to its end
+                    // frame instead of sampling an arbitrary expansion phase.
+                    .andromedaLoop(
                         .easeOut(duration: 1.1)
                             .delay(Double(i) * 0.4)
                             .repeatForever(autoreverses: false),
@@ -79,6 +85,7 @@ public struct MemoryRecallControl: View {
     @State private var recalling = false
     @State private var pulse = false
     @State private var revealed = false
+    @Environment(\.andromedaMotionActive) private var motionActive
 
     public init(memories: [RecalledMemory] = MemoryRecallControl.sample) {
         self.memories = memories
@@ -118,7 +125,15 @@ public struct MemoryRecallControl: View {
                 .fill(.ultraThinMaterial)
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.andromedaTeal.opacity(0.16)))
         )
-        .onAppear(perform: recall)
+        // Auto-play exists to demo the flow; frozen captures must show the
+        // settled control, not an arbitrary point mid-recall.
+        .onAppear {
+            guard motionActive else {
+                revealed = true
+                return
+            }
+            recall()
+        }
     }
 
     private var header: some View {
@@ -176,12 +191,16 @@ public struct MemoryRecallControl: View {
 /// A small indeterminate ring used in the recall header.
 struct ProgressRing: View {
     @State private var spin = false
+    @Environment(\.andromedaMotionActive) private var motionActive
     var body: some View {
         Circle().trim(from: 0, to: 0.7)
             .stroke(Color.andromedaTeal, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
             .rotationEffect(.degrees(spin ? 360 : 0))
             .animation(.linear(duration: 0.8).repeatForever(autoreverses: false), value: spin)
-            .onAppear { spin = true }
+            .onAppear {
+                guard motionActive else { return }
+                spin = true
+            }
     }
 }
 
