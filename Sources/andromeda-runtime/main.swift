@@ -12,7 +12,7 @@ struct AndromedaRuntimeCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "andromeda-runtime",
         abstract: "Runnable Andromeda Runtime v2 server.",
-        subcommands: [Serve.self, Setup.self, Doctor.self, TestFlight.self],
+        subcommands: [Serve.self, Setup.self, Doctor.self, TestFlight.self, Witness.self],
         defaultSubcommand: Serve.self
     )
 }
@@ -574,5 +574,310 @@ struct TestFlight: AsyncParsableCommand {
             print("🌙 Power lease released — system sleep permitted")
             throw ExitCode(1)
         }
+    }
+}
+
+// MARK: - Witness (external fleet witness)
+
+struct Witness: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "witness",
+        abstract: "External fleet witness: probe HTTP targets, durable state, transition alerts.",
+        subcommands: [WitnessCheck.self, WitnessStatus.self, WitnessLog.self],
+        defaultSubcommand: WitnessStatus.self
+    )
+}
+
+// MARK: - Witness defaults
+
+enum WitnessDefaults {
+    /// Default configuration suitable for Mini probing Studio via studio/tailnet URLs.
+    static func defaultConfiguration(
+        owner: String?,
+        host: String?,
+        telegramChatID: String?,
+        telegramTokenService: String?,
+        telegramTokenAccount: String?
+    ) -> WitnessConfiguration {
+        let resolvedOwner = owner
+            ?? HostDefaults.env("ANDROMEDA_WITNESS_OWNER")
+            ?? "andromeda"
+        let resolvedHost = host
+            ?? HostDefaults.env("ANDROMEDA_WITNESS_HOST")
+            ?? ProcessInfo.processInfo.hostName
+        let studioURL = HostDefaults.env("ANDROMEDA_STUDIO_URL") ?? "http://studio:1338"
+        let multicaFrontend = HostDefaults.env("ANDROMEDA_MULTICA_URL") ?? "http://studio:3636"
+        let multicaBackend = HostDefaults.env("ANDROMEDA_MULTICA_BACKEND_URL") ?? "http://studio:3637"
+        let targets: [WitnessTarget] = [
+            WitnessTarget(
+                label: "multica-frontend",
+                url: "\(multicaFrontend)/",
+                timeoutSeconds: 5
+            ),
+            WitnessTarget(
+                label: "multica-backend",
+                url: "\(multicaBackend)/",
+                timeoutSeconds: 5
+            ),
+            WitnessTarget(
+                label: "studio-osaurus",
+                url: "\(studioURL)/",
+                timeoutSeconds: 5
+            ),
+            WitnessTarget(
+                label: "studio-anima-vault-sync",
+                url: HostDefaults.env("ANDROMEDA_STUDIO_TAILNET_URL")
+                    ?? "https://studio.capybara-loggerhead.ts.net/vault-sync/health",
+                timeoutSeconds: 5
+            ),
+        ]
+        var telegram: TelegramConfig? = nil
+        if let chatID = telegramChatID ?? HostDefaults.env("ANDROMEDA_TELEGRAM_CHAT_ID"),
+           let service = telegramTokenService ?? HostDefaults.env("ANDROMEDA_TELEGRAM_TOKEN_SERVICE"),
+           let account = telegramTokenAccount ?? HostDefaults.env("ANDROMEDA_TELEGRAM_TOKEN_ACCOUNT")
+        {
+            telegram = TelegramConfig(
+                botTokenReference: SecretReference(service: service, account: account),
+                chatID: chatID
+            )
+        }
+        let stateDir = HostDefaults.env("ANDROMEDA_WITNESS_STATE_DIR")
+            ?? "~/.andromeda/witness"
+        return WitnessConfiguration(
+            owner: resolvedOwner,
+            host: resolvedHost,
+            targets: targets,
+            failureThreshold: 3,
+            stateDirectory: stateDir,
+            telegram: telegram
+        )
+    }
+
+    /// Loads configuration from a JSON file, or returns nil to use defaults.
+    static func loadConfigFile(_ path: String?) throws -> WitnessConfiguration? {
+        guard let path else { return nil }
+        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        let decoder = JSONDecoder()
+        return try decoder.decode(WitnessConfiguration.self, from: data)
+    }
+}
+
+// MARK: - Witness check
+
+struct WitnessCheck: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "check",
+        abstract: "Run a single witness probe cycle for all configured targets."
+    )
+
+    @Option(name: .long, help: "Path to a witness configuration JSON file.")
+    var config: String?
+
+    @Option(name: .long, help: "Owner label shown in status output. Env: ANDROMEDA_WITNESS_OWNER.")
+    var owner: String?
+
+    @Option(name: .long, help: "Host label shown in status output. Env: ANDROMEDA_WITNESS_HOST.")
+    var host: String?
+
+    @Option(name: .long, help: "Telegram chat ID for alerts. Env: ANDROMEDA_TELEGRAM_CHAT_ID.")
+    var telegramChatID: String?
+
+    @Option(name: .long, help: "Keychain service for Telegram bot token. Env: ANDROMEDA_TELEGRAM_TOKEN_SERVICE.")
+    var telegramTokenService: String?
+
+    @Option(name: .long, help: "Keychain account for Telegram bot token. Env: ANDROMEDA_TELEGRAM_TOKEN_ACCOUNT.")
+    var telegramTokenAccount: String?
+
+    func run() async throws {
+        let style = TerminalStyle.detect()
+        print(AndromedaChrome.banner(
+            surface: "witness check",
+            version: nil,
+            tagline: "Single probe cycle — no hidden loop. Schedule externally.",
+            style: style
+        ))
+
+        let configuration = try Self.resolveConfig(
+            configPath: config,
+            owner: owner,
+            host: host,
+            telegramChatID: telegramChatID,
+            telegramTokenService: telegramTokenService,
+            telegramTokenAccount: telegramTokenAccount
+        )
+
+        let probe = WitnessProbe()
+        let store = WitnessFileStore()
+        let notifier = try Self.resolveNotifier(configuration: configuration)
+        let engine = WitnessEngine(probe: probe, store: store, notifier: notifier)
+
+        let results = try await engine.checkAll(configuration: configuration)
+
+        print("")
+        for result in results {
+            let mark: String
+            switch result.currentStatus {
+            case .healthy: mark = "[healthy]"
+            case .failed: mark = "[FAILED]"
+            case .unknown: mark = "[unknown]"
+            }
+            print("\(mark) \(result.targetLabel)")
+            print("  previous: \(result.previousStatus.rawValue) → current: \(result.currentStatus.rawValue)")
+            print("  reason: \(result.probeReason)")
+            print("  consecutive failures: \(result.consecutiveFailures)")
+            if let transition = result.transition {
+                print("  transition: \(transition.kind.rawValue) — notified: \(result.notified)")
+            } else {
+                print("  transition: none (steady state)")
+            }
+            print("")
+        }
+
+        // Exit non-zero if any target is failed
+        let anyFailed = results.contains { $0.currentStatus == .failed }
+        if anyFailed {
+            throw ExitCode(1)
+        }
+    }
+
+    static func resolveConfig(
+        configPath: String?,
+        owner: String?,
+        host: String?,
+        telegramChatID: String?,
+        telegramTokenService: String?,
+        telegramTokenAccount: String?
+    ) throws -> WitnessConfiguration {
+        if let fileConfig = try WitnessDefaults.loadConfigFile(configPath) {
+            return fileConfig
+        }
+        return WitnessDefaults.defaultConfiguration(
+            owner: owner,
+            host: host,
+            telegramChatID: telegramChatID,
+            telegramTokenService: telegramTokenService,
+            telegramTokenAccount: telegramTokenAccount
+        )
+    }
+
+    static func resolveNotifier(configuration: WitnessConfiguration) throws -> any WitnessNotifying {
+        guard let telegram = configuration.telegram else {
+            return NoOpWitnessNotifier()
+        }
+        let secretProvider = MacOSKeychainSecretProvider()
+        return TelegramWitnessNotifier(
+            config: telegram,
+            secretProvider: secretProvider
+        )
+    }
+}
+
+// MARK: - Witness status
+
+struct WitnessStatus: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "status",
+        abstract: "Show current witness state for all configured targets."
+    )
+
+    @Option(name: .long, help: "Path to a witness configuration JSON file.")
+    var config: String?
+
+    @Option(name: .long, help: "Owner label. Env: ANDROMEDA_WITNESS_OWNER.")
+    var owner: String?
+
+    @Option(name: .long, help: "Host label. Env: ANDROMEDA_WITNESS_HOST.")
+    var host: String?
+
+    func run() async throws {
+        let style = TerminalStyle.detect()
+        print(AndromedaChrome.banner(
+            surface: "witness status",
+            version: nil,
+            tagline: "Durable per-target state — owner, host, last check, counters.",
+            style: style
+        ))
+
+        let configuration = try WitnessCheck.resolveConfig(
+            configPath: config,
+            owner: owner,
+            host: host,
+            telegramChatID: nil,
+            telegramTokenService: nil,
+            telegramTokenAccount: nil
+        )
+
+        let store = WitnessFileStore()
+        let reader = WitnessStatusReader(store: store)
+        let report = try await reader.readStatus(configuration: configuration)
+
+        print("")
+        print(report.render())
+    }
+}
+
+// MARK: - Witness log
+
+struct WitnessLog: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "log",
+        abstract: "Show recent transition events from the JSONL log."
+    )
+
+    @Option(name: .long, help: "Path to a witness configuration JSON file.")
+    var config: String?
+
+    @Option(name: .long, help: "Owner label. Env: ANDROMEDA_WITNESS_OWNER.")
+    var owner: String?
+
+    @Option(name: .long, help: "Host label. Env: ANDROMEDA_WITNESS_HOST.")
+    var host: String?
+
+    @Option(name: .long, help: "Maximum number of events to show. Default 50.")
+    var limit: Int = 50
+
+    @Option(name: .long, help: "Show only events for this target label. Default: all targets.")
+    var target: String?
+
+    func run() async throws {
+        let style = TerminalStyle.detect()
+        print(AndromedaChrome.banner(
+            surface: "witness log",
+            version: nil,
+            tagline: "Append-only transition history — alerts, recoveries, establishments.",
+            style: style
+        ))
+
+        let configuration = try WitnessCheck.resolveConfig(
+            configPath: config,
+            owner: owner,
+            host: host,
+            telegramChatID: nil,
+            telegramTokenService: nil,
+            telegramTokenAccount: nil
+        )
+
+        let store = WitnessFileStore()
+        let logReader = WitnessLogReader(store: store)
+
+        let events: [WitnessTransitionEvent]
+        if let targetLabel = target {
+            guard let targetConfig = configuration.targets.first(where: { $0.label == targetLabel }) else {
+                throw ValidationError("Unknown target label: \(targetLabel)")
+            }
+            events = try await logReader.readLog(
+                target: targetConfig,
+                configuration: configuration,
+                limit: limit
+            )
+        } else {
+            events = try await logReader.readAllLogs(
+                configuration: configuration,
+                limit: limit
+            )
+        }
+
+        print("")
+        print(WitnessLogReader.renderLog(events))
     }
 }
