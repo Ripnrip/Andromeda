@@ -397,3 +397,29 @@ struct AndromedaProgressFill: View {
         }
     }
 }
+
+// MARK: - Previews (one per primitive, per swift-skill's #Preview-per-state rule)
+
+#Preview("Waveform")       { AndromedaWaveform().frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("ShimmerSweep")   { AndromedaShimmerSweep().frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("OrbitDots")      { AndromedaOrbitDots().frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("ParticleDrift")  { AndromedaParticleDrift().frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("BreathingGlow")  { AndromedaBreathingGlow().frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("RippleRings")    { AndromedaRippleRings().frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("MarchingSignal") { AndromedaMarchingSignal().frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("RotatingRing")   { AndromedaRotatingRing().frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("VectorGrid")     { AndromedaVectorGrid().frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("TokenStream")    { AndromedaTokenStream().frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("TypeStream")     { AndromedaTypeStream(text: "a thought forms word by word").frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("ElasticPop") {
+    AndromedaElasticPop {
+        Text("NEW")
+            .font(AndromedaTheme.Font.mono(size: 11))
+            .foregroundStyle(AndromedaTheme.foreground)
+            .padding(.horizontal, 9).padding(.vertical, 4)
+            .background(AndromedaTheme.accent.opacity(0.18), in: Capsule())
+    }
+    .frame(width: 240, height: 144).background(AndromedaTheme.card)
+}
+#Preview("CountUp")        { AndromedaCountUp(target: 128).frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("ProgressFill")   { AndromedaProgressFill().frame(width: 240, height: 144).background(AndromedaTheme.card) }
