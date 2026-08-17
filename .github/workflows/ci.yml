@@ -236,10 +236,9 @@ jobs:
         run: |
           if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_HEAD_SHA" ]; then
             git fetch --no-tags --depth=1 origin "$PR_HEAD_SHA"
-            # Full message, not just %s — the marker may ride in the body.
-            MSG="$(git log -1 --pretty=%B "$PR_HEAD_SHA")"
+            MSG="$(git log -1 --pretty=%s "$PR_HEAD_SHA")"
           else
-            MSG="$(git log -1 --pretty=%B)"
+            MSG="$(git log -1 --pretty=%s)"
           fi
           if printf '%s' "$MSG" | grep -q '\[record-snapshots\]'; then
             echo "record=true" >> "$GITHUB_OUTPUT"
