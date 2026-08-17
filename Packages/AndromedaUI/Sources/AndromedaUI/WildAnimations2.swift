@@ -229,6 +229,11 @@ public struct AnchorHop: View {
     private let timer = Timer.publish(every: 0.8, on: .main, in: .common).autoconnect()
     public init() {}
     @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Same combined live-motion condition as the pillar timelines and the
+    /// other timer-gated specimens — `.andromedaFrozen()` or system Reduce
+    /// Motion pins the token at its current anchor.
+    private var liveMotion: Bool { motionActive && !reduceMotion }
     public var body: some View {
         ZStack(alignment: .topLeading) {
             ForEach(0..<anchors.count, id: \.self) { i in
@@ -243,7 +248,10 @@ public struct AnchorHop: View {
                 .animation(.spring(duration: 0.5, bounce: 0.4), value: index)
         }
         .frame(width: 96, height: 54)
-        .onReceive(timer) { _ in index = (index + 1) % anchors.count }
+        .onReceive(timer) { _ in
+            guard liveMotion else { return }
+            index = (index + 1) % anchors.count
+        }
     }
 }
 
