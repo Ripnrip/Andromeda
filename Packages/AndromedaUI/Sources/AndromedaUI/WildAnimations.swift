@@ -10,6 +10,11 @@ import Combine
 /// Text that types itself out, holds, then erases — cursor blinking throughout.
 public struct Typewriter: View {
     @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Live = motion env on AND Reduce Motion off — the same condition the
+    /// pillar timelines use. Both timers must stop under system Reduce Motion,
+    /// not just under the custom frozen flag.
+    private var liveMotion: Bool { motionActive && !reduceMotion }
 
     public var text: String
     @State private var count = 0
@@ -26,12 +31,12 @@ public struct Typewriter: View {
         }
         .foregroundStyle(Color.andromedaGlow)
         .onReceive(step) { _ in
-            guard motionActive else { return }   // frozen: text stays at frame zero
+            guard liveMotion else { return }   // frozen / Reduce Motion: stays at frame zero
             if forward { count += 1; if count >= text.count { forward = false } }
             else       { count -= 1; if count <= 0 { forward = true } }
         }
         .onReceive(blink) { _ in
-            guard motionActive else { return }
+            guard liveMotion else { return }
             caretOn.toggle()
         }
     }
@@ -104,6 +109,10 @@ public struct SlideToUnlock: View {
 /// A digit fading up and out as a counter ticks — live totals.
 public struct NumericCrossfade: View {
     @Environment(\.andromedaMotionActive) private var motionActive
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Same combined live-motion condition as the pillar timelines — the
+    /// ticker must also stop under system Reduce Motion, not just `.andromedaFrozen()`.
+    private var liveMotion: Bool { motionActive && !reduceMotion }
 
     @State private var value = 428
     private let timer = Timer.publish(every: 1.4, on: .main, in: .common).autoconnect()
@@ -114,7 +123,7 @@ public struct NumericCrossfade: View {
             .foregroundStyle(Color.andromedaGlow)
             .contentTransition(.numericText(value: Double(value)))
             .onReceive(timer) { _ in
-            guard motionActive else { return }
+            guard liveMotion else { return }
             withAnimation(.easeInOut) { value += 7 }
         }
     }

@@ -132,29 +132,61 @@ public struct TypingLog: View {
 
     public init(_ text: String, tint: Color, charactersPerSecond: Double = 42, holdSeconds: Double = 2.4) {
         self.text = text; self.tint = tint
-        self.charactersPerSecond = charactersPerSecond; self.holdSeconds = holdSeconds
+        // Negative, zero, or non-finite timing would drive the loop math in
+        // `frame(textLength:charactersPerSecond:holdSeconds:at:)` into
+        // negative or NaN `shown` and trap `String.prefix` / `Int.init`.
+        // Clamp to safe floors (non-finite falls back to the defaults).
+        self.charactersPerSecond = charactersPerSecond.isFinite ? max(1, charactersPerSecond) : 42
+        self.holdSeconds = holdSeconds.isFinite ? max(0, holdSeconds) : 2.4
     }
 
     public var body: some View {
         TimelineView(.animation(minimumInterval: nil, paused: !liveMotion)) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
-            let typing = Double(text.count) / charactersPerSecond
-            let loop = (t).truncatingRemainder(dividingBy: typing + holdSeconds)
-            let shown = min(text.count, Int(loop * charactersPerSecond))
-            let done = shown >= text.count
+            // Paused schedules still deliver the wall-clock date; pin to 0 so
+            // frozen captures are deterministic (PillarScenes convention).
+            let t = liveMotion ? context.date.timeIntervalSinceReferenceDate : 0
+            let f = Self.frame(textLength: text.count,
+                               charactersPerSecond: charactersPerSecond,
+                               holdSeconds: holdSeconds,
+                               at: t)
             HStack(spacing: 2) {
-                Text(String(text.prefix(shown)))
+                Text(String(text.prefix(f.shown)))
                     .font(AndromedaFont.mono(9))
                     .foregroundStyle(tint)
                     .lineLimit(1)
                 Rectangle()
                     .fill(tint)
                     .frame(width: 5, height: 10)
-                    .opacity(done ? (loop.truncatingRemainder(dividingBy: 1) < 0.5 ? 1 : 0) : 0.9)
+                    .opacity(f.shown >= text.count
+                             ? (f.loop.truncatingRemainder(dividingBy: 1) < 0.5 ? 1 : 0)
+                             : 0.9)
                 Spacer(minLength: 0)
             }
             .accessibilityLabel(text)
         }
+    }
+
+    /// The type/hold loop for one instant, hardened against hostile timing:
+    /// rates are floored at 1 cps, holds at 0, the cycle at 50 ms, and the
+    /// `shown` count stays in `0...textLength` for any input. Internal so
+    /// tests can drive it directly with degenerate values.
+    static func frame(
+        textLength: Int,
+        charactersPerSecond: Double,
+        holdSeconds: Double,
+        at t: TimeInterval
+    ) -> (shown: Int, loop: Double) {
+        guard textLength > 0 else { return (shown: 0, loop: 0) }
+        let cps = charactersPerSecond.isFinite ? max(1, charactersPerSecond) : 42
+        let hold = holdSeconds.isFinite ? max(0, holdSeconds) : 2.4
+        let typing = Double(textLength) / cps
+        let period = max(0.05, typing + hold)
+        let loop = max(0, t.truncatingRemainder(dividingBy: period))
+        let typed = loop * cps
+        // Overflow-safe conversion: anything past Int.max is certainly the
+        // fully-typed frame.
+        let shown = (!typed.isFinite || typed >= Double(Int.max)) ? textLength : Int(typed)
+        return (shown: min(textLength, shown), loop: loop)
     }
 }
 

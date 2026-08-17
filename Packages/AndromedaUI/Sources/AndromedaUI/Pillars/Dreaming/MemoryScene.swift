@@ -185,7 +185,9 @@ public struct MemoryScene: View {
 
     public var body: some View {
         TimelineView(.animation(minimumInterval: nil, paused: !liveMotion)) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+            // Paused schedules still deliver the wall-clock date; pin to 0 so
+            // frozen captures are deterministic (PillarScenes convention).
+            let t = liveMotion ? context.date.timeIntervalSinceReferenceDate : 0
             VStack(alignment: .leading, spacing: 10) {
                 PillarLog(state.log, tint: state.accent)
                 HStack(alignment: .top, spacing: 14) {

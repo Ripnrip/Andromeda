@@ -99,7 +99,9 @@ public struct CouplingStrip: View {
 
     public var body: some View {
         TimelineView(.animation(minimumInterval: nil, paused: !liveMotion)) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
+            // Paused schedules still deliver the wall-clock date; pin to 0 so
+            // frozen captures are deterministic (PillarScenes convention).
+            let t = liveMotion ? context.date.timeIntervalSinceReferenceDate : 0
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 14) {
                     Text("Coupling").cpTitle().foregroundStyle(Color.andromedaInk)
@@ -184,8 +186,9 @@ public struct PillarBoard: View {
                         onPick: { driver.pin("dream") }
                     ) {
                         TimelineView(.animation(minimumInterval: nil, paused: !liveMotion)) { ctx in
+                            // Paused ⇒ spin pinned to 0 (deterministic captures).
                             DreamingMark(accent: driver.dream.accent, awake: driver.dream == .awake,
-                                         spin: ctx.date.timeIntervalSinceReferenceDate
+                                         spin: (liveMotion ? ctx.date.timeIntervalSinceReferenceDate : 0)
                                              * (driver.dream == .lucid ? 90 : 40))
                         }
                     } scene: {
@@ -198,7 +201,8 @@ public struct PillarBoard: View {
                         onPick: { driver.pin("memory") }
                     ) {
                         TimelineView(.animation(minimumInterval: nil, paused: !liveMotion)) { ctx in
-                            let t = ctx.date.timeIntervalSinceReferenceDate
+                            // Paused ⇒ core pulse pinned to 0 (deterministic captures).
+                            let t = liveMotion ? ctx.date.timeIntervalSinceReferenceDate : 0
                             MemoryMark(accent: driver.memory.accent,
                                        corePulse: driver.memory == .recalled ? 1 + 0.2 * sin(t * 3.4) : 1)
                         }
