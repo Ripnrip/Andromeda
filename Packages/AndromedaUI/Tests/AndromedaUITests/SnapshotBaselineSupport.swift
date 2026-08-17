@@ -29,7 +29,9 @@ enum AndromedaUISnapshotSupport {
         return .missing
     }
 
-    /// Skip when `__Snapshots__` next to the calling test file is missing/empty.
+    /// Skip when the test-specific `__Snapshots__/TestName/` subdirectory is
+    /// missing/empty. This prevents one test suite's baselines from gating
+    /// another suite that has no baselines yet.
     /// Record mode (`SNAPSHOT_TESTING_RECORD=1`) always proceeds.
     static func requireBaselines(
         file: StaticString = #filePath
@@ -39,11 +41,17 @@ enum AndromedaUISnapshotSupport {
             return
         }
 
-        let dir = URL(fileURLWithPath: String(describing: file))
+        let testDir = URL(fileURLWithPath: String(describing: file))
             .deletingLastPathComponent()
             .appendingPathComponent("__Snapshots__", isDirectory: true)
+            .appendingPathComponent(
+                URL(fileURLWithPath: String(describing: file))
+                    .deletingPathExtension()
+                    .lastPathComponent,
+                isDirectory: true
+            )
         let contents = (try? FileManager.default.contentsOfDirectory(
-            at: dir,
+            at: testDir,
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
         )) ?? []
