@@ -62,6 +62,40 @@ final class Gate0CompileSmokeTests: XCTestCase {
         }
     }
 
+    func testDreamingStatesHideProviderBrands() {
+        // The dreaming board renders client-visible badges/logs — same curtain
+        // law as the model catalog: capability IDs only, never upstream brands.
+        let banned = ["sonnet", "haiku", "gpt", "claude", "gemini", "grok",
+                      "linear", "notion", "qdrant", "graphiti"]
+        var surfaces: [String] = []
+        surfaces.append(contentsOf: ProxyState.allCases.map(\.badge))
+        surfaces.append(contentsOf: ProxyState.allCases.map(\.log))
+        surfaces.append(contentsOf: ProxyState.models)
+        surfaces.append(contentsOf: MCPState.allCases.map(\.badge))
+        surfaces.append(contentsOf: MCPState.allCases.map(\.log))
+        surfaces.append(contentsOf: FabricState.allCases.map(\.badge))
+        surfaces.append(contentsOf: FabricState.allCases.map(\.log))
+        surfaces.append(contentsOf: FabricState.allCases.map(\.label))
+        for state in FleetState.allCases {
+            surfaces.append(state.badge)
+            surfaces.append(state.log)
+        }
+        // FleetScene renders backends directly as node labels — they must
+        // carry the memory.* capability namespace, never bare categories.
+        surfaces.append(contentsOf: FleetState.backends)
+        for surface in surfaces {
+            let lower = surface.lowercased()
+            for brand in banned {
+                XCTAssertFalse(lower.contains(brand),
+                               "dreaming surface leaked brand \(brand) in \(surface)")
+            }
+        }
+        for backend in FleetState.backends {
+            XCTAssertTrue(backend.hasPrefix("memory."),
+                          "fleet backend \(backend) must be namespaced memory.*")
+        }
+    }
+
     func testSkillsCapabilitiesStaySpecifiedUntilBuilt() async {
         for item in ControlPlaneData.items(for: .skills) {
             XCTAssertEqual(item.status, "spec", "\(item.ref) should be spec until registry ships")

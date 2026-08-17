@@ -55,6 +55,7 @@ jobs:
           run_andromeda_mcp=false
           run_powerkit=false
           run_statusline=false
+          run_andromeda_ui=false
 
           while IFS= read -r file; do
             [ -z "$file" ] && continue
@@ -87,6 +88,9 @@ jobs:
               Packages/AndromedaStatusline/Package.swift|Packages/AndromedaStatusline/Package.resolved|Packages/AndromedaStatusline/Sources/*|Packages/AndromedaStatusline/Tests/*)
                 run_statusline=true
                 ;;
+              Packages/AndromedaUI/Package.swift|Packages/AndromedaUI/Package.resolved|Packages/AndromedaUI/Sources/*|Packages/AndromedaUI/Tests/*)
+                run_andromeda_ui=true
+                ;;
             esac
 
             case "$file" in
@@ -108,7 +112,7 @@ jobs:
           fi
 
           any_lane=false
-          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ]; then
+          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ] || [ "$run_andromeda_ui" = true ]; then
             any_lane=true
           fi
 
@@ -121,6 +125,7 @@ jobs:
             echo "run_andromeda_mcp=$run_andromeda_mcp"
             echo "run_powerkit=$run_powerkit"
             echo "run_statusline=$run_statusline"
+            echo "run_andromeda_ui=$run_andromeda_ui"
             echo "needs_qdrant=$needs_qdrant"
             echo "any_lane=$any_lane"
           } >> "$GITHUB_OUTPUT"
@@ -231,6 +236,7 @@ jobs:
         run: |
           if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_HEAD_SHA" ]; then
             git fetch --no-tags --depth=1 origin "$PR_HEAD_SHA"
+            # Full message, not just %s — the marker may ride in the body.
             MSG="$(git log -1 --pretty=%B "$PR_HEAD_SHA")"
           else
             MSG="$(git log -1 --pretty=%B)"
@@ -328,14 +334,16 @@ jobs:
         working-directory: Packages/AndromedaStatusline
         run: swift test --parallel --num-workers 1
 
-      # Nested SwiftUI design-system package (BIN-270 Gate 0).
+      # Nested SwiftUI design-system package (BIN-270 Gate 0). Scope-gated like the
+      # other nested lanes: without the lane flag, snapshot-record tips dead-end at
+      # "No build/test lanes matched" and the record run never happens.
       - name: Test AndromedaUI (nested package)
-        if: steps.snapshots.outputs.record != 'true'
+        if: steps.scope.outputs.run_andromeda_ui == 'true' && steps.snapshots.outputs.record != 'true'
         working-directory: Packages/AndromedaUI
         run: swift test --parallel --num-workers 1
 
       - name: Test AndromedaUI (nested package, record snapshots)
-        if: steps.snapshots.outputs.record == 'true'
+        if: steps.scope.outputs.run_andromeda_ui == 'true' && steps.snapshots.outputs.record == 'true'
         working-directory: Packages/AndromedaUI
         env:
           SNAPSHOT_TESTING_RECORD: "1"

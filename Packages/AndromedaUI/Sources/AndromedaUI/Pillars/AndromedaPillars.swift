@@ -205,7 +205,7 @@ public enum AndromedaPillarsData {
     public static let retrievalLanes: [RetrievalLane] = [
         .init("web", "web search", "fresh facts", latencyMS: 410, recall: 0.64, tone: .dim),
         .init("graffiti", "graffiti", "change over time", latencyMS: 96, recall: 0.84, tone: .partial),
-        .init("qdrant", "qdrant", "resemblance", latencyMS: 22, recall: 0.78, tone: .specified),
+        .init("memory.vector", "vector", "resemblance", latencyMS: 22, recall: 0.78, tone: .specified),
         .init("procedural", "procedural", "how you act", latencyMS: 9, recall: 0.51, tone: .live),
         .init("episodic", "episodic log", "what happened", latencyMS: 37, recall: 0.88, tone: .partial),
     ]
@@ -357,6 +357,7 @@ public struct PillarChipRow: View {
 
 /// The LLM proxy card: one entry surface, several client-facing lanes.
 public struct LLMProxyPillarCard: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public enum ProxyState: String, Sendable {
         case idle
         case routing
@@ -421,6 +422,7 @@ public struct LLMProxyPillarCard: View {
             }
         }
         .onAppear {
+            guard motionActive else { return }
             withAnimation(.linear(duration: 1.3).repeatForever(autoreverses: false)) {
                 travel = true
             }
@@ -450,6 +452,7 @@ public struct LLMProxyPillarCard: View {
 
 /// A skills card that shows explicit capability load / invoke / failure state.
 public struct AgentSkillsPillarCard: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public let rows: [SkillStatusRow]
 
     public init(rows: [SkillStatusRow] = AndromedaPillarsData.skills) {
@@ -491,6 +494,7 @@ public struct AgentSkillsPillarCard: View {
 
 /// A radial MCP card that makes the allowed tool surface legible.
 public struct MCPSurfacePillarCard: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public let state: MCPSurfaceState
     public let servers: [MCPServerNode]
     @State private var pulse = false
@@ -538,6 +542,7 @@ public struct MCPSurfacePillarCard: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 114)
                 .onAppear {
+                    guard motionActive else { return }
                     withAnimation(.easeOut(duration: 2.1).repeatForever(autoreverses: false)) {
                         pulse = true
                     }
@@ -564,6 +569,7 @@ public struct MCPSurfacePillarCard: View {
 
 /// Dreaming card: visible stage changes while consolidation and pruning run.
 public struct DreamingPillarCard: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public let phase: DreamPhase
     @State private var drift = false
 
@@ -593,7 +599,7 @@ public struct DreamingPillarCard: View {
                             .frame(width: CGFloat(3 + index % 3), height: CGFloat(3 + index % 3))
                             .offset(x: CGFloat(12 + (index * 23) % 220), y: drift ? CGFloat(-24 - (index * 7) % 32) : CGFloat((index * 11) % 24))
                             .opacity(drift ? 0.18 : 0.7)
-                            .animation(.easeInOut(duration: Double(4 + index)).repeatForever(autoreverses: true), value: drift)
+                            .andromedaLoop(.easeInOut(duration: Double(4 + index)).repeatForever(autoreverses: true), value: drift)
                     }
 
                     REMTrace(phase: phase)
@@ -603,7 +609,7 @@ public struct DreamingPillarCard: View {
                         .padding(.bottom, 10)
                 }
                 .frame(height: 108)
-                .onAppear { drift = true }
+                .onAppear { guard motionActive else { return }; drift = true }
 
                 PillarChipRow(
                     chips: [.init("awake", "awake", .specified), .init("rem", "REM", .partial), .init("deep", "deep", .partial)],
@@ -627,6 +633,7 @@ public struct DreamingPillarCard: View {
 
 /// Write path card: append, validate, dedupe, commit with a visible WAL.
 public struct WritePathPillarCard: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public let state: WriteStageState
     @State private var settled = false
     private let stages = ["capture", "validate", "dedupe", "commit"]
@@ -693,7 +700,7 @@ public struct WritePathPillarCard: View {
                     activeKey: state.rawValue
                 )
             }
-            .onAppear { settled = true }
+            .onAppear { guard motionActive else { return }; settled = true }
         }
     }
 
@@ -715,6 +722,7 @@ public struct WritePathPillarCard: View {
 
 /// Memory types card: six families, one visible palette.
 public struct MemoryTypesPillarCard: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public let families: [MemoryFamily]
 
     public init(families: [MemoryFamily] = AndromedaPillarsData.memoryFamilies) {
@@ -762,6 +770,7 @@ public struct MemoryTypesPillarCard: View {
 
 /// Retrieval bench card: lane winner depends on what kind of truth the question needs.
 public struct RetrievalBenchPillarCard: View {
+    @Environment(\.andromedaMotionActive) private var motionActive
     public let lanes: [RetrievalLane]
     public let winner: String
     @State private var animateBars = false
@@ -814,6 +823,7 @@ public struct RetrievalBenchPillarCard: View {
                 }
             }
             .onAppear {
+                guard motionActive else { return }
                 withAnimation(.easeOut(duration: 0.9)) {
                     animateBars = true
                 }
@@ -836,6 +846,7 @@ public struct RetrievalBenchPillarCard: View {
 public struct AndromedaPillarsShowcase: View {
     public init() {}
 
+    @Environment(\.andromedaMotionActive) private var motionActive
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
