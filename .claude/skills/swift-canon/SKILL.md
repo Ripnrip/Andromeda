@@ -94,6 +94,8 @@ This canon explicitly covers:
 - Use associated values when payload belongs to the case
 - Design for exhaustive switches; avoid defaulting away meaning unless forward-compat truly requires it
 - For SDK / generated / external enums, be explicit about unknown-case handling
+- Derived labels/IDs via exhaustive `switch` — never `"prefix" + rawValue` (anti-patterns Exhibit 6; enforced by `canon/ast-grep/`)
+- Call sites use `.rawValue`, never re-type a literal an enum owns
 
 ### Anti-patterns (`references/anti-patterns.md`)
 - Never `@unchecked Sendable` on value types — fix the payload instead

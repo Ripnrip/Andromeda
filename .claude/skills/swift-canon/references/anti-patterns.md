@@ -318,6 +318,56 @@ other key-presence semantics (always-empty-array, explicit booleans).
 
 ---
 
+## Exhibit 6: enum labels built by `rawValue` concatenation
+
+**Shape**: deriving a label or ID inside an enum with runtime string math.
+
+Real offender (AndromedaUI `PillarStates.swift`, flagged by BofA 2026-08-17):
+
+```swift
+public enum MemoryState: String, PillarState {
+    case forming, consolidating, recalled, decaying, conflicted
+
+    public var label: String { "memory." + rawValue }   // ← drifts silently
+}
+```
+
+**Why it's wrong** (numbered failures):
+
+1. **Silent drift.** Rename `.consolidating` to `.linking` and the label
+   changes from `memory.consolidating` to `memory.linking` with zero compiler
+   signal — if that label is a client-facing capability ID, the contract broke
+   invisibly.
+2. **Hidden conditional variants compound it.** The sibling site read
+   `"memory." + (self == .procedural ? "steps" : rawValue)` — string math
+   encoding case-specific business rules that belong in the switch.
+3. **Half-migrated call sites.** The same codebase hand-types the literals the
+   enums own: `hasPrefix("memory_retain")` next to
+   `case memoryRetain = "memory_retain"` (~20 sites, 9 files for the
+   `infer.write`/`memory.*` family).
+
+**Replacement shape**:
+
+```swift
+public var label: String {
+    switch self {
+    case .forming:       "memory.forming"
+    case .consolidating: "memory.consolidating"
+    case .recalled:      "memory.recalled"
+    case .decaying:      "memory.decaying"
+    case .conflicted:    "memory.conflicted"
+    }
+}
+```
+
+Exhaustive, compiler-checked, and renaming a case forces a label decision at
+the switch. Call sites use `MemoryState.recalled.rawValue` — the enum
+declaration is the single source of truth for the contract string.
+
+CI enforcement: `canon/ast-grep/enum-raw-value-concat.yml` and
+`canon/ast-grep/bare-capability-literal.yml` (warning severity until the
+existing sites are cleaned via HAB-316/317, then error).
+
 ## How to use this file in review
 
 When a diff matches an exhibit's shape, cite the exhibit, name which
@@ -334,4 +384,7 @@ at 10,000 matches. Exhibit 4: the over-correction that followed — an async
 rewrite that was itself caught by a 3,000-match regression test. Exhibit 5:
 the same server's error-response encoder (PR #48) — hand-rolled keyed
 encoding replaced by an `@EncodeNull` property wrapper proposed in review.
+Exhibit 6: AndromedaUI enum labels via `rawValue` concatenation — flagged by
+BofA in review (Aug 2026), swept repo-wide in issue #57, enforcement rules
+in `canon/ast-grep/`.
 Project-specific scar details live in the project skill layered on this canon.
