@@ -2,6 +2,27 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-08-17 — Local-first daily operator knowledge bridge
+
+**Tone hat:** Privacy engineer
+**Commit message of the day:** `docs: stage daily-operator lessons for multibrain`
+**Steps taken (UTC):** Captured the reusable architecture from Anima Daily Operator as a private, provenance-tagged Multibrain session note. The record preserves the idempotent daily-note pattern, explicit AI consent, local diagnostics boundary, and cross-device plugin ownership without carrying vault content, location, or credentials.
+
+### Added
+- A `07-Sessions` checkpoint for the Anima Daily Operator implementation, staged for Multibrain’s normal downstream projection.
+- Reusable principles for `Vault.process`-based one-time initialization, marker-backed idempotency, and thin Apple Shortcut launchers.
+- A documented boundary between normal local automation, coordinate-only weather, manual AI assistance, and separately consented observability.
+
+### Security
+- The checkpoint is marked private and contains no note bodies, filenames, provider credentials, or location data.
+- The daily operator deliberately excludes the prior relay, polling, and automatic Markdown-upload behavior from its distributable plugin resources.
+
+### Reflection
+- The cleanest automation is the one that opens the right door, then stays out of the room.
+
+### Easter egg
+- One tiny weather cloud is now permitted to enter the journal, but only after showing its coordinates at the door.
+
 ## 2026-08-08 — Universal agent memory over MCP
 
 **Tone hat:** Hacker 🕶️
