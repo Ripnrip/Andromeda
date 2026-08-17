@@ -257,10 +257,13 @@ struct AndromedaBraidMerge: View {
                 let t = context.date.timeIntervalSinceReferenceDate
                 let core = project(Glyph.core, in: rect)
 
-                // faint forming glyph ring, slowly rotating
+                // faint forming glyph ring, slowly rotating — around its own
+                // center, not the canvas origin: build the circle at (0,0),
+                // rotate (moves only the dash pattern), then translate to core.
                 let ringPhase = reduceMotion ? 0 : (t.truncatingRemainder(dividingBy: 20)) / 20
-                var ring = Path(ellipseIn: CGRect(x: core.x - 24 * scale, y: core.y - 24 * scale, width: 48 * scale, height: 48 * scale))
-                ring = ring.applying(CGAffineTransform(rotationAngle: reduceMotion ? 0 : ringPhase * 2 * .pi))
+                var ring = Path(ellipseIn: CGRect(x: -24 * scale, y: -24 * scale, width: 48 * scale, height: 48 * scale))
+                ring = ring.applying(CGAffineTransform(translationX: core.x, y: core.y)
+                    .concatenating(CGAffineTransform(rotationAngle: reduceMotion ? 0 : ringPhase * 2 * .pi)))
                 let opPhase = reduceMotion ? 0.4 : 0.15 + 0.35 * abs(sin((t.truncatingRemainder(dividingBy: 4)) / 4 * 2 * .pi))
                 ctx.stroke(ring, with: .color(AndromedaTheme.accent.opacity(opPhase)), style: StrokeStyle(lineWidth: 1 * scale, dash: [3 * scale, 5 * scale]))
 
