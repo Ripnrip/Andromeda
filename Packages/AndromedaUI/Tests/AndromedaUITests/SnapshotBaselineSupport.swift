@@ -1,6 +1,38 @@
 import Foundation
 import SnapshotTesting
+import SwiftUI
 import XCTest
+
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
+
+/// Shared hosting for snapshot suites: same framing + appearance control on
+/// every platform, so UIKit-only habit doesn't quietly dead-file a suite on
+/// the macOS CI lane (the specimen suite shipped exactly that bug).
+@MainActor
+enum SnapshotHosting {
+    #if canImport(UIKit)
+    static func makeHost(_ view: some View, _ size: CGSize, dark: Bool) -> UIViewController {
+        let vc = UIHostingController(rootView: view.frame(width: size.width, height: size.height))
+        vc.view.frame = CGRect(origin: .zero, size: size)
+        vc.overrideUserInterfaceStyle = dark ? .dark : .light
+        return vc
+    }
+    #elseif canImport(AppKit)
+    static func makeHost(_ view: some View, _ size: CGSize, dark: Bool) -> NSViewController {
+        let themed = view
+            .environment(\.colorScheme, dark ? ColorScheme.dark : ColorScheme.light)
+            .frame(width: size.width, height: size.height)
+        let vc = NSHostingController(rootView: AnyView(themed))
+        vc.view.frame = CGRect(origin: .zero, size: size)
+        vc.view.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        return vc
+    }
+    #endif
+}
 
 /// Shared Gate 0 helper: snapshot suites stay in-tree, but do not fail CI until
 /// baselines are recorded on macOS (verification follow-up).
