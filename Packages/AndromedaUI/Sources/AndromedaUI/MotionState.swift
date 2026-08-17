@@ -159,3 +159,5 @@ public struct AndromedaTile<Content: View>: View {
 
 // Baselines regenerate via the [record-snapshots] tip (runner-image-bound).
 // Baselines record via a subject-line [record-snapshots] tip on this branch.
+
+// Baselines unify via a [record-snapshots] tip on main after PR merges.
