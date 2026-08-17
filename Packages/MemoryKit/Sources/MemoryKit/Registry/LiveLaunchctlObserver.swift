@@ -39,25 +39,13 @@ public struct ProcessLaunchctlListRunner: LaunchctlListRunning {
     }
 
     public func listOutput(label: String) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: launchctlPath)
-        process.arguments = ["list", label]
-
-        let stdout = Pipe()
-        let stderr = Pipe()
-        process.standardOutput = stdout
-        process.standardError = stderr
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            return nil
-        }
-
-        guard process.terminationStatus == 0 else { return nil }
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8)
+        // Exhibit 3: drain concurrently — wait-then-read deadlocks if the
+        // label's output ever crosses the pipe buffer.
+        guard let output = try? ConcurrentProcess.run(
+            executable: launchctlPath,
+            arguments: ["list", label]
+        ), output.status == 0 else { return nil }
+        return String(data: output.stdout, encoding: .utf8)
     }
 }
 
