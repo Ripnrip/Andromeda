@@ -1,0 +1,16 @@
+{
+  "name": "andromeda-web-visual",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser screenshot capture + pixel diff for the Andromeda web surface (web/). The pointfree-snapshot equivalent for websites.",
+  "scripts": {
+    "shot": "node shot.mjs",
+    "diff": "node diff.mjs"
+  },
+  "dependencies": {
+    "pixelmatch": "^7.1.0",
+    "playwright": "^1.62.1",
+    "pngjs": "^7.0.0"
+  }
+}

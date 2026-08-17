@@ -21,3 +21,14 @@ Telemetry/
 *.sqlite-wal
 *.trace
 Secrets/
+
+# Web workspace (npm)
+node_modules/
+web/.next/
+web/next-env.d.ts
+web/.vercel/
+
+# Visual diff tooling
+shots/
+out/
+comment.md
