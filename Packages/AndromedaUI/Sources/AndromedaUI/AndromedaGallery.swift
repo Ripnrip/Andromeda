@@ -22,6 +22,7 @@ public enum AndromedaGroup: String, CaseIterable, Identifiable, Sendable {
     case extended   = "Loaders, feedback & ambient"
     case transition = "Transitions, text & texture"
     case wild       = "In the wild"
+    case companion  = "Companion HUD motion"
 
     public var id: String { rawValue }
 }
@@ -29,7 +30,7 @@ public enum AndromedaGroup: String, CaseIterable, Identifiable, Sendable {
 public enum AndromedaCatalogue {
     /// Every animation the package ships, in gallery order.
     @MainActor public static var specimens: [AndromedaSpecimen] {
-        core + extended + transitions + wild
+        core + extended + transitions + wild + companion
     }
 
     @MainActor public static func specimens(in group: AndromedaGroup) -> [AndromedaSpecimen] {
@@ -137,6 +138,41 @@ public enum AndromedaCatalogue {
         .init("RubberBand", group: .wild, RubberBand()),
         .init("RecallSkeletonRow", group: .wild, RecallSkeletonRow(width: 150)),
         .init("MemoryRecallControl", group: .wild, MemoryRecallControl()),
+    ]
+
+    // TimelineView-driven companion HUD motion + Canvas dream/memory scenes.
+    @MainActor public static let companion: [AndromedaSpecimen] = [
+        .init("Waveform", group: .companion, AndromedaWaveform()),
+        .init("HUDShimmerSweep", group: .companion,
+              AndromedaShimmerSweep().frame(width: 120, height: 30)),
+        .init("OrbitDots", group: .companion, AndromedaOrbitDots()),
+        .init("ParticleDrift", group: .companion,
+              AndromedaParticleDrift().frame(width: 120, height: 80)),
+        .init("BreathingGlow", group: .companion,
+              AndromedaBreathingGlow().frame(width: 60, height: 60)),
+        .init("RippleRings", group: .companion,
+              AndromedaRippleRings().frame(width: 60, height: 60)),
+        .init("MarchingSignal", group: .companion, AndromedaMarchingSignal()),
+        .init("RotatingRing", group: .companion,
+              AndromedaRotatingRing().frame(width: 40, height: 40)),
+        .init("VectorGrid", group: .companion, AndromedaVectorGrid()),
+        .init("TokenStream", group: .companion, AndromedaTokenStream()),
+        .init("HUDProgressFill", group: .companion,
+              AndromedaProgressFill().frame(width: 120, height: 8)),
+        .init("DreamField", group: .companion,
+              AndromedaDreamField().frame(width: 200, height: 120)),
+        .init("RemWave", group: .companion,
+              AndromedaRemWave().frame(width: 200, height: 120)),
+        .init("BraidMerge", group: .companion,
+              AndromedaBraidMerge().frame(width: 200, height: 120)),
+        .init("EngramTimeline", group: .companion,
+              AndromedaEngramTimeline().frame(width: 200, height: 120)),
+        .init("ConstellationGraph", group: .companion,
+              AndromedaConstellationGraph().frame(width: 200, height: 120)),
+        .init("CrystalForm", group: .companion,
+              AndromedaCrystalForm().frame(width: 200, height: 120)),
+        .init("RecallPulse", group: .companion,
+              AndromedaRecallPulse().frame(width: 200, height: 120)),
     ]
 }
 

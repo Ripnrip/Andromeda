@@ -32,3 +32,4 @@ web/.vercel/
 shots/
 out/
 comment.md
+>>>>>>> e46c914 (fix: exclude environment-specific snapshot baselines from branch)
