@@ -1,0 +1,12 @@
+# Canon law: enum labels/identifiers derive via exhaustive switch — never
+# rawValue concatenation (renaming a case silently drifts the derived string).
+# See .claude/skills/swift-canon/references/enum-design.md
+id: enum-raw-value-concat
+language: swift
+severity: warning  # flip to error when HAB-316/317 clean the existing sites
+message: Enum label built by rawValue concatenation — use an exhaustive switch instead (swift-canon enum-design).
+rule:
+  pattern: $X + $Y
+constraints:
+  Y:
+    regex: ^rawValue$

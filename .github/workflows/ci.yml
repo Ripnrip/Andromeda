@@ -134,6 +134,18 @@ jobs:
         if: steps.scope.outputs.any_lane != 'true'
         run: echo "Docs/config-only diff — skipping Swift build/test lanes."
 
+      # Canon lint (swift-canon enforcement): ast-grep rules in canon/ast-grep/.
+      # Warning-level findings exit 0 (advisory) until the existing sites are
+      # cleaned (HAB-316/317), then severity flips to error and this gates.
+      # Rule-file parse errors also fail — broken rules never pass silently.
+      - name: Canon lint (ast-grep)
+        if: steps.scope.outputs.any_lane == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install ast-grep
+          sg scan
+
       - name: Select Xcode 16.4 (Swift 6.1)
         if: steps.scope.outputs.any_lane == 'true'
         # Package.swift requires swift-tools-version 6.1; pin Xcode so the toolchain

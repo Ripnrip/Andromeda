@@ -1,0 +1,20 @@
+# Canon law: call sites never re-type capability ID literals that enums own
+# (HUDCapabilityID etc.) — use .rawValue. Matches the contexts where the
+# drift bug class lives (prefix/suffix/contains/equals/dropFirst checks).
+# See .claude/skills/swift-canon/references/enum-design.md
+id: bare-capability-literal
+language: swift
+severity: warning
+ignores:
+  - "**/Tests/**"
+message: Capability literal in a comparison — route through the owning enum's rawValue (swift-canon enum-design).
+rule:
+  any:
+    - pattern: hasPrefix($S)
+    - pattern: hasSuffix($S)
+    - pattern: contains($S)
+    - pattern: $X == $S
+    - pattern: $X != $S
+constraints:
+  S:
+    regex: ^"(infer\.write|memory(_|\.)(recall|retain|forget|health|journal|store|session_dump|web|graph|vector|steps)|project\.state)"$
