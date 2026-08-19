@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="500" viewBox="0 0 1200 500" font-family="SF Pro Text, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5eead4"/></marker>
+  </defs>
+  <rect width="1200" height="500" fill="#0b1220"/>
+  <text x="40" y="52" fill="#e2e8f0" font-size="26" font-weight="700">String canon: one flag, four enforcement surfaces</text>
+  <text x="40" y="78" fill="#94a3b8" font-size="15">issue #57 audit → law lands everywhere it can bite</text>
+
+  <!-- Source finding -->
+  <rect x="40" y="120" width="280" height="120" rx="12" fill="#111c33" stroke="#1e3a5f"/>
+  <text x="60" y="150" fill="#5eead4" font-size="14" font-weight="700">THE SMELL (PR review)</text>
+  <text x="60" y="176" fill="#cbd5e1" font-size="13" font-family="monospace">"memory." + rawValue</text>
+  <text x="60" y="198" fill="#94a3b8" font-size="12">+ ~20 bare-literal call sites</text>
+  <text x="60" y="216" fill="#94a3b8" font-size="12">bypassing existing enums</text>
+
+  <!-- Law -->
+  <rect x="400" y="120" width="280" height="120" rx="12" fill="#111c33" stroke="#1e3a5f"/>
+  <text x="420" y="150" fill="#5eead4" font-size="14" font-weight="700">THE LAW (swift-canon)</text>
+  <text x="420" y="176" fill="#cbd5e1" font-size="13">enum-design.md: derived labels</text>
+  <text x="420" y="194" fill="#cbd5e1" font-size="13">via exhaustive switch; call sites</text>
+  <text x="420" y="212" fill="#cbd5e1" font-size="13">use .rawValue — never re-type</text>
+  <text x="420" y="230" fill="#64748b" font-size="12">Exhibit 6 + review-canon §7</text>
+
+  <!-- arrows from smell to law -->
+  <line x1="320" y1="180" x2="398" y2="180" stroke="#5eead4" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- Four surfaces -->
+  <text x="760" y="108" fill="#e2e8f0" font-size="15" font-weight="700">ENFORCEMENT SURFACES</text>
+  <g>
+    <rect x="760" y="120" width="400" height="52" rx="10" fill="#0f2233" stroke="#155e75"/>
+    <text x="780" y="141" fill="#5eead4" font-size="13" font-weight="700">CI — ast-grep lane</text>
+    <text x="780" y="160" fill="#94a3b8" font-size="12">canon/ast-grep/ rules · warning → error at HAB-316/317</text>
+  </g>
+  <g>
+    <rect x="760" y="184" width="400" height="52" rx="10" fill="#0f2233" stroke="#155e75"/>
+    <text x="780" y="205" fill="#5eead4" font-size="13" font-weight="700">Skill — swift-canon</text>
+    <text x="780" y="224" fill="#94a3b8" font-size="12">SKILL.md quick rules + enum-design + anti-patterns</text>
+  </g>
+  <g>
+    <rect x="760" y="248" width="400" height="52" rx="10" fill="#0f2233" stroke="#155e75"/>
+    <text x="780" y="269" fill="#5eead4" font-size="13" font-weight="700">Docs — design system</text>
+    <text x="780" y="288" fill="#94a3b8" font-size="12">ANDROMEDA-DESIGN-SYSTEM.md honesty rules §</text>
+  </g>
+  <g>
+    <rect x="760" y="312" width="400" height="52" rx="10" fill="#0f2233" stroke="#155e75"/>
+    <text x="780" y="333" fill="#5eead4" font-size="13" font-weight="700">Tracking — Multica + Linear</text>
+    <text x="780" y="352" fill="#94a3b8" font-size="12">HAB-316..321 fixes · HAB-328 closes on merge</text>
+  </g>
+  <line x1="680" y1="180" x2="758" y2="180" stroke="#5eead4" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="680" y1="180" x2="758" y2="210" stroke="#5eead4" stroke-width="0" />
+
+  <!-- bottom flow: sequencing -->
+  <rect x="40" y="300" width="640" height="150" rx="12" fill="#111c33" stroke="#1e3a5f"/>
+  <text x="60" y="330" fill="#5eead4" font-size="14" font-weight="700">SEQUENCING (why warning first)</text>
+  <text x="60" y="356" fill="#cbd5e1" font-size="13">1. This PR: rules ship at warning — 4 real violations exist on main</text>
+  <text x="60" y="376" fill="#cbd5e1" font-size="13">2. #53/#56 merge → HAB-316/317 clean the sites (rawValue concat + literals)</text>
+  <text x="60" y="396" fill="#cbd5e1" font-size="13">3. Flip severity to error — CI gates the drift class permanently</text>
+  <text x="60" y="422" fill="#64748b" font-size="12">Tests excluded from literal rule: asserting the contract string IS the test.</text>
+</svg>

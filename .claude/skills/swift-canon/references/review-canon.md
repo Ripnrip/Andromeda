@@ -38,3 +38,26 @@ General Swift PR discipline for any project.
 - critical full-path behavior → E2E sparingly
 
 Use the smallest truthful test that proves the change.
+
+## 7. Review-feedback audit law (bodies ≠ threads)
+
+Automated reviewer findings can live in TWO places: inline threads AND the
+review body itself. A body-only finding (no inline anchor) never appears in
+thread counts — claiming "0 outstanding" from thread enumeration alone is
+structurally wrong. (Scar: Andromeda PR #53, Aug 2026 — an unguarded-timer
+P2 rode in three consecutive review *bodies*, invisible to a thread-only
+sweep, until the user pushed back.)
+
+Audit protocol before claiming all feedback addressed:
+
+1. Enumerate every review thread — resolved and unresolved.
+2. Dump every review body; strip the boilerplate block; read what remains.
+   A file link + priority badge is a finding even with no thread.
+3. Check for threads where the reviewer has the last comment — follow-ups
+   hiding inside resolved threads.
+4. Only then claim clean — and make the claim falsifiable by listing what
+   was checked.
+
+A finding repeated across review rounds means the previous fix didn't take:
+read the delta between rounds ("reads the flag but never consults it" =
+declaration without a guard).

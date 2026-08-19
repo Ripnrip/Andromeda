@@ -103,6 +103,11 @@ stays ≤ 200 ms, opacity/scale only.
 - Client-facing surfaces show stable capability IDs only — never Linear /
   Multica / provider brand names / raw env key names.
 - Secrets render as stable proxy IDs, never values.
+- Capability IDs live in exactly one place: the owning enum's declaration.
+  Derived labels go through exhaustive `switch` (never `"prefix" + rawValue`);
+  call sites use `.rawValue` and never re-type a literal the enum owns.
+  Law + exhibit: `.claude/skills/swift-canon/references/enum-design.md` and
+  `anti-patterns.md` (Exhibit 6). CI-enforced by `canon/ast-grep/` rules.
 
 ## Open work
 
