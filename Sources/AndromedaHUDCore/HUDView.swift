@@ -60,21 +60,35 @@ public struct HUDView: View {
                         .accessibilityHidden(true)
                         .onTapGesture { expandAndFocusSearch() }
 
-                    TextField("recall · store · journal · infer.write…", text: $searchQuery)
-                        .focused($isSearchFocused)
-                        .textFieldStyle(.plain)
-                        .font(.body)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityLabel("Memory command")
-                        .accessibilityHint("Type recall, store, journal, infer.write, or project.state. Arrow keys move among results. Escape dismisses results.")
-                        .onSubmit {
-                            handleSubmit()
+                    ZStack(alignment: .leading) {
+                        if searchQuery.isEmpty && !isSearchFocused {
+                            MorphingText(
+                                texts: ["recall memory...", "store insight...", "journal thought...", "infer.write...", "project.state..."],
+                                font: .body,
+                                color: .secondary,
+                                duration: 2.0,
+                                pause: 1.5,
+                                alignment: .leading
+                            )
+                            .allowsHitTesting(false)
                         }
-                        // Escape while TextField is first responder (Enter stays on onSubmit).
-                        .onKeyPress(.escape) {
-                            handleEscape()
-                            return .handled
-                        }
+                        
+                        TextField(searchQuery.isEmpty && !isSearchFocused ? "" : "recall · store · journal · infer.write…", text: $searchQuery)
+                            .focused($isSearchFocused)
+                            .textFieldStyle(.plain)
+                            .font(.body)
+                            .frame(maxWidth: .infinity)
+                            .accessibilityLabel("Memory command")
+                            .accessibilityHint("Type recall, store, journal, infer.write, or project.state. Arrow keys move among results. Escape dismisses results.")
+                            .onSubmit {
+                                handleSubmit()
+                            }
+                            // Escape while TextField is first responder (Enter stays on onSubmit).
+                            .onKeyPress(.escape) {
+                                handleEscape()
+                                return .handled
+                            }
+                    }
                 }
                 // Fill the idle/expanded width so clicks land on the TextField
                 // (avoid transparent overlay / parent onTapGesture — those steal hits).
@@ -106,10 +120,14 @@ public struct HUDView: View {
                 Capsule()
                     .fill(.ultraThinMaterial)
                     .environment(\.colorScheme, .dark)
+                    .background(
+                        SurrealBackgroundView()
+                            .clipShape(Capsule())
+                    )
                     .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
                     .overlay(
                         Capsule()
-                            .stroke(Color.andromedaLine, lineWidth: 1)
+                            .stroke(Color.andromedaLine.opacity(0.5), lineWidth: 1)
                     )
             }
             .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: isExpanded)
@@ -127,14 +145,14 @@ public struct HUDView: View {
             HUDResultsView(isVisible: resultsVisible) {
                 if showRecentQueries {
                     HUDRecentQueriesView(
-                        queries: model.recentQueries,
-                        selectedIndex: selectedIndex,
-                        onSelect: { q in
-                            searchQuery = q
-                            isSearchFocused = true
-                            submitSearch()
-                        }
-                    )
+                            queries: model.recentQueries,
+                            selectedIndex: selectedIndex,
+                            onSelect: { selectedQuery in
+                                searchQuery = selectedQuery
+                                isSearchFocused = true
+                                submitSearch()
+                            }
+                        )
                 } else {
                     HUDOutcomeView(
                         outcome: model.lastOutcome,
