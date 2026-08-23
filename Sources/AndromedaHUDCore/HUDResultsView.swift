@@ -60,6 +60,10 @@ public struct HUDResultsView<Content: View>: View {
             if isVisible {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(.ultraThinMaterial)
+                    .background(
+                        SurrealBackgroundView()
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    )
                     .shadow(
                         color: .black.opacity(reduceMotion ? 0.15 : 0.25),
                         radius: 12,
@@ -67,7 +71,7 @@ public struct HUDResultsView<Content: View>: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(Color.andromedaLine, lineWidth: 1)
+                            .strokeBorder(Color.andromedaLine.opacity(0.5), lineWidth: 1)
                     )
                     .transition(.opacity)
             }
