@@ -183,6 +183,9 @@ export const STATUS_BOARD: { status: Status; heading: string; items: string[] }[
       "The multibrain nightly conductor",
       "Autocache Anthropic LLM-proxy surface",
       "The capability curtain + MemoryKit",
+      "AndromedaMCP \u2014 Swift-native MCP server for ast-grep tools",
+      "Curtain standard adopted across capability surfaces",
+      "AndromedaUI compiles standalone as its own module",
     ],
   },
   {
@@ -199,6 +202,7 @@ export const STATUS_BOARD: { status: Status; heading: string; items: string[] }[
     heading: "Specified, not built",
     items: [
       "Secrets broker runtime (slack_proxy / github_proxy)",
+      "write.too \u2014 Cerebras-backed write capability (infer.write is only a deprecated alias into memory.store)",
       "MCP consolidate \u2014 one shared host",
       "SkillRegistry product surface",
       "Full multi-provider LLM router",
