@@ -22,7 +22,7 @@ export function DynamicIsland() {
         {expanded ? <IslandExpanded /> : <IslandIdle />}
       </button>
       <p className="font-serif text-sm italic text-muted-foreground">
-        {expanded ? "write.tool is live — click to collapse to the notch" : "Ambient pulse lives at the notch — click to peek"}
+        {expanded ? "memory.store is live — click to collapse to the notch" : "Ambient pulse lives at the notch — click to peek"}
       </p>
     </div>
   )
@@ -55,7 +55,7 @@ function IslandExpanded() {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
-            <span className="font-mono text-sm text-primary">write.tool</span>
+            <span className="font-mono text-sm text-primary">memory.store</span>
             <span className="font-mono text-xs text-muted-foreground">2.1s</span>
           </div>
           <p className="font-serif text-[15px] italic text-foreground/80">Capturing session thought…</p>

@@ -152,7 +152,7 @@ export default function DesignPage() {
                   <span className="text-primary">memory.recall</span>(&#123; query &#125;)
                 </p>
                 <p>
-                  <span className="text-primary">infer.write</span> → gateway
+                  <span className="text-primary">memory.store</span> → hot store
                 </p>
                 <p className="text-muted-foreground">project.state.*</p>
                 <p className="text-muted-foreground">$ swift run andromeda status</p>

@@ -56,7 +56,7 @@ export const PILLARS: Pillar[] = [
     status: "partial",
     tagline: "One host, not 50 subprocesses",
     description:
-      "A single supervised MCP host replacing per-terminal npm sprawl. Registry, health monitor, and subprocess containment bend the tool surface back into view.",
+      "AndromedaMCP ships today: a Swift-native MCP server exposing ast-grep tools, with registry, scan, and health in place. Process sprawl is bent from 55 down to 37. The shared supervised host — one lifecycle, dedupe across terminals — is not consolidated yet.",
     capabilities: ["mcp.registry", "mcp.scan", "mcp.health"],
   },
   {
@@ -81,7 +81,7 @@ export const PILLARS: Pillar[] = [
     tagline: "Capabilities in, providers out",
     description:
       "Clients ask for capabilities, never provider brands. The live Autocache Anthropic surface injects prompt-cache breakpoints and returns ROI analytics.",
-    capabilities: ["write.tool", "route.capability", "usage.metrics"],
+    capabilities: ["write.too", "route.capability", "usage.metrics"],
   },
   {
     index: 5,
@@ -93,7 +93,7 @@ export const PILLARS: Pillar[] = [
     tagline: "Keys never touch client env",
     description:
       "Stable proxy IDs resolve to Keychain-backed secrets server-side. Satellite agents run env-scrubbed; the broker injects credentials at call time.",
-    capabilities: ["slack_proxy", "github_proxy", "write.tool"],
+    capabilities: ["slack_proxy", "github_proxy", "write.too"],
   },
   {
     index: 6,
@@ -121,10 +121,15 @@ export const CURTAIN: CurtainRow[] = [
     hides: "SwiftData hot store, vault, Ladybug, Qdrant",
     neverSees: "Store paths, index brands",
   },
+  {
+    id: "memory.store",
+    hides: "Append-first seal into the hot store; Dream materializes to the vault later",
+    neverSees: "Write path internals, materialization schedule",
+  },
 
   {
     id: "project.state.*",
-    hides: "Linear ∪ Multica ∪ Slack fanout",
+    hides: "Linear + Multica + Slack fanout",
     neverSees: "Tracker brand names in menus",
   },
   {
@@ -138,8 +143,9 @@ export const CURTAIN: CurtainRow[] = [
     neverSees: "GITHUB_TOKEN, gh auth dumps",
   },
   {
-    id: "write.tool",
-    hides: "Cerebras under the hood — Andromeda manages Node compatibility, model changes, system-prompt injection so models know the write format, and a daily health check before any client call that would otherwise fail silently",
+    id: "write.too",
+    hides:
+      "Specified, not built. Once live: Cerebras under the hood, with Node compatibility, model changes, system-prompt injection so models know the write format, and a health check before any client call that would otherwise fail silently",
     neverSees: "Cerebras, model names, API keys, raw Node errors",
   },
 ]

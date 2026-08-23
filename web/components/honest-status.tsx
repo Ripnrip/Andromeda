@@ -34,9 +34,11 @@ export function HonestStatus() {
 
         <p className="mt-6 rounded-xl border border-partial/30 bg-partial/5 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
           <span className="font-mono text-xs uppercase tracking-wider text-partial">caveat</span>{" "}
-          <code className="font-mono text-foreground">write.tool</code> is currently an episodic-store alias — not LLM
-          inference. It becomes a real inference capability only through an explicit versioned migration. We don&apos;t
-          advertise it as inference until then.
+          <code className="font-mono text-foreground">infer.write</code> is a deprecated alias that maps into{" "}
+          <code className="font-mono text-foreground">memory.store</code> — it is an episodic write, not LLM inference.{" "}
+          <code className="font-mono text-foreground">write.too</code>, the real Cerebras-backed write capability under
+          the LLM proxy, is specified but <span className="text-partial">not built</span>. Neither is advertised as
+          inference until an explicit versioned migration ships.
         </p>
       </div>
     </section>
