@@ -301,14 +301,19 @@ public actor OperatorProjectStateBridge: ProjectStateSurface {
             linearIssues = left
             multicaIssues = right
         case (.success(let left), .failure(let right)):
-            if Self.isBridgeNotWired(right) {
+            if Self.isBridgeNotWired(right) || Self.isProviderFailure(right) {
+                // 🌊 Degrade to linear-only when Multica is impaired — partial data beats a dead panel.
+                print("🌊 ⚠️ Multica list impaired (\(right.localizedDescription)) — linear-only view")
                 linearIssues = left
                 multicaIssues = []
             } else {
                 throw ProjectStateError.providerFailure(right.localizedDescription)
             }
         case (.failure(let left), .success(let right)):
-            if Self.isBridgeNotWired(left) {
+            if Self.isBridgeNotWired(left) || Self.isProviderFailure(left) {
+                // 🌊 Degrade to Multica-only when Linear is impaired (quota / GraphQL errors) —
+                // the same condition createItem degrades under; refresh must not undo a degraded create.
+                print("🌊 ⚠️ Linear list impaired (\(left.localizedDescription)) — Multica-only view")
                 linearIssues = []
                 multicaIssues = right
             } else {
@@ -427,6 +432,13 @@ public actor OperatorProjectStateBridge: ProjectStateSurface {
 
     private static func isBridgeNotWired(_ error: Error) -> Bool {
         if let projectError = error as? ProjectStateError, case .bridgeNotWired = projectError {
+            return true
+        }
+        return false
+    }
+
+    private static func isProviderFailure(_ error: Error) -> Bool {
+        if let projectError = error as? ProjectStateError, case .providerFailure = projectError {
             return true
         }
         return false

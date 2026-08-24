@@ -390,18 +390,9 @@ public struct LiveLinearProjectProvider: LinearProjectProvider {
             "variables": ["input": input]
         ]
         let data = try await graphql(key: key, payload: payload)
-        let root = try Self.parseGraphQLResponse(data)
-        guard let dataNode = root["data"] as? [String: Any],
-              let create = dataNode["issueCreate"] as? [String: Any],
-              let issue = create["issue"] as? [String: Any],
-              let id = issue["identifier"] as? String,
-              let issueTitle = issue["title"] as? String
-        else {
-            throw ProjectStateError.providerFailure("Linear create decode failed")
-        }
-        let state = (issue["state"] as? [String: Any])?["name"] as? String ?? "Backlog"
-        print("🎉 ✨ LINEAR CREATE COMPLETE! id=\(id)")
-        return LinearIssueFragment(id: id, title: issueTitle, state: state)
+        let fragment = try Self.mutationFragment(data, container: "issueCreate")
+        print("🎉 ✨ LINEAR CREATE COMPLETE! id=\(fragment.id)")
+        return fragment
     }
 
     public func updateIssue(id: String, title: String?, state: String?) async throws -> LinearIssueFragment {
@@ -436,18 +427,9 @@ public struct LiveLinearProjectProvider: LinearProjectProvider {
             "variables": ["id": uuid, "input": input]
         ]
         let data = try await graphql(key: key, payload: payload)
-        let root = try Self.parseGraphQLResponse(data)
-        guard let dataNode = root["data"] as? [String: Any],
-              let update = dataNode["issueUpdate"] as? [String: Any],
-              let issue = update["issue"] as? [String: Any],
-              let issueID = issue["identifier"] as? String,
-              let issueTitle = issue["title"] as? String
-        else {
-            throw ProjectStateError.providerFailure("Linear update decode failed")
-        }
-        let issueState = (issue["state"] as? [String: Any])?["name"] as? String ?? "Backlog"
-        print("🎉 ✨ LINEAR UPDATE COMPLETE! id=\(issueID)")
-        return LinearIssueFragment(id: issueID, title: issueTitle, state: issueState)
+        let fragment = try Self.mutationFragment(data, container: "issueUpdate")
+        print("🎉 ✨ LINEAR UPDATE COMPLETE! id=\(fragment.id)")
+        return fragment
     }
 
     private func resolveIssueUUID(identifier: String, key: String) async throws -> String {
@@ -548,6 +530,22 @@ public struct LiveLinearProjectProvider: LinearProjectProvider {
             throw ProjectStateError.providerFailure("Linear GraphQL error: \(detail)")
         }
         return root
+    }
+
+    /// 🌩️ Mutations: a partial response (data + errors) with the written issue is a
+    /// success — the write landed. Only surface GraphQL errors when no issue was written.
+    static func mutationFragment(_ data: Data, container: String) throws -> LinearIssueFragment {
+        if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let written = (root["data"] as? [String: Any])?[container] as? [String: Any],
+           let issue = written["issue"] as? [String: Any],
+           let id = issue["identifier"] as? String,
+           let title = issue["title"] as? String
+        {
+            let state = (issue["state"] as? [String: Any])?["name"] as? String ?? "Backlog"
+            return LinearIssueFragment(id: id, title: title, state: state)
+        }
+        _ = try Self.parseGraphQLResponse(data)  // throws with the real GraphQL messages when errors are present
+        throw ProjectStateError.providerFailure("Linear \(container) decode failed")
     }
 
     private func graphql(key: String, payload: [String: Any]) async throws -> Data {
