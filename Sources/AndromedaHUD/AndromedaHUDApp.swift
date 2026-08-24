@@ -19,6 +19,7 @@ struct AndromedaHUDApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var hudWindow: HUDWindow?
+    var overlayWindow: HUDOverlayWindow?
     private var statusItem: NSStatusItem?
     private var eventMonitor: Any?
 
@@ -171,12 +172,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setupClickOutsideMonitor() {
-        // Collapse results when clicking outside the HUD (window stays alive).
+        // Hide HUD when clicking outside of it.
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self, let window = self.hudWindow, window.isVisible else { return }
             let loc = NSEvent.mouseLocation
             if !window.frame.contains(loc) {
                 NotificationCenter.default.post(name: .andromedaHUDCollapseResults, object: nil)
+                window.orderOut(nil)
+                self.overlayWindow?.orderOut(nil)
+                self.overlayWindow = nil
             }
         }
     }
@@ -257,6 +261,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func showHUD() {
         guard let window = hudWindow else { return }
+        
+        // Show overlay
+        if overlayWindow == nil {
+            overlayWindow = HUDOverlayWindow()
+        }
+        if let screen = preferredScreen() ?? screenUnderMouse() ?? NSScreen.main {
+            overlayWindow?.setFrame(screen.frame, display: true)
+        }
+        overlayWindow?.makeKeyAndOrderFront(nil)
+        
         if userHasRepositioned, let saved = persistedOrigin() {
             restoreToScreen(origin: saved)
         } else {
@@ -277,6 +291,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let window = hudWindow else { return }
         if window.isVisible {
             window.orderOut(nil)
+            overlayWindow?.orderOut(nil)
+            overlayWindow = nil
         } else {
             showHUD()
         }

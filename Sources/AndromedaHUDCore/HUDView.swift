@@ -127,7 +127,7 @@ public struct HUDView: View {
                     .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
                     .overlay(
                         Capsule()
-                            .stroke(Color.andromedaLine.opacity(0.5), lineWidth: 1)
+                            .strokeBorder(Color.andromedaLine.opacity(0.5), lineWidth: 1)
                     )
             }
             .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: isExpanded)
