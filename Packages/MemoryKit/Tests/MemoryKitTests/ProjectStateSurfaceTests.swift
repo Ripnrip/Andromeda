@@ -220,6 +220,30 @@ struct ProjectStateSurfaceTests {
         print("🎉 ✨ MULTICA-ONLY CREATE COMPLETE!")
     }
 
+    @Test("🌊 Multica-only create when Linear provider fails (e.g., usage limit)")
+    func testCreateDegradesToMulticaOnLinearFailure() async throws {
+        let multica = MockMulticaProvider(issues: [])
+        let bridge = OperatorProjectStateBridge(
+            linear: FailingLinearProvider(error: .providerFailure("usage limit exceeded")),
+            multica: multica
+        )
+        let item = try await bridge.createItem(
+            ProjectStateDraft(
+                projectID: ProjectStateID(rawValue: "andromeda"),
+                title: "Linear-quota fallback",
+                status: .backlog
+            )
+        )
+        #expect(item.title == "Linear-quota fallback")
+        #expect(item.id.rawValue.hasPrefix("ps-"))
+        #expect(multica.created.count == 1)
+        let encoded = try JSONEncoder().encode(item)
+        let json = String(decoding: encoded, as: UTF8.self)
+        #expect(!json.contains("HAB-"))
+        #expect(!json.contains("usage limit"))
+        print("🎉 ✨ LINEAR-FAILURE DEGRADATION COMPLETE!")
+    }
+
     /// 🧪 Codex P1 landmine — create salt ≠ refresh salt caused itemNotFound after list.
     @Test("🧷 create → refresh → update keeps stable item id (no itemNotFound)")
     func testCreateRefreshUpdateStableID() async throws {
@@ -445,5 +469,13 @@ private struct UnwiredLinearProvider: LinearProjectProvider {
     func updateIssue(id: String, title: String?, state: String?) async throws -> LinearIssueFragment {
         throw ProjectStateError.bridgeNotWired
     }
+}
+
+private struct FailingLinearProvider: LinearProjectProvider {
+    let error: ProjectStateError
+
+    func fetchIssues() async throws -> [LinearIssueFragment] { throw error }
+    func createIssue(title: String, description: String?) async throws -> LinearIssueFragment { throw error }
+    func updateIssue(id: String, title: String?, state: String?) async throws -> LinearIssueFragment { throw error }
 }
 

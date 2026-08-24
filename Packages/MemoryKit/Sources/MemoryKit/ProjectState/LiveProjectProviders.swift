@@ -342,14 +342,11 @@ public struct LiveLinearProjectProvider: LinearProjectProvider {
             "variables": ["filter": filter, "first": 50]
         ]
         let data = try await graphql(key: key, payload: payload)
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let dataNode = root["data"] as? [String: Any],
+        let root = try Self.parseGraphQLResponse(data)
+        guard let dataNode = root["data"] as? [String: Any],
               let issues = dataNode["issues"] as? [String: Any],
               let nodes = issues["nodes"] as? [[String: Any]]
         else {
-            if let errors = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["errors"] {
-                throw ProjectStateError.providerFailure("Linear GraphQL errors: \(errors)")
-            }
             throw ProjectStateError.providerFailure("Linear GraphQL decode failed")
         }
         return nodes.compactMap { node in
@@ -393,8 +390,8 @@ public struct LiveLinearProjectProvider: LinearProjectProvider {
             "variables": ["input": input]
         ]
         let data = try await graphql(key: key, payload: payload)
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let dataNode = root["data"] as? [String: Any],
+        let root = try Self.parseGraphQLResponse(data)
+        guard let dataNode = root["data"] as? [String: Any],
               let create = dataNode["issueCreate"] as? [String: Any],
               let issue = create["issue"] as? [String: Any],
               let id = issue["identifier"] as? String,
@@ -439,8 +436,8 @@ public struct LiveLinearProjectProvider: LinearProjectProvider {
             "variables": ["id": uuid, "input": input]
         ]
         let data = try await graphql(key: key, payload: payload)
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let dataNode = root["data"] as? [String: Any],
+        let root = try Self.parseGraphQLResponse(data)
+        guard let dataNode = root["data"] as? [String: Any],
               let update = dataNode["issueUpdate"] as? [String: Any],
               let issue = update["issue"] as? [String: Any],
               let issueID = issue["identifier"] as? String,
@@ -538,6 +535,19 @@ public struct LiveLinearProjectProvider: LinearProjectProvider {
         let parts = identifier.split(separator: "-")
         guard let last = parts.last else { return nil }
         return Int(last)
+    }
+
+    /// 🌩️ Parse GraphQL JSON and surface Linear errors before attempting success-path decode.
+    private static func parseGraphQLResponse(_ data: Data) throws -> [String: Any] {
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw ProjectStateError.providerFailure("Linear response is not JSON")
+        }
+        if let errors = root["errors"] as? [[String: Any]], !errors.isEmpty {
+            let messages = errors.compactMap { $0["message"] as? String }
+            let detail = messages.isEmpty ? "unknown GraphQL error" : messages.joined(separator: "; ")
+            throw ProjectStateError.providerFailure("Linear GraphQL error: \(detail)")
+        }
+        return root
     }
 
     private func graphql(key: String, payload: [String: Any]) async throws -> Data {

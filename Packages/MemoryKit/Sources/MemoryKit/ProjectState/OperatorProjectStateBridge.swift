@@ -143,9 +143,13 @@ public actor OperatorProjectStateBridge: ProjectStateSurface {
             linearID = created.id
             print("🎪 Linear create landed as \(created.id)")
         } catch let creativeChallenge as ProjectStateError {
-            if case .bridgeNotWired = creativeChallenge {
+            switch creativeChallenge {
+            case .bridgeNotWired:
                 print("🌙 ⚠️ Linear unwired — Multica-only create")
-            } else {
+            case .providerFailure(let message):
+                // 🌊 Degrade to Multica-only so project.state.create keeps working when Linear is impaired.
+                print("🌊 ⚠️ Linear create impaired (\(message)) — falling back to Multica-only create")
+            default:
                 throw creativeChallenge
             }
         }
