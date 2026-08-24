@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✨ Magical HUD — Visual Showcase</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --card: #14141c;
+            --card-border: #2a2a3a;
+            --accent: linear-gradient(135deg, #ff00cc 0%, #3333ff 50%, #00ccff 100%);
+        }
+        * { box-sizing: border-box; }
+        body {
+            background: radial-gradient(1200px 600px at 20% -10%, rgba(51,51,255,0.12), transparent 60%),
+                        radial-gradient(1000px 500px at 110% 10%, rgba(255,0,204,0.08), transparent 60%),
+                        var(--bg);
+            color: #f0f0f5;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding: 48px 32px 96px;
+            margin: 0;
+            min-height: 100vh;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 56px;
+        }
+        h1 {
+            font-size: 48px;
+            font-weight: 900;
+            letter-spacing: -0.03em;
+            margin: 0 0 12px;
+            background: var(--accent);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .subtitle {
+            color: #9a9ab0;
+            font-size: 16px;
+            letter-spacing: 0.02em;
+            max-width: 640px;
+            margin: 0 auto;
+        }
+        section {
+            max-width: 1600px;
+            margin: 0 auto 64px;
+        }
+        h2.section-title {
+            font-size: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: #6c6cff;
+            font-weight: 700;
+            margin: 0 0 20px 4px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        h2.section-title::before {
+            content: "";
+            display: inline-block;
+            width: 14px; height: 14px;
+            border-radius: 4px;
+            background: var(--accent);
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+            gap: 28px;
+        }
+        .grid.composition {
+            grid-template-columns: repeat(auto-fit, minmax(700px, 1fr));
+        }
+        .card {
+            background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0) 100%), var(--card);
+            border: 1px solid var(--card-border);
+            padding: 20px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
+            transition: transform 0.25s cubic-bezier(.2,.8,.2,1), box-shadow 0.25s cubic-bezier(.2,.8,.2,1), border-color 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 18px 60px rgba(108,108,255,0.22), inset 0 1px 0 rgba(255,255,255,0.06);
+            border-color: #3c3c66;
+        }
+        img {
+            width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+            margin-bottom: 16px;
+            background-color: #000;
+        }
+        .label {
+            font-size: 13px;
+            color: #b8b8d0;
+            margin: 0;
+            font-weight: 500;
+            letter-spacing: 0.01em;
+            word-break: break-word;
+        }
+        .pill {
+            display: inline-block;
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: rgba(108,108,255,0.18);
+            color: #b0b0ff;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        .pill.new { background: rgba(255,0,204,0.18); color: #ffb3ec; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>✨ Andromeda Magical HUD</h1>
+        <p class="subtitle">Perplexity-style full-screen immersion · Translucent mountain silhouette from space · Mesmerizing pulsing bloom · Bespoke master-control-plane gateway</p>
+    </header>
+
+    <section>
+        <h2 class="section-title">🔥 Master Composition — Full Screen (NEW)</h2>
+        <div class="grid composition">
+        <div class="card">
+            <span class="pill new">NEW · Full-screen overlay</span>
+            <img src="testHUDOverlayFullComposition.1.png" alt="testHUDOverlayFullComposition.1.png" loading="lazy">
+            <p class="label">testHUDOverlayFullComposition.1.png</p>
+        </div>
+        <div class="card">
+            <span class="pill new">NEW · Full-screen overlay</span>
+            <img src="testHUDOverlayFullCompositionLight.1.png" alt="testHUDOverlayFullCompositionLight.1.png" loading="lazy">
+            <p class="label">testHUDOverlayFullCompositionLight.1.png</p>
+        </div>
+        </div>
+    </section>
+
+    <section>
+        <h2 class="section-title">🔬 Component Closeups — HUDOutcomeView States</h2>
+        <div class="grid">
+        <div class="card">
+            <img src="fleetPulseSnapshots.fleet-pulse-all-states.png" alt="fleetPulseSnapshots.fleet-pulse-all-states.png" loading="lazy">
+            <p class="label">fleetPulseSnapshots.fleet-pulse-all-states.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-created-dark.png" alt="outcomeSnapshots-fixture-appearance.outcome-created-dark.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-created-dark.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-created-light.png" alt="outcomeSnapshots-fixture-appearance.outcome-created-light.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-created-light.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-empty-dark.png" alt="outcomeSnapshots-fixture-appearance.outcome-empty-dark.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-empty-dark.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-empty-light.png" alt="outcomeSnapshots-fixture-appearance.outcome-empty-light.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-empty-light.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-failed-dark.png" alt="outcomeSnapshots-fixture-appearance.outcome-failed-dark.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-failed-dark.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-failed-light.png" alt="outcomeSnapshots-fixture-appearance.outcome-failed-light.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-failed-light.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-idle-dark.png" alt="outcomeSnapshots-fixture-appearance.outcome-idle-dark.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-idle-dark.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-idle-light.png" alt="outcomeSnapshots-fixture-appearance.outcome-idle-light.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-idle-light.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-journaled-dark.png" alt="outcomeSnapshots-fixture-appearance.outcome-journaled-dark.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-journaled-dark.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-journaled-light.png" alt="outcomeSnapshots-fixture-appearance.outcome-journaled-light.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-journaled-light.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-projects-dark.png" alt="outcomeSnapshots-fixture-appearance.outcome-projects-dark.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-projects-dark.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-projects-light.png" alt="outcomeSnapshots-fixture-appearance.outcome-projects-light.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-projects-light.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-recalled-dark.png" alt="outcomeSnapshots-fixture-appearance.outcome-recalled-dark.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-recalled-dark.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-recalled-light.png" alt="outcomeSnapshots-fixture-appearance.outcome-recalled-light.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-recalled-light.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-stored-dark.png" alt="outcomeSnapshots-fixture-appearance.outcome-stored-dark.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-stored-dark.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-stored-light.png" alt="outcomeSnapshots-fixture-appearance.outcome-stored-light.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-stored-light.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-syncing-dark.png" alt="outcomeSnapshots-fixture-appearance.outcome-syncing-dark.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-syncing-dark.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-syncing-light.png" alt="outcomeSnapshots-fixture-appearance.outcome-syncing-light.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-syncing-light.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-updated-dark.png" alt="outcomeSnapshots-fixture-appearance.outcome-updated-dark.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-updated-dark.png</p>
+        </div>
+        <div class="card">
+            <img src="outcomeSnapshots-fixture-appearance.outcome-updated-light.png" alt="outcomeSnapshots-fixture-appearance.outcome-updated-light.png" loading="lazy">
+            <p class="label">outcomeSnapshots-fixture-appearance.outcome-updated-light.png</p>
+        </div>
+        </div>
+    </section>
+</body>
+</html>
