@@ -88,6 +88,12 @@ This canon explicitly covers:
 - Bridge Combine → `AsyncStream` at client boundary — never in reducers
 - Treat Swift 6 compiler warnings/errors about sendability as design feedback, not noise
 - Static tables in Swift 6 must either hold `Sendable` value types or be isolated appropriately
+- **Mutex/Atomic** (Synchronization, 6+) replace hand-rolled locks; **typed throws** at contract surfaces; `@concurrent` over `Task.detached`; `AsyncStream.makeStream()` — see `references/modern-swift.md`
+
+### CLI tools / subprocess discipline (see `references/cli-and-process.md`)
+- Every `Process` helper gets a **deadline** (SIGTERM→SIGKILL escalation); drain pipes after confirmed exit
+- Shipping SwiftPM binaries: fresh `cp` + `codesign -f -s -` binary AND `@rpath` dylibs (macOS beta signing monitor kills stale signatures); dylib sits next to the binary (`@loader_path`)
+- No Foundation uuid5 — hand-roll RFC-4122 v5 via `Insecure.SHA1` for Python hash interop; `NSString.CompareOptions` regex cannot dot-match newlines → `NSRegularExpression`
 
 ### Enums
 - Prefer enums over stringly-typed status values
@@ -174,6 +180,9 @@ This canon explicitly covers:
 | `concurrency.md` | Swift 6, actors, AsyncStream, Sendable |
 | `enum-design.md` | Enum modeling, exhaustive switches, associated values |
 | `anti-patterns.md` | DO NOT WRITE LIKE THIS — real exhibits with canon fixes |
+| `modern-swift.md` | 6.0→6.2 additions: typed throws, Mutex/Atomic, @concurrent, makeStream |
+| `cli-and-process.md` | Process deadlines, pipe draining, codesign/rpath shipping, uuid5, regex gotchas |
+| `eventkit-productivity.md` | EventKit Reminders/Calendar: watcher pattern, one-shot helpers, fan-out law |
 | `logging.md` | `os.Logger`, structured logs, emoji log conventions |
 | `typography.md` | SF Pro, hierarchy, typography review rules |
 | `combine.md` | Publisher bridges, operators |
