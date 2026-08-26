@@ -68,6 +68,7 @@ jobs:
                 run_memorykit=true
                 run_memorykit_live_e2e=true
                 run_anima=true
+                run_guardian=true
                 ;;
               Package.swift|Package.resolved|Sources/*|Tests/*)
                 run_root=true
@@ -91,6 +92,9 @@ jobs:
               Packages/AndromedaUI/Package.swift|Packages/AndromedaUI/Package.resolved|Packages/AndromedaUI/Sources/*|Packages/AndromedaUI/Tests/*)
                 run_andromeda_ui=true
                 ;;
+              Packages/AndromedaGuardian/Package.swift|Packages/AndromedaGuardian/Package.resolved|Packages/AndromedaGuardian/Sources/*|Packages/AndromedaGuardian/Tests/*)
+                run_guardian=true
+                ;;
             esac
 
             case "$file" in
@@ -112,7 +116,7 @@ jobs:
           fi
 
           any_lane=false
-          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ] || [ "$run_andromeda_ui" = true ]; then
+          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ] || [ "$run_andromeda_ui" = true ] || [ "$run_guardian" = true ]; then
             any_lane=true
           fi
 
@@ -126,6 +130,7 @@ jobs:
             echo "run_powerkit=$run_powerkit"
             echo "run_statusline=$run_statusline"
             echo "run_andromeda_ui=$run_andromeda_ui"
+            echo "run_guardian=$run_guardian"
             echo "needs_qdrant=$needs_qdrant"
             echo "any_lane=$any_lane"
           } >> "$GITHUB_OUTPUT"
@@ -360,6 +365,13 @@ jobs:
           SNAPSHOT_TESTING_RECORD: "1"
         run: swift test --parallel --num-workers 1
         continue-on-error: true
+
+      # Nested process-guardian package. Policy/coordinator tests use fixture
+      # providers and recording mocks — no live processes, no snapshots.
+      - name: Test AndromedaGuardian (nested package)
+        if: steps.scope.outputs.run_guardian == 'true'
+        working-directory: Packages/AndromedaGuardian
+        run: swift test --parallel --num-workers 1
 
       - name: Upload CI snapshot baselines
         # SnapshotTesting .all records PNGs then fails on purpose ("Record mode is on").
