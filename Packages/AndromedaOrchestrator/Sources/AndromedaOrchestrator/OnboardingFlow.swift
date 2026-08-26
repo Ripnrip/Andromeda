@@ -33,6 +33,21 @@ public struct OnboardingFlow: View {
             }
             footer
         }
+        // AGENTS.md honesty law: this console is a design preview — the
+        // broker, Keychain reads, and gateway wiring it describes are not
+        // shipped in this package (fixtures only). Say so on every beat,
+        // never let first-run copy read as operational success.
+        .overlay(alignment: .top) {
+            HStack(spacing: 8) {
+                Text("◐").font(OrchestratorFont.mono(10, .semibold)).foregroundStyle(palette.amber)
+                Text("design preview — broker, keychain & gateway wiring not shipped in this package")
+                    .font(OrchestratorFont.mono(10))
+                    .foregroundStyle(palette.muted)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 7)
+            .panel(radius: 999)
+            .padding(.top, 12)
+        }
         .background {
             ZStack {
                 palette.void

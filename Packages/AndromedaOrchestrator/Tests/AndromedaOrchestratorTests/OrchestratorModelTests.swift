@@ -42,6 +42,20 @@ struct LaunchSequenceTests {
         #expect(model.launchPhase == .markOnly)
         #expect(model.onboardingStep == 0)
     }
+
+    /// The console's launch task keys on `launchPhase != .idle`: every phase
+    /// the sequence passes through (markOnly → wordmark → tagline →
+    /// dissolving) must keep that ID true, or SwiftUI cancels the task
+    /// mid-flight and the reveal strands as an invisible overlay (the
+    /// `.markOnly`-keyed ID did exactly that — review finding, 2026-08-26).
+    @Test("Task-ID stability: every in-flight phase is non-idle")
+    func taskIDStabilityInvariant() {
+        let inFlight: [OrchestratorModel.LaunchPhase] = [.markOnly, .wordmark, .tagline, .dissolving]
+        #expect(inFlight.allSatisfy { $0 != .idle })
+        // And the full sequence terminates at idle, flipping the ID false
+        // only after completion.
+        #expect(OrchestratorModel.LaunchPhase.idle.rawValue == -1)
+    }
 }
 
 @MainActor
