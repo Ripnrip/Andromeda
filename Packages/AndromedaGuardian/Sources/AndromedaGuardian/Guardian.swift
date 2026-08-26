@@ -26,11 +26,15 @@ public struct SweepReport: Sendable, Equatable, Codable {
     public var condemnedRSSBytes: UInt64
     /// True when decisions were computed but nothing was signaled.
     public var dryRun: Bool
+    /// Census failure description when the sweep could not sample the
+    /// process table. Non-nil means: no decisions, no signals — the
+    /// failure path is the safe path.
+    public var censusError: String?
 
     public init(
         sweepID: UUID, startedAt: Date, finishedAt: Date, censusSize: Int,
         pressure: Pressure, decisions: [KillDecision], outcomes: [KillOutcome],
-        condemnedRSSBytes: UInt64, dryRun: Bool
+        condemnedRSSBytes: UInt64, dryRun: Bool, censusError: String? = nil
     ) {
         self.sweepID = sweepID
         self.startedAt = startedAt
@@ -41,11 +45,24 @@ public struct SweepReport: Sendable, Equatable, Codable {
         self.outcomes = outcomes
         self.condemnedRSSBytes = condemnedRSSBytes
         self.dryRun = dryRun
+        self.censusError = censusError
     }
 }
 
 public struct KillOutcome: Sendable, Equatable, Codable {
-    public enum Method: String, Sendable, Codable { case sigterm, sigkill, alreadyDead }
+    public enum Method: String, Sendable, Codable {
+        case sigterm
+        case sigkill
+        case alreadyDead
+        /// The sweep task was cancelled mid-grace — no forced kill followed.
+        case cancelled
+        /// The pid's owner changed between census and signal (PID reuse) —
+        /// the kill was vetoed rather than risk an innocent replacement.
+        case skippedIdentityMismatch
+        /// An orphan verdict's parent came back to life between census and
+        /// execution — the kill was vetoed.
+        case skippedParentAlive
+    }
     public var pid: Int32
     public var method: Method
 
@@ -88,12 +105,36 @@ public struct Guardian<Census: CensusProvider, Sampler: PressureProvider, Signal
     /// One full sweep: sample, judge, execute (unless dry-run), report.
     /// Bounded: exactly one census, one decision set, one execution pass.
     /// Idempotent: the same host state yields the same decisions.
+    ///
+    /// A failed census is NOT an empty success — the report carries
+    /// `censusError`, zero decisions are produced, and nothing is signaled
+    /// (an empty census would make every MCP child look orphaned: the
+    /// failure path must be the safe path).
     @discardableResult
     public func sweep(dryRun: Bool = false, grace: Duration = .seconds(10)) async -> SweepReport {
         let startedAt = Date()
         let sweepID = UUID()
 
-        let samples = (try? census.sampleAll()) ?? []
+        let samples: [ProcessSample]
+        do {
+            samples = try census.sampleAll()
+        } catch {
+            let report = SweepReport(
+                sweepID: sweepID,
+                startedAt: startedAt,
+                finishedAt: Date(),
+                censusSize: 0,
+                pressure: sampler.pressure(configuration: configuration),
+                decisions: [],
+                outcomes: [],
+                condemnedRSSBytes: 0,
+                dryRun: dryRun,
+                censusError: String(describing: error)
+            )
+            await telemetry.record(report)
+            return report
+        }
+
         let pressure = sampler.pressure(configuration: configuration)
         let decisions = policy.evaluate(
             census: samples,
@@ -104,7 +145,18 @@ public struct Guardian<Census: CensusProvider, Sampler: PressureProvider, Signal
         var outcomes: [KillOutcome] = []
         if !dryRun {
             for decision in decisions {
-                outcomes.append(await execute(decision, grace: grace))
+                // R2 veto: the orphan's parent may have come back to life
+                // between census and execution — check before signaling.
+                if let parentPID = decision.parentPID, signaler.alive(parentPID) {
+                    outcomes.append(KillOutcome(pid: decision.pid, method: .skippedParentAlive))
+                    continue
+                }
+                let outcome = await execute(decision, grace: grace)
+                outcomes.append(outcome)
+                // Cancellation stops the sweep — remaining decisions are
+                // not executed (a cancelled reaper must not accelerate
+                // into forced kills).
+                if outcome.method == .cancelled { break }
             }
         } else {
             GuardianLog.sweep.info("guardian sweep \(sweepID.uuidString, privacy: .public) dry-run: \(decisions.count) decisions, nothing signaled")
@@ -119,7 +171,8 @@ public struct Guardian<Census: CensusProvider, Sampler: PressureProvider, Signal
             decisions: decisions,
             outcomes: outcomes,
             condemnedRSSBytes: decisions.reduce(0) { $0 + $1.rssBytes },
-            dryRun: dryRun
+            dryRun: dryRun,
+            censusError: nil
         )
         await telemetry.record(report)
         return report
@@ -127,6 +180,12 @@ public struct Guardian<Census: CensusProvider, Sampler: PressureProvider, Signal
 
     /// Executes one decision: SIGTERM, wait up to `grace` for the pid to
     /// exit, SIGKILL on timeout. Clock-driven deadline.
+    ///
+    /// Identity is revalidated immediately before each signal: if the pid's
+    /// owner changed since the census (PID reuse), the kill is vetoed —
+    /// the guardian never signals a process it did not condemn.
+    /// Cancellation propagates: a cancelled grace returns `.cancelled`
+    /// and never escalates to SIGKILL.
     public func execute<C: Clock>(
         _ decision: KillDecision,
         grace: Duration = .seconds(10),
@@ -135,18 +194,30 @@ public struct Guardian<Census: CensusProvider, Sampler: PressureProvider, Signal
         guard signaler.alive(decision.pid) else {
             return KillOutcome(pid: decision.pid, method: .alreadyDead)
         }
+        if let start = decision.sampledStartTime, !signaler.matchesIdentity(decision.pid, sampledStartTime: start) {
+            return KillOutcome(pid: decision.pid, method: .skippedIdentityMismatch)
+        }
         _ = signaler.signal(decision.pid, SIGTERM)
         let deadline = clock.now.advanced(by: grace)
-        while clock.now < deadline {
-            guard signaler.alive(decision.pid) else {
-                return KillOutcome(pid: decision.pid, method: .sigterm)
+        do {
+            while clock.now < deadline {
+                guard signaler.alive(decision.pid) else {
+                    return KillOutcome(pid: decision.pid, method: .sigterm)
+                }
+                try await clock.sleep(for: .milliseconds(500))
             }
-            try? await clock.sleep(for: .milliseconds(500))
+        } catch is CancellationError {
+            return KillOutcome(pid: decision.pid, method: .cancelled)
+        } catch {
+            return KillOutcome(pid: decision.pid, method: .cancelled)
         }
-        if signaler.alive(decision.pid) {
-            _ = signaler.signal(decision.pid, SIGKILL)
-            return KillOutcome(pid: decision.pid, method: .sigkill)
+        guard signaler.alive(decision.pid) else {
+            return KillOutcome(pid: decision.pid, method: .sigterm)
         }
-        return KillOutcome(pid: decision.pid, method: .sigterm)
+        if let start = decision.sampledStartTime, !signaler.matchesIdentity(decision.pid, sampledStartTime: start) {
+            return KillOutcome(pid: decision.pid, method: .skippedIdentityMismatch)
+        }
+        _ = signaler.signal(decision.pid, SIGKILL)
+        return KillOutcome(pid: decision.pid, method: .sigkill)
     }
 }

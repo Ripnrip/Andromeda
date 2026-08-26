@@ -25,6 +25,10 @@ public protocol ProcessSignaler: Sendable {
     func signal(_ pid: Int32, _ sig: Int32) -> Bool
     /// True when the pid is currently alive.
     func alive(_ pid: Int32) -> Bool
+    /// True when the process at `pid` still has the sampled start time —
+    /// the identity proof against PID reuse. A pid whose owner changed
+    /// between census and signal fails this check and must not be signaled.
+    func matchesIdentity(_ pid: Int32, sampledStartTime: Date) -> Bool
 }
 
 /// Receives sweep telemetry (status, logs, dashboards read from here).
@@ -77,8 +81,9 @@ public struct LibprocCensus: CensusProvider {
             user: userName(uid: info.pbsd.pbi_uid),
             executablePath: executablePath(pid: pid) ?? shortName(info: &info),
             args: processArgs(pid: pid),
-            ageSeconds: max(0, now.timeIntervalSince(startTime)),
-            rssBytes: info.ptinfo.pti_resident_size
+            startTime: startTime,
+            rssBytes: info.ptinfo.pti_resident_size,
+            ageReference: now
         )
     }
 
@@ -102,19 +107,28 @@ public struct LibprocCensus: CensusProvider {
 
     /// Process arguments via `sysctl(KERN_PROCARGS2)`. Empty on denial —
     /// policy degrades to executable-name-only matching, never a crash.
+    ///
+    /// Layout: argc (int32) + exec path + argv + envp + Apple strings.
+    /// Only argv is returned (argc honored) — envp/Apple strings carry
+    /// arbitrary user environment text, and matching markers against them
+    /// misclassifies unrelated node workloads as MCP children.
     private func processArgs(pid: pid_t) -> [String] {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
         guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > 0 else { return [] }
         var buffer = [UInt8](repeating: 0, count: size)
         guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0 else { return [] }
-        // Layout: argc (int32) + exec path + NUL-separated args.
-        return Data(buffer.dropFirst(MemoryLayout<Int32>.size))
+        let argc = buffer.withUnsafeBytes { raw in
+            raw.load(as: Int32.self)
+        }
+        // Split on NUL, drop the exec path, keep at most argc-1 argv entries.
+        let fields = Data(buffer.dropFirst(MemoryLayout<Int32>.size))
             .split(separator: 0)
             .dropFirst()
-            .compactMap { field in
+            .compactMap { field -> String? in
                 field.isEmpty ? nil : String(decoding: field, as: UTF8.self)
             }
+        return Array(fields.prefix(max(0, Int(argc) - 1)))
     }
 
     private func userName(uid: uid_t) -> String {
@@ -151,12 +165,34 @@ public struct POSIXSignaler: ProcessSignaler {
     public func alive(_ pid: Int32) -> Bool {
         kill(pid, 0) == 0
     }
+
+    /// Identity proof: re-read the pid's start time via libproc and compare
+    /// within one second (sub-second rounding between samples is expected).
+    public func matchesIdentity(_ pid: Int32, sampledStartTime: Date) -> Bool {
+        var info = proc_taskallinfo()
+        let size = proc_pidinfo(
+            pid, PROC_PIDTASKALLINFO, 0,
+            &info, Int32(MemoryLayout<proc_taskallinfo>.size)
+        )
+        guard size == Int32(MemoryLayout<proc_taskallinfo>.size) else { return false }
+        let current = Date(
+            timeIntervalSince1970: TimeInterval(info.pbsd.pbi_start_tvsec)
+                + TimeInterval(info.pbsd.pbi_start_tvusec) / 1_000_000
+        )
+        return abs(current.timeIntervalSince(sampledStartTime)) < 1
+    }
 }
 
 /// JSON-lines telemetry at `~/.andromeda/logs/guardian.jsonl` — the visible
 /// status surface AGENTS.md demands of every background behavior.
 public struct JSONLTelemetrySink: TelemetrySink {
     private static let log = Logger(subsystem: "ai.andromeda.guardian", category: "telemetry")
+
+    /// Serializes appends across all sink instances — concurrent sweeps
+    /// must never interleave writes (two handles seeking to the same EOF
+    /// would corrupt the audit log). A serial queue, not NSLock: locking
+    /// primitives are unavailable from async contexts in Swift 6.
+    private static let appendQueue = DispatchQueue(label: "ai.andromeda.guardian.telemetry")
 
     public let fileURL: URL
 
@@ -167,6 +203,13 @@ public struct JSONLTelemetrySink: TelemetrySink {
     }
 
     public func record(_ report: SweepReport) async {
+        Self.appendQueue.sync {
+            append(report)
+        }
+    }
+
+    /// The synchronized append (runs only on `appendQueue`).
+    private func append(_ report: SweepReport) {
         do {
             let directory = fileURL.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

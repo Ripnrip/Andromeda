@@ -16,23 +16,31 @@ public struct ProcessSample: Sendable, Equatable, Codable, Identifiable {
     public var user: String
     public var executablePath: String
     public var args: [String]
-    /// Seconds since the process started.
-    public var ageSeconds: TimeInterval
+    /// When the process started — the stable identity anchor. PIDs are
+    /// reused by macOS; (pid, startTime) is the revalidation key used before
+    /// every signal so a condemned pid that exited and was recycled can
+    /// never route a kill to an innocent replacement.
+    public var startTime: Date
     /// Resident set size in bytes (best-effort; 0 when unknown).
     public var rssBytes: UInt64
 
     public init(
         pid: Int32, ppid: Int32, user: String, executablePath: String,
-        args: [String], ageSeconds: TimeInterval, rssBytes: UInt64
+        args: [String], startTime: Date, rssBytes: UInt64,
+        ageReference: Date = Date()
     ) {
         self.pid = pid
         self.ppid = ppid
         self.user = user
         self.executablePath = executablePath
         self.args = args
-        self.ageSeconds = ageSeconds
+        self.startTime = startTime
         self.rssBytes = rssBytes
+        self.ageSeconds = max(0, ageReference.timeIntervalSince(startTime))
     }
+
+    /// Seconds since the process started (derived from `startTime`).
+    public let ageSeconds: TimeInterval
 
     /// Basename of the executable path (no directories).
     public var executableName: String {
@@ -42,6 +50,18 @@ public struct ProcessSample: Sendable, Equatable, Codable, Identifiable {
     /// Executable path + args as one matchable command line.
     public var commandLine: String {
         ([executablePath] + args).joined(separator: " ")
+    }
+
+    /// True when `component` appears as an EXACT argv token or an exact path
+    /// component of one ("/opt/…/xcodebuildmcp" components include
+    /// "xcodebuildmcp"). Anchored matching — an unanchored substring scan of
+    /// the command line lets an unrelated node workload with a marker in an
+    /// env var, cwd, or similarly-named path ("my-claude-mem-notes/") be
+    /// misclassified as an MCP child and killed.
+    public func hasArgComponent(_ component: String) -> Bool {
+        args.contains { arg in
+            arg == component || arg.split(separator: "/").contains { $0 == component }
+        }
     }
 }
 
@@ -102,7 +122,7 @@ public enum ProcessFamily: Sendable, Equatable {
             return .agentHost
         }
         if sample.executableName == "node",
-           let marker = mcpArgMarkers.first(where: { sample.commandLine.contains($0) })
+           let marker = mcpArgMarkers.first(where: { sample.hasArgComponent($0) })
         {
             return .mcpChild(marker: marker)
         }
@@ -186,7 +206,6 @@ public enum Verdict: Sendable, Equatable {
     case sourceControlLeakAge(hours: Int, maxHours: Int)
     /// R2: MCP child orphaned and aged past grace.
     case orphanedMCP(parentPID: Int32, ageHours: Int)
-
     /// The rule family this verdict came from.
     public var rule: KillDecision.Rule {
         switch self {
@@ -225,12 +244,25 @@ public struct KillDecision: Sendable, Equatable, Codable {
     public var reason: String
     /// RSS reclaimed if the kill lands (best-effort).
     public var rssBytes: UInt64
+    /// The sampled process start time — revalidated immediately before every
+    /// signal so a recycled PID can never route the kill to a replacement
+    /// process (PID reuse is real; identity is (pid, startTime)).
+    public var sampledStartTime: Date?
+    /// For orphan verdicts: the parent whose death justified the reap.
+    /// Revalidated at execution time — a parent that came back to life
+    /// between census and signal vetoes the kill.
+    public var parentPID: Int32?
 
-    public init(pid: Int32, executableName: String, verdict: Verdict, rssBytes: UInt64) {
+    public init(
+        pid: Int32, executableName: String, verdict: Verdict, rssBytes: UInt64,
+        sampledStartTime: Date? = nil, parentPID: Int32? = nil
+    ) {
         self.pid = pid
         self.executableName = executableName
         self.rule = verdict.rule
         self.reason = verdict.reason
         self.rssBytes = rssBytes
+        self.sampledStartTime = sampledStartTime
+        self.parentPID = parentPID
     }
 }
