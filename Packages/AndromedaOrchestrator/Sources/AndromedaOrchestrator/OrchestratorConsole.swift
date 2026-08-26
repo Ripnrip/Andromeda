@@ -33,9 +33,13 @@ public struct OrchestratorConsole: View {
                 }
             }
 
-            HUDPanel(model: model)
-                .padding(20)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            // Docked placement hides while detached — the detached window
+            // (presented by the host app via HUDWindowController) owns the HUD.
+            if !model.hudDetached {
+                HUDPanel(model: model)
+                    .padding(20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            }
 
             if model.onboardingStep != nil, model.launchPhase == .idle {
                 OnboardingFlow(model: model)
@@ -57,7 +61,13 @@ public struct OrchestratorConsole: View {
                 .orchestratorPalette()
         }
         .task { await model.streamRequests() }
-        .task(id: model.launchPhase == .markOnly) {
+        // The task ID must stay true for the WHOLE reveal: `.markOnly` flips
+        // to false the moment the sequence advances to `.wordmark`, which
+        // cancels `runLaunchSequence()` mid-flight and strands the overlay
+        // (skip sets `.dissolving`, but the dead task can never reach `.idle`).
+        // Any non-idle phase keeps the sequence alive; completion flips the
+        // ID to false after `.idle` is already set.
+        .task(id: model.launchPhase != .idle) {
             guard model.launchPhase == .markOnly else { return }
             await model.runLaunchSequence()
         }

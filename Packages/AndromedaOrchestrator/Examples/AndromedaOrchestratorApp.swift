@@ -7,11 +7,29 @@ import AndromedaOrchestrator
 @main
 struct AndromedaOrchestratorApp: App {
     @State private var model = OrchestratorModel()
+    #if os(macOS)
+    @State private var detachedHUD: HUDWindowController?
+    #endif
 
     var body: some Scene {
         WindowGroup {
             OrchestratorConsole(model: model)
                 .frame(minWidth: 1180, minHeight: 760)
+                #if os(macOS)
+                // DETACH/DOCK wiring: the console button flips hudDetached;
+                // the app owns window presentation — present the floating
+                // NSPanel on detach, close it on dock.
+                .onChange(of: model.hudDetached) { _, detached in
+                    if detached {
+                        let controller = detachedHUD ?? HUDWindowController(model: model)
+                        detachedHUD = controller
+                        controller.showWindow(nil)
+                    } else {
+                        detachedHUD?.close()
+                        detachedHUD = nil
+                    }
+                }
+                #endif
         }
         #if os(macOS)
         .windowStyle(.hiddenTitleBar)
