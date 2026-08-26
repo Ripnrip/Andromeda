@@ -23,7 +23,15 @@ swiftui-export/
 │   ├── AddResourceSheet.swift       add-a-model / add-an-MCP-server wizard
 │   ├── HUDPanel.swift               HUD + detached macOS NSPanel
 │   └── Resources/andromeda-mark.png
+├── OrchestratorCatalogue.swift     28 named specimens — one registry
+│                                  (brand · vocabulary · controls · HUD ·
+│                                  screens · flows) that the gallery, the
+│                                  snapshot sweep, and the docs all read
+├── OrchestratorGallery.swift      the browsable wall of specimens
 ├── Tests/AndromedaOrchestratorTests/
+│   ├── PreviewParitySnapshotTests.swift   every #Preview gets a twin
+│   ├── CatalogueSnapshotTests.swift       per-specimen sweep
+│   └── OrchestratorSnapshotSupport.swift  hosting + record mode + fixtures
 └── Examples/AndromedaOrchestratorApp.swift
 ```
 
