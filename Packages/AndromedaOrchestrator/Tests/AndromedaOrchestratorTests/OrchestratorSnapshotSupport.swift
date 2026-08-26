@@ -1,0 +1,154 @@
+import Foundation
+import SnapshotTesting
+import SwiftUI
+import XCTest
+
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
+
+@testable import AndromedaOrchestrator
+
+// MARK: - Hosting
+//
+// Shared hosting for the snapshot suites: same framing + appearance control on
+// every platform, so a UIKit-only habit cannot quietly dead-file the suite on
+// the macOS CI lane. Reduce-motion is forced on so every entrance resolves to
+// its still, complete frame (`EntranceModifier` gates on it) and ambient loops
+// (mark orbit, badge pulse) freeze — the recorded baseline is deterministic.
+
+@MainActor
+enum OrchestratorSnapshotHosting {
+    #if canImport(UIKit)
+    static func makeHost(_ view: some View, _ size: CGSize, dark: Bool) -> UIViewController {
+        let vc = UIHostingController(
+            rootView: view
+                .environment(\._accessibilityReduceMotion, true)
+                .frame(width: size.width, height: size.height)
+        )
+        vc.view.frame = CGRect(origin: .zero, size: size)
+        vc.overrideUserInterfaceStyle = dark ? .dark : .light
+        return vc
+    }
+    #elseif canImport(AppKit)
+    static func makeHost(_ view: some View, _ size: CGSize, dark: Bool) -> NSViewController {
+        let themed = view
+            .environment(\._accessibilityReduceMotion, true)
+            .environment(\.colorScheme, dark ? ColorScheme.dark : ColorScheme.light)
+            .frame(width: size.width, height: size.height)
+        let vc = NSHostingController(rootView: AnyView(themed))
+        vc.view.frame = CGRect(origin: .zero, size: size)
+
+        // Pre-host the controller in an offscreen window and run the runloop
+        // briefly so `.task` closures land before the snapshot capture:
+        // `EntranceModifier` starts hidden and reveals from its `.task`, and a
+        // purely synchronous draw would record the pre-task (hidden) frame.
+        let window = NSWindow(contentViewController: vc)
+        window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        window.setFrame(CGRect(origin: .zero, size: size), display: true)
+        window.displayIfNeeded()
+        window.display()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        window.contentViewController = nil
+        return vc
+    }
+    #endif
+}
+
+// MARK: - Record mode / baselines gate
+
+enum OrchestratorSnapshotSupport {
+    /// Record mode for Point-Free `withSnapshotTesting(record:)`.
+    /// Override with `SNAPSHOT_TESTING_RECORD=1` (or `all` / `failed` / `never` / `missing`).
+    static var recordMode: SnapshotTestingConfiguration.Record {
+        if let raw = ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+            !raw.isEmpty
+        {
+            switch raw {
+            case "all", "true", "1", "yes":
+                return .all
+            case "failed":
+                return .failed
+            case "never", "false", "0", "no":
+                return .never
+            case "missing":
+                return .missing
+            default:
+                break
+            }
+        }
+        return .missing
+    }
+
+    /// Skip when the test-specific `__Snapshots__/TestName/` subdirectory is
+    /// missing/empty, so a suite without baselines yet cannot gate CI red.
+    /// Record mode (`SNAPSHOT_TESTING_RECORD=1`) always proceeds.
+    static func requireBaselines(
+        file: StaticString = #filePath
+    ) throws {
+        // Equatable compare — `Record` is not a frozen switchable enum.
+        if recordMode == .all || recordMode == .failed {
+            return
+        }
+
+        let testDir = URL(fileURLWithPath: String(describing: file))
+            .deletingLastPathComponent()
+            .appendingPathComponent("__Snapshots__", isDirectory: true)
+            .appendingPathComponent(
+                URL(fileURLWithPath: String(describing: file))
+                    .deletingPathExtension()
+                    .lastPathComponent,
+                isDirectory: true
+            )
+        let contents = (try? FileManager.default.contentsOfDirectory(
+            at: testDir,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        guard !contents.isEmpty else {
+            throw XCTSkip(
+                "AndromedaOrchestrator snapshot baselines not recorded yet — run once with SNAPSHOT_TESTING_RECORD=1 on macOS (or tip the PR head with [record-snapshots])"
+            )
+        }
+    }
+}
+
+// MARK: - Deterministic fixtures
+//
+// The live model is a simulator: every tick randomizes requests and metrics.
+// Snapshots pin the same view states the previews show, but with fixtures the
+// baseline can be byte-stable across record and verify runs.
+
+@MainActor
+enum SnapshotFixtures {
+
+    /// Steady-state console model: no onboarding, no launch reveal, ticker
+    /// frozen, telemetry pinned. The view tree is identical to the
+    /// `OrchestratorModel(firstRun: false)` the previews build.
+    static func steadyModel() -> OrchestratorModel {
+        let model = OrchestratorModel(firstRun: false)
+        model.isStreaming = false
+        model.requests = SampleData.deterministicRequests
+        model.requestsPerMinute = 1_240
+        model.tokensPerSecond = 18.4
+        model.cacheHitRate = 0.34
+        return model
+    }
+
+    /// First-run model (onboarding step 0, no launch reveal) with the same
+    /// frozen telemetry.
+    static func onboardingModel(step: Int? = 0) -> OrchestratorModel {
+        let model = OrchestratorModel(firstRun: true, launchReveal: false)
+        model.isStreaming = false
+        model.requests = SampleData.deterministicRequests
+        model.requestsPerMinute = 1_240
+        model.tokensPerSecond = 18.4
+        model.cacheHitRate = 0.34
+        model.onboardingStep = step
+        return model
+    }
+}
