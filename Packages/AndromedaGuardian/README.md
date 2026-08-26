@@ -146,10 +146,37 @@ Hard-won facts from the landing session (2026-08-26) — keep them close:
 - **Actor conformances to synchronous protocols cross isolation** — a mock
   for a sync protocol (like a signaler) should be a locked class
   (`NSLock.withLock`), not an actor.
+- **`NSLock` is unavailable from async contexts in Swift 6** — serialize
+  shared appends with a dedicated serial `DispatchQueue.sync` block instead.
+
+### Review-round safety laws (2026-08-26, Codex + Cursor findings — all valid)
+
+The kill path is where the guardian's safety story lives or dies; these are
+now enforced in code and tests:
+
+- **PIDs are recycled — identity is (pid, startTime).** A condemned pid can
+  exit and be reused between census and signal; revalidate the sampled start
+  time immediately before EVERY signal (both TERM and KILL) or the reaper
+  kills an innocent replacement and bypasses never-touch.
+- **A failed census is not an empty success.** `(try? sampleAll()) ?? []`
+  makes a broken guardian look like a healthy zero-process host — and makes
+  every MCP child look orphaned. Census failure → `censusError` on the
+  report, zero decisions, zero signals. The failure path must be the safe path.
+- **"Parent missing from census" ≠ "parent dead."** Census gaps (proc_pidinfo
+  drops, partial reads) can hide a live parent; orphan verdicts carry the
+  parentPID and are re-vetted at execution time — a parent alive then vetoes.
+- **Cancellation must never accelerate into force.** `try? await sleep`
+  swallows cancellation and the loop spins into SIGKILL. Cancellation →
+  `.cancelled` outcome, sweep stops, no forced kill follows.
+- **Match markers on argv components, never the command blob.**
+  `KERN_PROCARGS2` returns argv + envp + Apple strings; an unanchored
+  substring scan lets `NODE_OPTIONS`/cwd/similarly-named paths
+  ("my-claude-mem-notes/") misclassify a user workload as an MCP child.
+  Honor argc, match exact tokens or exact path components.
 
 ## Tests
 
-`swift test` — 19 tests: family classification totality, pressure gate
+`swift test` — 23 tests: family classification totality, pressure gate
 transform, R1 cap/age/residue matrices, R2 orphan/grace/ancestry protection,
 R4 structural protection, idempotency, dry-run/live/already-dead sweeps
 through recording boundaries, broadcast fan-out, SSE frame shape/round-trip.

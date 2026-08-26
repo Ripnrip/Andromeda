@@ -120,7 +120,8 @@ extension PolicyEngine {
                     pid: daemon.pid,
                     executableName: daemon.executableName,
                     verdict: .sourceControlResidue(ageMinutes: Int(daemon.ageSeconds / 60)),
-                    rssBytes: daemon.rssBytes
+                    rssBytes: daemon.rssBytes,
+                    sampledStartTime: daemon.startTime
                 )
             }
         }
@@ -138,7 +139,8 @@ extension PolicyEngine {
                                 hours: Int(daemon.ageSeconds / 3600),
                                 maxHours: Int(context.configuration.daemonMaxAgeSeconds / 3600)
                             ),
-                            rssBytes: daemon.rssBytes
+                            rssBytes: daemon.rssBytes,
+                            sampledStartTime: daemon.startTime
                         )
                     }
                     guard index >= context.gates.daemonKeepPerUser else { return nil }
@@ -150,7 +152,8 @@ extension PolicyEngine {
                             rank: index + 1,
                             cap: context.gates.daemonKeepPerUser
                         ),
-                        rssBytes: daemon.rssBytes
+                        rssBytes: daemon.rssBytes,
+                        sampledStartTime: daemon.startTime
                     )
                 }
         }
@@ -177,7 +180,9 @@ extension PolicyEngine {
                     parentPID: sample.ppid,
                     ageHours: Int(sample.ageSeconds / 3600)
                 ),
-                rssBytes: sample.rssBytes
+                rssBytes: sample.rssBytes,
+                sampledStartTime: sample.startTime,
+                parentPID: sample.ppid
             )
         }
     }

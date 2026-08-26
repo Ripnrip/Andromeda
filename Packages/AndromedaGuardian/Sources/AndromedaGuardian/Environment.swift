@@ -95,10 +95,15 @@ public struct AnyPressureProvider: PressureProvider {
 public struct AnyProcessSignaler: ProcessSignaler {
     private let _signal: @Sendable (Int32, Int32) -> Bool
     private let _alive: @Sendable (Int32) -> Bool
+    private let _matchesIdentity: @Sendable (Int32, Date) -> Bool
     public init(_ base: any ProcessSignaler) {
         _signal = { base.signal($0, $1) }
         _alive = { base.alive($0) }
+        _matchesIdentity = { base.matchesIdentity($0, sampledStartTime: $1) }
     }
     public func signal(_ pid: Int32, _ sig: Int32) -> Bool { _signal(pid, sig) }
     public func alive(_ pid: Int32) -> Bool { _alive(pid) }
+    public func matchesIdentity(_ pid: Int32, sampledStartTime: Date) -> Bool {
+        _matchesIdentity(pid, sampledStartTime)
+    }
 }

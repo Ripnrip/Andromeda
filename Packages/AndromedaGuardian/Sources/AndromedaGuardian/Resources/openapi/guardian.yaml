@@ -142,6 +142,10 @@ components:
           items: { $ref: "#/components/schemas/KillOutcome" }
         condemnedRSSBytes: { type: integer, format: int64 }
         dryRun: { type: boolean }
+        censusError:
+          type: string
+          nullable: true
+          description: Non-nil when the census failed — no decisions, no signals (failure path = safe path).
     KillDecision:
       type: object
       required: [pid, executableName, rule, reason, rssBytes]
@@ -156,7 +160,13 @@ components:
       required: [pid, method]
       properties:
         pid: { type: integer }
-        method: { type: string, enum: [sigterm, sigkill, alreadyDead] }
+        method:
+          type: string
+          enum: [sigterm, sigkill, alreadyDead, cancelled, skippedIdentityMismatch, skippedParentAlive]
+          description: |
+            cancelled = sweep task cancelled mid-grace (no forced kill followed);
+            skippedIdentityMismatch = pid owner changed since census (PID reuse veto);
+            skippedParentAlive = orphan verdict's parent alive at execution (veto).
     Pressure:
       type: string
       enum: [normal, elevated]

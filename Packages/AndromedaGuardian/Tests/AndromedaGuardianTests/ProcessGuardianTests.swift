@@ -24,7 +24,7 @@ struct ProcessGuardianTests {
             pid: pid, ppid: ppid, user: user,
             executablePath: "/usr/libexec/\(name)",
             args: args,
-            ageSeconds: ageMinutes * 60,
+            startTime: Date().addingTimeInterval(-ageMinutes * 60),
             rssBytes: rssMB * 1024 * 1024
         )
     }
@@ -183,6 +183,8 @@ struct ProcessGuardianTests {
         private let lock = NSLock()
         private var _signals: [(pid: Int32, sig: Int32)] = []
         private var livePIDs: Set<Int32>
+        /// PIDs whose identity check should FAIL (simulating PID reuse).
+        var mismatchedPIDs: Set<Int32> = []
 
         init(livePIDs: Set<Int32>) { self.livePIDs = livePIDs }
 
@@ -200,6 +202,10 @@ struct ProcessGuardianTests {
 
         func alive(_ pid: Int32) -> Bool {
             lock.withLock { livePIDs.contains(pid) }
+        }
+
+        func matchesIdentity(_ pid: Int32, sampledStartTime: Date) -> Bool {
+            lock.withLock { !mismatchedPIDs.contains(pid) }
         }
     }
 
@@ -266,6 +272,92 @@ struct ProcessGuardianTests {
         let report = await guardian.sweep(grace: .seconds(1))
         #expect(report.outcomes.map(\.method) == [.alreadyDead])
         #expect(signaler.signals.isEmpty)
+    }
+
+    // MARK: - Kill-path safety (review round 2026-08-26)
+
+    @Test("PID reuse vetoes the kill — identity mismatch, nothing signaled")
+    func identityMismatchVetoes() async {
+        let signaler = RecordingSignaler(livePIDs: [401])
+        signaler.mismatchedPIDs = [401]
+        let telemetry = RecordingTelemetry()
+        let guardian = Guardian(
+            census: FixtureCensus(samples: [daemon(401)]),
+            sampler: FixturePressure(value: .normal),
+            signaler: signaler,
+            telemetry: telemetry
+        )
+        let report = await guardian.sweep(grace: .seconds(1))
+        #expect(report.outcomes.map(\.method) == [.skippedIdentityMismatch])
+        #expect(signaler.signals.isEmpty)
+    }
+
+    @Test("orphan whose parent came back to life is vetoed at execution")
+    func parentAliveVetoes() async {
+        // Census sees the orphan (parent 999 absent); by execution time the
+        // parent is alive again (signaler sees it).
+        let census = [mcpNode(501, ppid: 999, ageMinutes: 60 * 6)]
+        let signaler = RecordingSignaler(livePIDs: [501, 999])
+        let telemetry = RecordingTelemetry()
+        let guardian = Guardian(
+            census: FixtureCensus(samples: census),
+            sampler: FixturePressure(value: .normal),
+            signaler: signaler,
+            telemetry: telemetry
+        )
+        let report = await guardian.sweep(grace: .seconds(1))
+        #expect(report.outcomes.map(\.method) == [.skippedParentAlive])
+        #expect(signaler.signals.isEmpty)
+    }
+
+    /// Census provider that always fails.
+    struct FailingCensus: CensusProvider {
+        struct Boom: Error {}
+        func sampleAll() throws -> [ProcessSample] { throw Boom() }
+    }
+
+    @Test("census failure yields an error report — zero decisions, zero signals")
+    func censusFailureIsSafe() async {
+        let signaler = RecordingSignaler(livePIDs: [])
+        let telemetry = RecordingTelemetry()
+        let guardian = Guardian(
+            census: FailingCensus(),
+            sampler: FixturePressure(value: .normal),
+            signaler: signaler,
+            telemetry: telemetry
+        )
+        let report = await guardian.sweep()
+        #expect(report.censusError != nil)
+        #expect(report.decisions.isEmpty)
+        #expect(report.outcomes.isEmpty)
+        #expect(signaler.signals.isEmpty)
+        let reports = await telemetry.reports
+        #expect(reports.count == 1)
+    }
+
+    @Test("unanchored marker text does NOT classify as MCP child")
+    func anchoredMarkerMatching() {
+        // env-var-style text containing the marker (not a path component).
+        let envStyle = proc(
+            pid: 601, ppid: 999, name: "node",
+            args: ["./server.js", "--config", "NODE_OPTIONS=--require xcodebuildmcp/register"],
+            ageMinutes: 60 * 9
+        )
+        #expect(ProcessFamily.classify(envStyle) == .other)
+        // Similarly-named directory is not the marker.
+        let nearMiss = proc(
+            pid: 602, ppid: 999, name: "node",
+            args: ["/Users/x/my-claude-mem-notes/server.js"],
+            ageMinutes: 60 * 9
+        )
+        #expect(ProcessFamily.classify(nearMiss) == .other)
+        // Exact path component IS the marker.
+        let real = proc(
+            pid: 603, ppid: 999, name: "node",
+            args: ["/opt/homebrew/bin/xcodebuildmcp", "mcp"],
+            ageMinutes: 60 * 9
+        )
+        #expect(ProcessFamily.classify(real) == .mcpChild(marker: "xcodebuildmcp"))
     }
 
     /// Extracts decisions for byte accounting assertions.
