@@ -1,0 +1,162 @@
+openapi: 3.1.0
+info:
+  title: Andromeda Process Guardian
+  version: 0.1.0
+  description: |
+    Fleet-pillar process guardian: reaps Xcode source-control daemon hordes
+    and orphaned MCP stdio children. All mutations are typed Swift (BIN-101);
+    every sweep leaves a telemetry record. Kills target recoverable,
+    on-demand-respawn helpers only — user applications are structural
+    never-touch.
+  contact:
+    name: Andromeda control plane
+tags:
+  - name: guardian
+    description: Process-guardian surfaces
+paths:
+  /guardian/status:
+    get:
+      operationId: guardianStatus
+      summary: Guardian liveness, pressure, and last-sweep summary
+      tags: [guardian]
+      responses:
+        "200":
+          description: Guardian status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GuardianStatus" }
+  /guardian/census:
+    get:
+      operationId: guardianCensus
+      summary: Process-family summary of the current census (no mutations)
+      tags: [guardian]
+      responses:
+        "200":
+          description: Family counts and notable outliers
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CensusSummary" }
+  /guardian/sweep:
+    post:
+      operationId: guardianSweep
+      summary: Run one sweep (dry-run by default — real kills need dry_run=false)
+      tags: [guardian]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SweepRequest" }
+      responses:
+        "200":
+          description: The completed sweep report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SweepReport" }
+  /guardian/telemetry:
+    get:
+      operationId: guardianTelemetry
+      summary: Tail of the JSONL sweep log
+      tags: [guardian]
+      parameters:
+        - name: tail
+          in: query
+          schema: { type: integer, default: 20, minimum: 1, maximum: 500 }
+      responses:
+        "200":
+          description: Recent sweep reports, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SweepReport" }
+  /guardian/events:
+    get:
+      operationId: guardianEvents
+      summary: Live sweep events as Server-Sent Events (one frame per sweep)
+      description: |
+        Streams `event: sweep` frames as sweeps complete. Each frame's `data`
+        is one JSON-encoded SweepReport. Backed by the package's
+        GuardianEventBroadcaster; bounded — slow consumers drop reports rather
+        than backpressure the reaper.
+      tags: [guardian]
+      responses:
+        "200":
+          description: SSE stream of sweep events
+          content:
+            text/event-stream:
+              schema: { type: string }
+              example: |
+                event: sweep
+                data: {"sweepID":"…","pressure":"normal","decisions":[…],"outcomes":[…],"dryRun":false}
+components:
+  schemas:
+    GuardianStatus:
+      type: object
+      required: [pressure, sweepsTotal, config]
+      properties:
+        pressure: { $ref: "#/components/schemas/Pressure" }
+        sweepsTotal: { type: integer }
+        lastSweep: { $ref: "#/components/schemas/SweepReport" }
+        config: { $ref: "#/components/schemas/GuardianConfiguration" }
+    GuardianConfiguration:
+      type: object
+      properties:
+        daemonKeepPerUser: { type: integer, default: 2 }
+        daemonMaxAgeSeconds: { type: number, default: 21600 }
+        mcpMaxAgeSeconds: { type: number, default: 14400 }
+        swapEscalationBytes: { type: integer, format: int64 }
+        escalatedDaemonKeepPerUser: { type: integer, default: 1 }
+        escalatedMCPMaxAgeSeconds: { type: number, default: 3600 }
+    CensusSummary:
+      type: object
+      required: [total, families]
+      properties:
+        total: { type: integer }
+        families:
+          type: object
+          additionalProperties: { type: integer }
+          example: { sourceControlDaemon: 16, mcpChild: 45, agentHost: 8, userApplication: 12, other: 900 }
+        swapUsedBytes: { type: integer, format: int64 }
+    SweepRequest:
+      type: object
+      properties:
+        dry_run:
+          type: boolean
+          default: true
+          description: When false, decisions are executed (SIGTERM → SIGKILL after grace).
+        grace_seconds: { type: number, default: 10, minimum: 1, maximum: 120 }
+    SweepReport:
+      type: object
+      required: [sweepID, startedAt, finishedAt, censusSize, pressure, decisions, outcomes, condemnedRSSBytes, dryRun]
+      properties:
+        sweepID: { type: string, format: uuid }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+        censusSize: { type: integer }
+        pressure: { $ref: "#/components/schemas/Pressure" }
+        decisions:
+          type: array
+          items: { $ref: "#/components/schemas/KillDecision" }
+        outcomes:
+          type: array
+          items: { $ref: "#/components/schemas/KillOutcome" }
+        condemnedRSSBytes: { type: integer, format: int64 }
+        dryRun: { type: boolean }
+    KillDecision:
+      type: object
+      required: [pid, executableName, rule, reason, rssBytes]
+      properties:
+        pid: { type: integer }
+        executableName: { type: string }
+        rule: { type: string, enum: [sourceControlHorde, orphanedMCPChild] }
+        reason: { type: string }
+        rssBytes: { type: integer, format: int64 }
+    KillOutcome:
+      type: object
+      required: [pid, method]
+      properties:
+        pid: { type: integer }
+        method: { type: string, enum: [sigterm, sigkill, alreadyDead] }
+    Pressure:
+      type: string
+      enum: [normal, elevated]
