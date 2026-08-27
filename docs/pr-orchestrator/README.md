@@ -7,6 +7,10 @@ Visuals for the AndromedaOrchestrator landing PR (#61).
 - `gallery-obsidian.png` — the full 28-specimen gallery wall at natural
   height (1280×3000).
 - `onboarding-welcome.png` — first-run onboarding, welcome beat (640×420).
+- `specimens/` — all 28 catalogue specimens individually, copied verbatim
+  from the runner-recorded `CatalogueSnapshotTests` baselines (the PR body's
+  gallery tables reference these, so what the PR shows is exactly what CI
+  verifies).
 
 Regenerate: `SNAPSHOT_TESTING_RECORD=1 swift test` re-records the baselines
 in `Tests/AndromedaOrchestratorTests/__Snapshots__/`; the docs images are
