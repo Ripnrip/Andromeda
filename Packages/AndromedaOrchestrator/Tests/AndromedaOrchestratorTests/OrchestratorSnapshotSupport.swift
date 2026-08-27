@@ -45,16 +45,31 @@ enum OrchestratorSnapshotHosting {
         // briefly so `.task` closures land before the snapshot capture:
         // `EntranceModifier` starts hidden and reveals from its `.task`, and a
         // purely synchronous draw would record the pre-task (hidden) frame.
+        // The window is ordered front (from an offscreen origin) so ScrollView
+        // + lazy containers actually materialize their items — an unordered
+        // window never engages the layout/compositing path that lazily
+        // instantiates children, and the capture records an empty void.
         let window = NSWindow(contentViewController: vc)
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        window.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
         window.setFrame(CGRect(origin: .zero, size: size), display: true)
+        window.orderFrontRegardless()
         window.displayIfNeeded()
         window.display()
         RunLoop.main.run(until: Date().addingTimeInterval(0.4))
-        window.contentViewController = nil
+        // The view stays ATTACHED to this window (which outlives the capture
+        // via the associated object below). Detaching before the snapshot
+        // strategy's async hop — `window.contentViewController = nil` — let
+        // SwiftUI tear the render tree down over the next runloop turns, and
+        // `cacheDisplay` then recorded a void: heavier trees (the gallery
+        // wall) lost everything, lighter ones (the console shell) lost only
+        // their uncached interiors. Attached, the capture is deterministic.
+        objc_setAssociatedObject(vc, &OrchestratorSnapshotHosting.hostWindowSlot, window, .OBJC_ASSOCIATION_RETAIN)
         return vc
     }
     #endif
+
+    private nonisolated(unsafe) static var hostWindowSlot: UInt8 = 0
 }
 
 // MARK: - Record mode / baselines gate
@@ -150,5 +165,40 @@ enum SnapshotFixtures {
         model.cacheHitRate = 0.34
         model.onboardingStep = step
         return model
+    }
+}
+
+// MARK: - Synchronous image strategy
+
+/// Snapshot-testing's stock `.image` for AppKit captures through an async hop
+/// (`addImagesForRenderedViews(...).sequence().run { ... }`), by which time
+/// SwiftUI has already had runloop turns to invalidate the hosted tree — for
+/// heavier view trees (the gallery wall) `cacheDisplay` then records a void,
+/// even with the view still attached to its host window. This strategy
+/// captures SYNCHRONOUSLY in the same runloop turn as the assertion, via the
+/// same `bitmapImageRepForCachingDisplay` + `cacheDisplay` primitives, which
+/// draws the full materialized tree deterministically.
+public extension Snapshotting where Value == NSViewController, Format == NSImage {
+    static func orchestratorImage(
+        precision: Float = 1,
+        perceptualPrecision: Float = 1
+    ) -> Snapshotting {
+        SimplySnapshotting.image(
+            precision: precision, perceptualPrecision: perceptualPrecision
+        )
+        .pullback { vc -> NSImage in
+            MainActor.assumeIsolated {
+                let view = vc.view
+                precondition(
+                    view.bounds.width > 0 && view.bounds.height > 0,
+                    "Snapshot view has no renderable bounds: \(view.bounds)"
+                )
+                let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)!
+                view.cacheDisplay(in: view.bounds, to: rep)
+                let image = NSImage(size: view.bounds.size)
+                image.addRepresentation(rep)
+                return image
+            }
+        }
     }
 }

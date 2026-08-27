@@ -32,6 +32,56 @@ public struct SpecimenFrame: View {
     }
 }
 
+
+/// One gallery shelf: kicker + an EAGER wall of specimen frames in fixed
+/// three-across rows. The wall is intentionally not lazy — 28 fixed
+/// specimens gain nothing from deferred materialization, while lazy
+/// containers never materialize offscreen (Xcode canvas pre-heat, snapshot
+/// hosts), where they render as an empty void. Eager is deterministic
+/// everywhere.
+private struct GalleryShelf: View {
+    @Environment(\.palette) private var palette
+
+    let specimens: [OrchestratorSpecimen]
+
+    private let columns = 3
+    private let spacing: CGFloat = 14
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(name)
+                .font(OrchestratorFont.kicker(10))
+                .foregroundStyle(palette.dim)
+                .textCase(.uppercase)
+            VStack(alignment: .leading, spacing: spacing) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    HStack(alignment: .top, spacing: spacing) {
+                        ForEach(row) { specimen in
+                            SpecimenFrame(name: specimen.name, specimen: specimen.view)
+                                .frame(maxWidth: .infinity)
+                        }
+                        // Keep ragged last-row cards at column width instead of
+                        // letting HStack stretch them across the missing slots.
+                        ForEach(0..<(columns - row.count), id: \.self) { _ in
+                            Color.clear.frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var name: String {
+        specimens.first?.group.rawValue ?? ""
+    }
+
+    private var rows: [[OrchestratorSpecimen]] {
+        stride(from: 0, to: specimens.count, by: columns).map {
+            Array(specimens[$0..<min($0 + columns, specimens.count)])
+        }
+    }
+}
+
 /// The full gallery wall — brand, vocabulary, controls, HUD, screens, flows.
 public struct OrchestratorGallery: View {
     @Environment(\.palette) private var palette
@@ -40,24 +90,10 @@ public struct OrchestratorGallery: View {
 
     public var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 34) {
+            VStack(alignment: .leading, spacing: 34) {
                 ForEach(OrchestratorGroup.allCases) { group in
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text(group.rawValue)
-                            .font(OrchestratorFont.kicker(10))
-                            .foregroundStyle(palette.dim)
-                            .textCase(.uppercase)
-                        LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 300), spacing: 14)],
-                            alignment: .leading,
-                            spacing: 14
-                        ) {
-                            ForEach(OrchestratorCatalogue.specimens(in: group)) { specimen in
-                                SpecimenFrame(name: specimen.name, specimen: specimen.view)
-                            }
-                        }
-                    }
-                    .entrance(0)
+                    GalleryShelf(specimens: OrchestratorCatalogue.specimens(in: group))
+                        .entrance(0)
                 }
             }
             .padding(28)

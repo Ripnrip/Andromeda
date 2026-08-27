@@ -50,7 +50,7 @@ struct CatalogueSnapshotTests {
             )
             assertSnapshot(
                 of: host,
-                as: .image(precision: 0.98, perceptualPrecision: 0.96),
+                as: .orchestratorImage(precision: 0.98, perceptualPrecision: 0.96),
                 named: Self.sanitized(specimen.name),
                 file: #filePath,
                 testName: "specimenSweep(\(group.rawValue))"
