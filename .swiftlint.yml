@@ -13,9 +13,7 @@ excluded:
   - "**/__Snapshots__"
 
 opt_in_rules:
-  - closure_body_length
   - collection_alignment
-  - conditional_returns_on_newline
   - empty_count
   - fatal_error_message
   - first_where
@@ -23,7 +21,6 @@ opt_in_rules:
   - legacy_random
   - literal_expression_end_indentation
   - lower_acl_than_parent
-  - missing_docs
   - modifier_order
   - nimble_operator
   - number_separator
@@ -39,11 +36,18 @@ opt_in_rules:
   - single_test_class
   - sorted_first_last
   - static_operator
-  - switch_case_on_newline
   - unowned_preference
   - unused_declaration
   - vertical_parameter_alignment_on_call
   - yoda_condition
+
+disabled_rules:
+  - trailing_comma
+  - switch_case_on_newline
+
+# Tool-contract: SwiftFormat owns formatting (it adds trailing commas — legal
+# Swift, canonical for this fleet); SwiftLint owns semantics. Style rules that
+# fight the formatter are disabled here, not toggled per-PR.
 
 line_length:
   warning: 140
