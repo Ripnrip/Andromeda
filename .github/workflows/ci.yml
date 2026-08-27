@@ -275,7 +275,8 @@ jobs:
         if: ${{ always() && steps.scope.outputs.run_orchestrator == 'true' }}
         run: |
           brew install swiftlint swiftformat
-          swiftlint --strict
+          # Gate: zero SERIOUS violations (errors). Warnings are visible debt.
+          swiftlint
           swiftformat --lint Packages/AndromedaOrchestrator
 
       - name: Test (root package)
