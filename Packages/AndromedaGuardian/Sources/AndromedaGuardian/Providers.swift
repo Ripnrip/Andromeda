@@ -37,6 +37,13 @@ public protocol TelemetrySink: Sendable {
     func record(_ report: SweepReport) async
 }
 
+/// Provider-level logging — emoji at every fallible boundary, so a census
+/// sample that silently degrades (pid exits mid-sweep, args denied) is
+/// visible in the log stream, not just in the numbers.
+enum ProviderLog {
+    static let census = Logger(subsystem: "ai.andromeda.guardian", category: "census")
+}
+
 // MARK: - Production census (libproc, typed Swift — never `ps`)
 
 /// Live process census via `proc_listallpids` + `proc_pidinfo` — pids,
@@ -50,13 +57,23 @@ public struct LibprocCensus: CensusProvider {
         case listAllPidsFailed(Int32)
     }
 
+    /// MAXPATHLEN (4096 on darwin) — `PROC_PIDPATHINFO_MAXSIZE` is not
+    /// exported to Swift, so the bound is named here, once.
+    public static let maxPathLength = 4096
+
     public func sampleAll() throws -> [ProcessSample] {
         let count = proc_listallpids(nil, 0)
-        guard count > 0 else { throw CensusError.listAllPidsFailed(count) }
+        guard count > 0 else {
+            ProviderLog.census.error("🛑 proc_listallpids probe failed (\(count))")
+            throw CensusError.listAllPidsFailed(count)
+        }
 
         var pids = [pid_t](repeating: 0, count: Int(count))
         let filled = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
-        guard filled > 0 else { throw CensusError.listAllPidsFailed(filled) }
+        guard filled > 0 else {
+            ProviderLog.census.error("🛑 proc_listallpids fill failed (\(filled))")
+            throw CensusError.listAllPidsFailed(filled)
+        }
 
         let now = Date()
         return pids.prefix(Int(filled)).compactMap { sample(pid: $0, now: now) }
@@ -69,7 +86,10 @@ public struct LibprocCensus: CensusProvider {
             pid, PROC_PIDTASKALLINFO, 0,
             &info, Int32(MemoryLayout<proc_taskallinfo>.size)
         )
-        guard size == Int32(MemoryLayout<proc_taskallinfo>.size) else { return nil }
+        guard size == Int32(MemoryLayout<proc_taskallinfo>.size) else {
+            ProviderLog.census.debug("🕯️ pid \(pid) exited mid-census (info short read)")
+            return nil
+        }
 
         let startTime = Date(
             timeIntervalSince1970: TimeInterval(info.pbsd.pbi_start_tvsec)
@@ -90,7 +110,7 @@ public struct LibprocCensus: CensusProvider {
     /// Full executable path via `proc_pidpath`; falls back to the short name.
     private func executablePath(pid: pid_t) -> String? {
         // MAXPATHLEN — PROC_PIDPATHINFO_MAXSIZE is not exported to Swift.
-        var buffer = [CChar](repeating: 0, count: 4096)
+        var buffer = [CChar](repeating: 0, count: LibprocCensus.maxPathLength)
         let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
         guard length > 0 else { return nil }
         return String(cString: buffer)
@@ -115,7 +135,10 @@ public struct LibprocCensus: CensusProvider {
     private func processArgs(pid: pid_t) -> [String] {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
-        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > 0 else { return [] }
+        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > 0 else {
+            ProviderLog.census.debug("🗝️ pid \(pid) args denied — degrading to executable-name matching")
+            return []
+        }
         var buffer = [UInt8](repeating: 0, count: size)
         guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0 else { return [] }
         let argc = buffer.withUnsafeBytes { raw in
@@ -152,7 +175,10 @@ public struct SwapPressureSampler: PressureProvider {
     }
 
     public func pressure(configuration: GuardianConfiguration) -> Pressure {
-        swapUsedBytes() > configuration.swapEscalationBytes ? .elevated : .normal
+        let used = swapUsedBytes()
+        return used > configuration.swapEscalationBytes
+            ? .elevated(swapBytes: used)
+            : .normal
     }
 }
 
@@ -208,7 +234,9 @@ public struct JSONLTelemetrySink: TelemetrySink {
         }
     }
 
-    /// The synchronized append (runs only on `appendQueue`).
+    /// The synchronized append (runs only on `appendQueue`). Encoding is
+    /// plain `Codable` — `SweepReport` is the single wire type for JSONL,
+    /// SSE frames, and future dashboards (no hand-rolled JSON anywhere).
     private func append(_ report: SweepReport) {
         do {
             let directory = fileURL.deletingLastPathComponent()
