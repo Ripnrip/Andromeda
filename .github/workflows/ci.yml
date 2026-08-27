@@ -1,7 +1,9 @@
 name: CI
 
 on:
-  pull_request:
+  pull_request
+  # Manual lane for webhook-lost pushes — dispatch from the branch.
+  workflow_dispatch::
   # Only run on push for the default branch (main) to catch direct merges.
   # Feature-branch pushes are validated via the pull_request trigger above;
   # this prevents merge-triggered CI reruns from clogging the queue.
