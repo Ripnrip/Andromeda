@@ -2,9 +2,14 @@ import Foundation
 import OSLog
 
 /// Loggers for the guardian package (file scope — generic types cannot hold
-/// static stored properties).
+/// static stored properties). Emoji prefixes ride the emit sites — one
+/// glyph per decision point, so a default Console.app filter reads like an
+/// operator heartbeat.
 enum GuardianLog {
     static let sweep = Logger(subsystem: "ai.andromeda.guardian", category: "sweep")
+    static let census = Logger(subsystem: "ai.andromeda.guardian", category: "census")
+    static let veto = Logger(subsystem: "ai.andromeda.guardian", category: "veto")
+    static let signal = Logger(subsystem: "ai.andromeda.guardian", category: "signal")
 }
 
 // MARK: - The guardian
@@ -75,6 +80,17 @@ public struct KillOutcome: Sendable, Equatable, Codable {
 /// The process guardian. Fleet-pillar mutation surface — typed Swift
 /// (BIN-101), never bash; every sweep leaves a telemetry record
 /// (AGENTS.md: visible status, telemetry, ownership, controls).
+/// Named sweep constants (file scope — generic types cannot hold static
+/// stored properties).
+public enum GuardianTuning {
+    /// Poll cadence while waiting out a grace window (SIGTERM → exit watch).
+    public static let gracePollInterval: Duration = .milliseconds(500)
+
+    /// Maximum parent-chain hops before assuming a census cycle (8 ≈ two
+    /// full agent→helper→child nests; beyond it the chain is bogus data).
+    public static let parentChainHopLimit = 8
+}
+
 public struct Guardian<Census: CensusProvider, Sampler: PressureProvider, Signaler: ProcessSignaler>: Sendable {
 
     public let configuration: GuardianConfiguration
@@ -119,6 +135,7 @@ public struct Guardian<Census: CensusProvider, Sampler: PressureProvider, Signal
         do {
             samples = try census.sampleAll()
         } catch {
+            GuardianLog.census.error("🛑 census failed — safe path, zero decisions: \(String(describing: error), privacy: .public)")
             let report = SweepReport(
                 sweepID: sweepID,
                 startedAt: startedAt,
@@ -142,25 +159,9 @@ public struct Guardian<Census: CensusProvider, Sampler: PressureProvider, Signal
             configuration: configuration
         )
 
-        var outcomes: [KillOutcome] = []
-        if !dryRun {
-            for decision in decisions {
-                // R2 veto: the orphan's parent may have come back to life
-                // between census and execution — check before signaling.
-                if let parentPID = decision.parentPID, signaler.alive(parentPID) {
-                    outcomes.append(KillOutcome(pid: decision.pid, method: .skippedParentAlive))
-                    continue
-                }
-                let outcome = await execute(decision, grace: grace)
-                outcomes.append(outcome)
-                // Cancellation stops the sweep — remaining decisions are
-                // not executed (a cancelled reaper must not accelerate
-                // into forced kills).
-                if outcome.method == .cancelled { break }
-            }
-        } else {
-            GuardianLog.sweep.info("guardian sweep \(sweepID.uuidString, privacy: .public) dry-run: \(decisions.count) decisions, nothing signaled")
-        }
+        let outcomes: [KillOutcome] = dryRun
+            ? Self.logDryRun(sweepID: sweepID, decisions: decisions)
+            : await executeAll(decisions, grace: grace)
 
         let report = SweepReport(
             sweepID: sweepID,
@@ -174,8 +175,33 @@ public struct Guardian<Census: CensusProvider, Sampler: PressureProvider, Signal
             dryRun: dryRun,
             censusError: nil
         )
+        GuardianLog.sweep.info("📊 sweep \(sweepID.uuidString, privacy: .public): \(samples.count) sampled, \(decisions.count) condemned, \(outcomes.count) executed (\(dryRun ? "dry-run" : "live", privacy: .public))")
         await telemetry.record(report)
         return report
+    }
+
+    /// Dry-run leg: decisions computed, nothing signaled — one log, no state.
+    private static func logDryRun(sweepID: UUID, decisions: [KillDecision]) -> [KillOutcome] {
+        GuardianLog.sweep.info("⏸️ sweep \(sweepID.uuidString, privacy: .public) dry-run: \(decisions.count) decisions, nothing signaled")
+        return []
+    }
+
+    /// Execution leg: an async map over decisions with two structural exits
+    /// — the R2 parent-alive veto (per decision) and sweep-wide cancellation
+    /// (a cancelled reaper never accelerates into forced kills).
+    private func executeAll(_ decisions: [KillDecision], grace: Duration) async -> [KillOutcome] {
+        var outcomes: [KillOutcome] = []
+        for decision in decisions {
+            if let parentPID = decision.parentPID, signaler.alive(parentPID) {
+                GuardianLog.veto.notice("🛡️ parent \(parentPID) alive again — veto kill of \(decision.pid) (\(decision.executableName, privacy: .public))")
+                outcomes.append(KillOutcome(pid: decision.pid, method: .skippedParentAlive))
+                continue
+            }
+            let outcome = await execute(decision, grace: grace)
+            outcomes.append(outcome)
+            if outcome.method == .cancelled { break }
+        }
+        return outcomes
     }
 
     /// Executes one decision: SIGTERM, wait up to `grace` for the pid to
@@ -191,33 +217,82 @@ public struct Guardian<Census: CensusProvider, Sampler: PressureProvider, Signal
         grace: Duration = .seconds(10),
         clock: C = ContinuousClock()
     ) async -> KillOutcome where C.Duration == Duration {
-        guard signaler.alive(decision.pid) else {
-            return KillOutcome(pid: decision.pid, method: .alreadyDead)
+        switch PreFlight.check(decision, signaler: signaler) {
+        case .veto(let method):
+            Self.logVeto(decision, method: method)
+            return KillOutcome(pid: decision.pid, method: method)
+
+        case .condemned:
+            GuardianLog.signal.notice("🎯 SIGTERM \(decision.pid) (\(decision.executableName, privacy: .public)) — \(decision.reason, privacy: .public)")
+            _ = signaler.signal(decision.pid, SIGTERM)
+
+            if let settled = await awaitGracefulExit(decision, grace: grace, clock: clock) {
+                return settled
+            }
+
+            // Grace expired still alive: re-prove identity, then force.
+            switch PreFlight.check(decision, signaler: signaler) {
+            case .veto(let method):
+                Self.logVeto(decision, method: method)
+                return KillOutcome(pid: decision.pid, method: method)
+            case .condemned:
+                GuardianLog.signal.notice("💥 SIGKILL \(decision.pid) (\(decision.executableName, privacy: .public)) — grace expired")
+                _ = signaler.signal(decision.pid, SIGKILL)
+                return KillOutcome(pid: decision.pid, method: .sigkill)
+            }
         }
-        if let start = decision.sampledStartTime, !signaler.matchesIdentity(decision.pid, sampledStartTime: start) {
-            return KillOutcome(pid: decision.pid, method: .skippedIdentityMismatch)
-        }
-        _ = signaler.signal(decision.pid, SIGTERM)
+    }
+
+    /// Watches the pid for the grace window. Non-nil outcome settles the
+    /// decision (exited / cancelled); nil = still alive at deadline.
+    private func awaitGracefulExit<C: Clock>(
+        _ decision: KillDecision,
+        grace: Duration,
+        clock: C
+    ) async -> KillOutcome? where C.Duration == Duration {
         let deadline = clock.now.advanced(by: grace)
         do {
             while clock.now < deadline {
-                guard signaler.alive(decision.pid) else {
+                if !signaler.alive(decision.pid) {
+                    GuardianLog.signal.notice("✅ \(decision.pid) exited on SIGTERM (\(decision.executableName, privacy: .public))")
                     return KillOutcome(pid: decision.pid, method: .sigterm)
                 }
-                try await clock.sleep(for: .milliseconds(500))
+                try await clock.sleep(for: GuardianTuning.gracePollInterval)
             }
-        } catch is CancellationError {
-            return KillOutcome(pid: decision.pid, method: .cancelled)
         } catch {
+            GuardianLog.signal.notice("⏹️ grace for \(decision.pid) cancelled — no escalation")
             return KillOutcome(pid: decision.pid, method: .cancelled)
         }
-        guard signaler.alive(decision.pid) else {
-            return KillOutcome(pid: decision.pid, method: .sigterm)
+        return signaler.alive(decision.pid) ? nil : KillOutcome(pid: decision.pid, method: .sigterm)
+    }
+
+    private static func logVeto(_ decision: KillDecision, method: KillOutcome.Method) {
+        switch method {
+        case .skippedIdentityMismatch:
+            GuardianLog.veto.notice("🪞 pid \(decision.pid) recycled (owner changed) — veto, never signal a stranger")
+        case .skippedParentAlive:
+            GuardianLog.veto.notice("🛡️ parent alive — veto kill of \(decision.pid)")
+        case .alreadyDead:
+            GuardianLog.signal.info("🕯️ \(decision.pid) already gone")
+        case .sigterm, .sigkill, .cancelled:
+            break // not veto paths
         }
-        if let start = decision.sampledStartTime, !signaler.matchesIdentity(decision.pid, sampledStartTime: start) {
-            return KillOutcome(pid: decision.pid, method: .skippedIdentityMismatch)
+    }
+
+    /// The kill pre-flight: every reason NOT to signal, in one place.
+    enum PreFlight {
+        enum Result: Sendable {
+            case condemned
+            case veto(KillOutcome.Method)
         }
-        _ = signaler.signal(decision.pid, SIGKILL)
-        return KillOutcome(pid: decision.pid, method: .sigkill)
+
+        static func check(_ decision: KillDecision, signaler: Signaler) -> Result {
+            guard signaler.alive(decision.pid) else { return .veto(.alreadyDead) }
+            if let start = decision.sampledStartTime,
+               !signaler.matchesIdentity(decision.pid, sampledStartTime: start) {
+                return .veto(.skippedIdentityMismatch)
+            }
+            return .condemned
+        }
     }
 }

@@ -1,4 +1,11 @@
 import Foundation
+import OSLog
+
+/// Policy-level logging — one emoji line per condemn decision, so the
+/// operator sees WHY in the same stream that shows the kills.
+enum PolicyLog {
+    static let decisions = Logger(subsystem: "ai.andromeda.guardian", category: "policy")
+}
 
 // MARK: - Policy
 //
@@ -31,7 +38,7 @@ public struct PolicyContext: Sendable {
 
     /// PID → family classification, computed once for the whole census.
     public var families: [Int32: ProcessFamily] {
-        census.reduce(into: [:]) { $0[$1.pid] = ProcessFamily.classify($1) }
+        census.reduce(into: [:]) { $0[$1.pid] = ProcessFamily.classify($1, catalog: configuration.catalog) }
     }
 
     /// True when any Xcode-family driver is alive (daemons have an owner).
@@ -48,7 +55,7 @@ public struct PolicyContext: Sendable {
         let table = byPID
         var chain: [ProcessSample] = []
         var cursor = sample
-        while cursor.ppid > 1, let parent = table[cursor.ppid], chain.count < 8 {
+        while cursor.ppid > 1, let parent = table[cursor.ppid], chain.count < GuardianTuning.parentChainHopLimit {
             chain.append(parent)
             cursor = parent
         }
@@ -57,9 +64,8 @@ public struct PolicyContext: Sendable {
 
     /// True when any ancestor is a live agent host (protected subtree).
     public func reachesAgentHost(_ sample: ProcessSample) -> Bool {
-        parentChain(of: sample).contains {
-            ProcessFamily.agentHostNames.contains($0.executableName)
-        }
+        let hosts = configuration.catalog.agentHostNames
+        return parentChain(of: sample).contains { hosts.contains($0.executableName) }
     }
 }
 
@@ -84,11 +90,19 @@ public struct PolicyEngine: Sendable {
     public func evaluate(census: [ProcessSample], pressure: Pressure, configuration: GuardianConfiguration) -> [KillDecision] {
         let context = PolicyContext(census: census, pressure: pressure, configuration: configuration)
         let families = context.families
-        return rules
+        let condemned = rules
             .flatMap { $0(context) }
             .filter { decision in
-                !(families[decision.pid]?.isProtected ?? false)
+                let protected = families[decision.pid]?.isProtected ?? false
+                if protected {
+                    PolicyLog.decisions.notice("🛡️ R4 structural veto — rule condemned \(decision.pid) but family is protected")
+                }
+                return !protected
             }
+        condemned.forEach { decision in
+            PolicyLog.decisions.info("⚖️ condemn \(decision.pid) (\(decision.executableName, privacy: .public)): \(decision.reason, privacy: .public)")
+        }
+        return condemned
     }
 }
 
@@ -110,7 +124,7 @@ extension PolicyEngine {
     /// them is recoverable and loses no data.
     public static let sourceControlHordeRule: PolicyRule = { context in
         let daemons = context.census.filter {
-            $0.executableName == ProcessFamily.sourceControlDaemonName
+            $0.executableName == context.configuration.catalog.sourceControlDaemonName
         }
         guard !daemons.isEmpty else { return [] }
 

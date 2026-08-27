@@ -67,13 +67,82 @@ public struct ProcessSample: Sendable, Equatable, Codable, Identifiable {
 
 // MARK: - Process family
 
+// MARK: - MCP markers
+
+/// Known MCP server sprawl families. The enum IS the marker list — one
+/// source of truth, `allCases` is the derived array, and adding a family is
+/// adding a case (exhaustive switches downstream force the decision).
+public enum MCPServerMarker: String, Sendable, Codable, CaseIterable {
+    case filesystem = "mcp-server-filesystem"
+    case memory = "mcp-server-memory"
+    case sequentialThinking = "mcp-server-sequential-thinking"
+    case xcodebuild = "xcodebuildmcp"
+    case playwright = "playwright-mcp"
+    case qdrant = "qdrant-mcp"
+    case cerebras = "cerebras-mcp"
+    case chromeDevTools = "chrome-devtools-mcp"
+    case claudeMem = "claude-mem"
+    case mcpServerCJS = "mcp-server.cjs"
+}
+
+// MARK: - Classification catalog
+
+/// The naming catalog classification reads from. A VALUE, not a baked-in
+/// global: `defaults` is the compile-time floor, and a remote/overlay
+/// catalog can be injected through `GuardianConfiguration` — protection
+/// lists can grow at runtime, never shrink below defaults (fail closed:
+/// an overlay that fails to load leaves the default protection in place).
+public struct ClassificationCatalog: Sendable, Equatable, Codable {
+    /// Xcode's SourceControl helper — the R1 target.
+    public var sourceControlDaemonName: String
+    /// User applications the guardian must never signal, hung or not.
+    public var neverTouchNames: Set<String>
+    /// Agent hosts whose live descendants are protected.
+    public var agentHostNames: Set<String>
+    /// The executable that hosts MCP stdio children.
+    public var mcpHostExecutable: String
+
+    public init(
+        sourceControlDaemonName: String = "com.apple.dt.Xcode.sourcecontrol.Git",
+        neverTouchNames: Set<String> = [
+            "CapCut", "Firefox", "ChatGPT", "Finder", "Simulator", "Obsidian",
+            "Google Chrome", "Safari", "Terminal", "iTerm2", "Xcode",
+        ],
+        agentHostNames: Set<String> = [
+            "Claude", "Claude Helper", "codex", "Cursor", "Trae", "claude.exe",
+            "Claude Helper (Renderer)", "Letta", "Letta Helper", "Letta Helper (Renderer)",
+        ],
+        mcpHostExecutable: String = "node"
+    ) {
+        self.sourceControlDaemonName = sourceControlDaemonName
+        self.neverTouchNames = neverTouchNames
+        self.agentHostNames = agentHostNames
+        self.mcpHostExecutable = mcpHostExecutable
+    }
+
+    /// Fail-closed merge: an overlay may ADD protection, never remove it.
+    public func merged(with overlay: ClassificationCatalog) -> ClassificationCatalog {
+        ClassificationCatalog(
+            sourceControlDaemonName: overlay.sourceControlDaemonName,
+            neverTouchNames: neverTouchNames.union(overlay.neverTouchNames),
+            agentHostNames: agentHostNames.union(overlay.agentHostNames),
+            mcpHostExecutable: overlay.mcpHostExecutable
+        )
+    }
+
+    /// The compile-time floor.
+    public static let defaults = ClassificationCatalog()
+}
+
+// MARK: - Process family
+
 /// What a process IS to the guardian. Classification is pure naming — no
 /// policy lives here, so rules can be exhaustive switches over family.
 public enum ProcessFamily: Sendable, Equatable {
     /// Xcode's SourceControl helper — leaks in hordes (carries the owning user).
     case sourceControlDaemon(user: String)
     /// A node MCP stdio child (carries the marker that matched its command line).
-    case mcpChild(marker: String)
+    case mcpChild(marker: MCPServerMarker)
     /// An agent host (Claude.app, codex, Cursor, Trae, …) — protected subtree.
     case agentHost
     /// A user application — structural never-touch, regardless of rules.
@@ -81,52 +150,30 @@ public enum ProcessFamily: Sendable, Equatable {
     /// Anything else — invisible to policy.
     case other
 
-    /// Named families. Public so operators and tests read the same vocabulary.
-    public static let sourceControlDaemonName = "com.apple.dt.Xcode.sourcecontrol.Git"
+    /// Back-compat: the marker list as strings (derived, not maintained).
+    public static var mcpArgMarkers: [String] { MCPServerMarker.allCases.map(\.rawValue) }
 
-    /// MCP server markers matched against node command lines (known sprawl families).
-    public static let mcpArgMarkers: [String] = [
-        "mcp-server-filesystem",
-        "mcp-server-memory",
-        "mcp-server-sequential-thinking",
-        "xcodebuildmcp",
-        "playwright-mcp",
-        "qdrant-mcp",
-        "cerebras-mcp",
-        "chrome-devtools-mcp",
-        "claude-mem",
-        "mcp-server.cjs",
-    ]
-
-    /// User applications the guardian must never signal, hung or not.
-    public static let neverTouchNames: Set<String> = [
-        "CapCut", "Firefox", "ChatGPT", "Finder", "Simulator", "Obsidian",
-        "Google Chrome", "Safari", "Terminal", "iTerm2", "Xcode",
-    ]
-
-    /// Agent hosts whose live descendants are protected.
-    public static let agentHostNames: Set<String> = [
-        "Claude", "Claude Helper", "codex", "Cursor", "Trae", "claude.exe",
-        "Claude Helper (Renderer)", "Letta", "Letta Helper", "Letta Helper (Renderer)",
-    ]
-
-    /// Classify one sample into its family. Total — every process lands somewhere.
-    public static func classify(_ sample: ProcessSample) -> ProcessFamily {
-        if sample.executableName == sourceControlDaemonName {
+    /// Classify one sample into its family. Total — every process lands
+    /// somewhere. A switch over precedence, not an `if` chain: each case
+    /// names its branch and the compiler keeps the ladder honest.
+    public static func classify(
+        _ sample: ProcessSample,
+        catalog: ClassificationCatalog = .defaults
+    ) -> ProcessFamily {
+        switch sample.executableName {
+        case catalog.sourceControlDaemonName:
             return .sourceControlDaemon(user: sample.user)
-        }
-        if neverTouchNames.contains(sample.executableName) {
+        case _ where catalog.neverTouchNames.contains(sample.executableName):
             return .userApplication
-        }
-        if agentHostNames.contains(sample.executableName) {
+        case _ where catalog.agentHostNames.contains(sample.executableName):
             return .agentHost
-        }
-        if sample.executableName == "node",
-           let marker = mcpArgMarkers.first(where: { sample.hasArgComponent($0) })
-        {
+        case catalog.mcpHostExecutable:
+            guard let marker = MCPServerMarker.allCases.first(where: { sample.hasArgComponent($0.rawValue) })
+            else { return .other }
             return .mcpChild(marker: marker)
+        default:
+            return .other
         }
-        return .other
     }
 
     /// R4, as data: families the guardian may never signal.
@@ -151,10 +198,12 @@ public struct EffectiveGates: Sendable, Equatable, Codable {
     }
 }
 
-/// Memory pressure as a typed transformation over configuration.
-public enum Pressure: String, Sendable, Codable, CaseIterable {
+/// Memory pressure as a typed transformation over configuration. The
+/// elevated case carries its evidence (the swap bytes that tripped it) —
+/// tests and telemetry assert on values, not strings.
+public enum Pressure: Sendable, Equatable, Codable {
     case normal
-    case elevated
+    case elevated(swapBytes: UInt64)
 
     /// The gates this pressure level selects. R3 lives here, in one place.
     public func gates(configuration: GuardianConfiguration) -> EffectiveGates {
@@ -189,6 +238,11 @@ public struct GuardianConfiguration: Sendable, Codable, Equatable {
     /// Elevated-pressure tightening: cap drops to 1, MCP age to 1h.
     public var escalatedDaemonKeepPerUser: Int = 1
     public var escalatedMCPMaxAgeSeconds: TimeInterval = 3600
+
+    /// The classification catalog — defaults + fail-closed overlay surface.
+    /// Remote configuration merges here via `ClassificationCatalog.merged`
+    /// (protections can grow at runtime; they can never shrink).
+    public var catalog: ClassificationCatalog = .defaults
 
     public init() {}
 }

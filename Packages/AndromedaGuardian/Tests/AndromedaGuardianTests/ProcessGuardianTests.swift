@@ -30,7 +30,7 @@ struct ProcessGuardianTests {
     }
 
     private func daemon(_ pid: Int32, user: String = "admin", ageMinutes: Double = 30) -> ProcessSample {
-        proc(pid: pid, user: user, name: ProcessFamily.sourceControlDaemonName, ageMinutes: ageMinutes, rssMB: 1_800)
+        proc(pid: pid, user: user, name: ClassificationCatalog.defaults.sourceControlDaemonName, ageMinutes: ageMinutes, rssMB: 1_800)
     }
 
     private func mcpNode(_ pid: Int32, ppid: Int32, ageMinutes: Double = 30) -> ProcessSample {
@@ -50,13 +50,13 @@ struct ProcessGuardianTests {
     @Test("classification is total and family-correct")
     func classification() {
         #expect(ProcessFamily.classify(daemon(1)) == .sourceControlDaemon(user: "admin"))
-        #expect(ProcessFamily.classify(mcpNode(2, ppid: 1)) == .mcpChild(marker: "xcodebuildmcp"))
+        #expect(ProcessFamily.classify(mcpNode(2, ppid: 1)) == .mcpChild(marker: .xcodebuild))
         #expect(ProcessFamily.classify(proc(pid: 3, name: "Claude")) == .agentHost)
         #expect(ProcessFamily.classify(proc(pid: 4, name: "CapCut")) == .userApplication)
         #expect(ProcessFamily.classify(proc(pid: 5, name: "loginwindow")) == .other)
         #expect(ProcessFamily.userApplication.isProtected)
         #expect(ProcessFamily.agentHost.isProtected)
-        #expect(!(ProcessFamily.mcpChild(marker: "xcodebuildmcp").isProtected))
+        #expect(!(ProcessFamily.mcpChild(marker: .xcodebuild).isProtected))
     }
 
     // MARK: - Pressure as transformation
@@ -65,8 +65,8 @@ struct ProcessGuardianTests {
     func pressureGates() {
         let config = GuardianConfiguration()
         #expect(Pressure.normal.gates(configuration: config).daemonKeepPerUser == 2)
-        #expect(Pressure.elevated.gates(configuration: config).daemonKeepPerUser == 1)
-        #expect(Pressure.elevated.gates(configuration: config).mcpMaxAgeSeconds == 3_600)
+        #expect(Pressure.elevated(swapBytes: 30 << 30).gates(configuration: config).daemonKeepPerUser == 1)
+        #expect(Pressure.elevated(swapBytes: 30 << 30).gates(configuration: config).mcpMaxAgeSeconds == 3_600)
     }
 
     // MARK: - R1: source-control horde
@@ -112,7 +112,7 @@ struct ProcessGuardianTests {
             daemon(401, ageMinutes: 10),
             daemon(402, ageMinutes: 20),
             daemon(403, ageMinutes: 30),
-        ], pressure: .elevated)
+        ], pressure: .elevated(swapBytes: 30 << 30))
         #expect(Set(decisions.map(\.pid)) == [402, 403])
     }
 
@@ -357,11 +357,52 @@ struct ProcessGuardianTests {
             args: ["/opt/homebrew/bin/xcodebuildmcp", "mcp"],
             ageMinutes: 60 * 9
         )
-        #expect(ProcessFamily.classify(real) == .mcpChild(marker: "xcodebuildmcp"))
+        #expect(ProcessFamily.classify(real) == .mcpChild(marker: .xcodebuild))
     }
 
     /// Extracts decisions for byte accounting assertions.
     private func decisions(of report: SweepReport) -> [KillDecision] {
         report.decisions
+    }
+}
+
+// MARK: - Classification catalog (dynamic, fail-closed)
+
+extension ProcessGuardianTests {
+    @Test("catalog overlay grows protection and never shrinks it")
+    func catalogOverlayFailClosed() {
+        let overlay = ClassificationCatalog(
+            neverTouchNames: ["MyApp"],
+            agentHostNames: ["NewAgent"]
+        )
+        let merged = ClassificationCatalog.defaults.merged(with: overlay)
+
+        #expect(merged.neverTouchNames.contains("MyApp"))
+        #expect(merged.neverTouchNames.contains("CapCut")) // default kept — fail closed
+        #expect(merged.agentHostNames.contains("NewAgent"))
+        #expect(merged.agentHostNames.contains("Claude"))
+    }
+
+    @Test("classify reads the injected catalog — remote-configurable protection")
+    func classifyWithCatalog() {
+        let catalog = ClassificationCatalog(
+            neverTouchNames: [],
+            agentHostNames: ["Warp"]
+        )
+        #expect(ProcessFamily.classify(proc(pid: 10, name: "Warp"), catalog: catalog) == .agentHost)
+        // CapCut is NOT in the overlay's never-touch set, but the merged
+        // catalog still protects it:
+        let merged = ClassificationCatalog.defaults.merged(with: catalog)
+        #expect(ProcessFamily.classify(proc(pid: 11, name: "CapCut"), catalog: merged) == .userApplication)
+    }
+
+    @Test("pressure carries its evidence")
+    func pressureEvidence() {
+        let evidence = Pressure.elevated(swapBytes: 30 << 30)
+        guard case .elevated(let swapBytes) = evidence else {
+            Issue.record("expected elevated")
+            return
+        }
+        #expect(swapBytes == 30 << 30)
     }
 }

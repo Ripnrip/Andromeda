@@ -62,12 +62,13 @@ struct EventBroadcasterTests {
     @Test("SSE frame carries the full report as one data line")
     func sseFrameShape() throws {
         let item = report()
-        let frame = try GuardianEventBroadcaster.sseFrame(item)
+        let frame = try SSEFrame(report: item)
 
-        #expect(frame.hasPrefix("event: sweep\n"))
-        #expect(frame.hasSuffix("\n\n"))
+        #expect(frame.event == .sweep)
+        #expect(frame.wire.hasPrefix("event: sweep\n"))
+        #expect(frame.wire.hasSuffix("\n\n"))
         // Exactly one data line; SSE forbids raw newlines inside payloads.
-        let lines = frame.split(separator: "\n", omittingEmptySubsequences: false)
+        let lines = frame.wire.split(separator: "\n", omittingEmptySubsequences: false)
         #expect(lines.filter { $0.hasPrefix("data: ") }.count == 1)
 
         // The data payload decodes back to the same report.
@@ -86,14 +87,14 @@ struct EventBroadcasterTests {
     func sseFramesMapping() async throws {
         let broadcaster = GuardianEventBroadcaster()
         let reports = await broadcaster.subscribe()
-        let frames = GuardianEventBroadcaster.sseFrames(reports)
+        let frames = GuardianEventBroadcaster.mapToSSEFrames(reports)
 
         let expected = [report(), report()]
         let producer = Task {
             for item in expected { await broadcaster.record(item) }
         }
 
-        var received: [String] = []
+        var received: [SSEFrame] = []
         var iterator = frames.makeAsyncIterator()
         _ = await producer.value
         for _ in expected {
@@ -102,6 +103,6 @@ struct EventBroadcasterTests {
             }
         }
         #expect(received.count == 2)
-        #expect(received.allSatisfy { $0.hasPrefix("event: sweep\n") })
+        #expect(received.allSatisfy { $0.event == .sweep })
     }
 }
