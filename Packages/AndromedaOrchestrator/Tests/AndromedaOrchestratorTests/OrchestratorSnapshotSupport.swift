@@ -6,7 +6,7 @@ import XCTest
 #if canImport(UIKit)
 import UIKit
 #elseif canImport(AppKit)
-import AppKit
+@preconcurrency import AppKit
 #endif
 
 @testable import AndromedaOrchestrator
