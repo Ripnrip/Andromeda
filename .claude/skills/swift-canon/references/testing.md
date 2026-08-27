@@ -62,3 +62,27 @@ Skip `Tracer.bootstrap()` when `XCTestConfigurationFilePath` set.
 - Snapshot full app window
 - XCUITest for layout regression (use snapshots)
 - Live network in unit tests
+
+
+## Baseline integrity — never green against a void (Aug 2026)
+
+A snapshot suite verifies *consistency*, not *presence*: a void baseline
+passes forever. Guard it in-suite:
+
+- `BaselineIntegrityTests` (AndromedaOrchestrator) scans every committed
+  `__Snapshots__` PNG and fails on flat images (≤2 sampled colors, or ≤4
+  with ≥99% single-color dominance). Adaptive stride, minimum sample count —
+  small specimens don't false-positive.
+- Record flow: `[record-snapshots]` tip → strict `swift build --build-tests`
+  gate → tolerant record step → artifact upload. **Byte-diff the artifact
+  against HEAD before landing it** — identical bytes mean the run produced
+  nothing (usually a swallowed compile failure).
+- Baselines are runner-image-bound: studio-recorded PNGs fail CI verify.
+  Land only artifact bytes from the same image that verifies.
+
+## Determinism from the environment
+
+Reduce-motion stills, journal clocks, RNG, locale: derive settled state from
+injected environment values (`shown || reduceMotion`, `\.journalNow`),
+never from hoping a `.task` fires before capture. See anti-patterns
+Exhibit 7.

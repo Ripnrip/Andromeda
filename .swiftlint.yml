@@ -1,0 +1,72 @@
+# SwiftLint — Andromeda fleet config (adopted 2026-08-27, PR fast-follow to #61)
+#
+# Incremental adoption: the Orchestrator package is lint-clean first; widen
+# `included` per package as they're brought under lint in their own PRs.
+# This file is the single fleet source — nested packages may add stricter
+# local overrides, never looser ones.
+
+included:
+  - Packages/AndromedaOrchestrator
+
+excluded:
+  - "**/.build"
+  - "**/__Snapshots__"
+
+opt_in_rules:
+  - closure_body_length
+  - collection_alignment
+  - conditional_returns_on_newline
+  - empty_count
+  - fatal_error_message
+  - first_where
+  - last_where
+  - legacy_random
+  - literal_expression_end_indentation
+  - lower_acl_than_parent
+  - missing_docs
+  - modifier_order
+  - nimble_operator
+  - number_separator
+  - object_literal
+  - operator_usage_whitespace
+  - overridden_super_call
+  - override_in_extension
+  - pattern_matching_keywords
+  - prefer_nimble
+  - prohibited_super
+  - reduce_into
+  - redundant_nil_coalescing
+  - single_test_class
+  - sorted_first_last
+  - static_operator
+  - switch_case_on_newline
+  - unowned_preference
+  - unused_declaration
+  - vertical_parameter_alignment_on_call
+  - yoda_condition
+
+line_length:
+  warning: 140
+  error: 200
+
+identifier_name:
+  min_length:
+    warning: 1
+  excluded:
+    - id
+    - x
+    - y
+    - at
+    - to
+    - of
+
+type_body_length:
+  warning: 400
+  error: 600
+
+file_length:
+  warning: 500
+  error: 800
+
+# Canon alignment: enums switch, no string building at call sites, explicit
+# types at boundaries — the default rule set already pushes this direction.
