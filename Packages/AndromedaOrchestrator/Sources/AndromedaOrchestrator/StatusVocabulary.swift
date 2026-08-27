@@ -187,11 +187,17 @@ public struct EntranceModifier: ViewModifier {
     @State private var shown = false
 
     public func body(content: Content) -> some View {
+        // Under reduce motion the still frame IS the settled frame — derived
+        // from the environment directly, never gated on `.task` firing.
+        // Snapshot hosts and offscreen pre-heat do not reliably start tasks
+        // for scroll-hosted content, and a task-gated reveal renders the
+        // reduce-motion "still" as an empty void there.
+        let settled = shown || reduceMotion
         content
-            .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 12)
-            .scaleEffect(shown ? 1 : 0.988, anchor: .top)
-            .blur(radius: shown ? 0 : 2)
+            .opacity(settled ? 1 : 0)
+            .offset(y: settled ? 0 : 12)
+            .scaleEffect(settled ? 1 : 0.988, anchor: .top)
+            .blur(radius: settled ? 0 : 2)
             .task {
                 guard !reduceMotion else { shown = true; return }
                 try? await Task.sleep(for: .seconds(OrchestratorMotion.stagger(index, step: step)))

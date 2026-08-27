@@ -33,7 +33,7 @@ struct PreviewParitySnapshotTests {
         let host = OrchestratorSnapshotHosting.makeHost(view, size, dark: dark)
         assertSnapshot(
             of: host,
-            as: .image(precision: 0.98, perceptualPrecision: 0.96),
+            as: .orchestratorImage(precision: 0.98, perceptualPrecision: 0.96),
             named: "\(name)-\(dark ? "dark" : "light")",
             file: filePath,
             testName: testName
