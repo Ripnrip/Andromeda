@@ -168,6 +168,14 @@ enum SnapshotFixtures {
     }
 }
 
+// NSImage is `@_nonSendable(_assumed)` in AppKit SDKs; this box lets the
+// captured image change hands from the main-actor capture to the strategy's
+// pullback without an isolation-diagnosed transfer. Created and consumed on
+// the same thread by the assertion path.
+private final class OrchestratorImageBox: @unchecked Sendable {
+    var image: NSImage?
+}
+
 // MARK: - Synchronous image strategy
 
 /// Snapshot-testing's stock `.image` for AppKit captures through an async hop
@@ -187,6 +195,12 @@ public extension Snapshotting where Value == NSViewController, Format == NSImage
             precision: precision, perceptualPrecision: perceptualPrecision
         )
         .pullback { vc -> NSImage in
+            // NSImage is `@_nonSendable(_assumed)` in the AppKit SDKs — it may
+            // not cross an isolation boundary even as `assumeIsolated`'s return
+            // value (and `@preconcurrency import` cannot override that). Capture
+            // on the main actor, hand the image back through an unchecked box:
+            // created and consumed on the same thread by the assertion path.
+            let box = OrchestratorImageBox()
             MainActor.assumeIsolated {
                 let view = vc.view
                 precondition(
@@ -197,8 +211,9 @@ public extension Snapshotting where Value == NSViewController, Format == NSImage
                 view.cacheDisplay(in: view.bounds, to: rep)
                 let image = NSImage(size: view.bounds.size)
                 image.addRepresentation(rep)
-                return image
+                box.image = image
             }
+            return box.image!
         }
     }
 }
