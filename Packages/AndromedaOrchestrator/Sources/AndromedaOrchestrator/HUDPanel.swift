@@ -1,6 +1,7 @@
 import SwiftUI
 
 // MARK: - HUD
+
 //
 // The always-there control surface. Docked it sits in the console's corner;
 // detached it becomes the floating macOS panel (see `HUDWindow` below). Its
@@ -15,7 +16,9 @@ public struct HUDPanel: View {
     @Environment(\.palette) private var palette
     @Bindable var model: OrchestratorModel
 
-    public init(model: OrchestratorModel) { self.model = model }
+    public init(model: OrchestratorModel) {
+        self.model = model
+    }
 
     private let tabs: [(String, OrchestratorModel.Screen)] = [
         ("STREAM", .overview),
@@ -28,7 +31,7 @@ public struct HUDPanel: View {
         VStack(spacing: 0) {
             header
             tabStrip
-            body_
+            bodyContent
         }
         .frame(width: 292)
         .background(palette.chrome)
@@ -82,7 +85,7 @@ public struct HUDPanel: View {
         .overlay(alignment: .bottom) { Divider().overlay(palette.hairline) }
     }
 
-    private var body_: some View {
+    private var bodyContent: some View {
         VStack(alignment: .leading, spacing: 11) {
             HStack {
                 Kicker("gateway")
@@ -144,35 +147,36 @@ public struct HUDPanel: View {
 }
 
 #if os(macOS)
-import AppKit
+    import AppKit
 
-// MARK: - Floating panel
+    // MARK: - Floating panel
+
 //
-// Detached, the HUD becomes a non-activating always-on-top panel — the thing
-// the mark flies out of at launch. See `references/macos-patterns.md`.
+    // Detached, the HUD becomes a non-activating always-on-top panel — the thing
+    // the mark flies out of at launch. See `references/macos-patterns.md`.
 
-public final class HUDWindowController: NSWindowController {
-    public convenience init(model: OrchestratorModel) {
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 292, height: 420),
-            styleMask: [.nonactivatingPanel, .fullSizeContentView, .titled],
-            backing: .buffered,
-            defer: false
-        )
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        panel.isMovableByWindowBackground = true
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.hasShadow = true
-        panel.contentView = NSHostingView(
-            rootView: HUDPanel(model: model).orchestratorPalette()
-        )
-        self.init(window: panel)
+    public final class HUDWindowController: NSWindowController {
+        public convenience init(model: OrchestratorModel) {
+            let panel = NSPanel(
+                contentRect: NSRect(x: 0, y: 0, width: 292, height: 420),
+                styleMask: [.nonactivatingPanel, .fullSizeContentView, .titled],
+                backing: .buffered,
+                defer: false
+            )
+            panel.titleVisibility = .hidden
+            panel.titlebarAppearsTransparent = true
+            panel.isMovableByWindowBackground = true
+            panel.level = .floating
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            panel.backgroundColor = .clear
+            panel.isOpaque = false
+            panel.hasShadow = true
+            panel.contentView = NSHostingView(
+                rootView: HUDPanel(model: model).orchestratorPalette()
+            )
+            self.init(window: panel)
+        }
     }
-}
 #endif
 
 #Preview("HUD · docked") {

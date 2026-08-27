@@ -1,6 +1,7 @@
 import SwiftUI
 
 // MARK: - Add a model / Add an MCP server
+
 //
 // One three-step shell for both paths: pick → shape → verify. The verify step
 // runs a real probe rather than claiming success, and the footer states what
@@ -96,13 +97,19 @@ public struct AddResourceSheet: View {
                 .foregroundStyle(palette.muted)
             Spacer()
             Button(model.wizardStep == 0 ? "CANCEL" : "BACK") {
-                if model.wizardStep == 0 { model.wizard = nil; dismiss() }
-                else { model.advanceWizard(by: -1) }
+                if model.wizardStep == 0 {
+                    model.wizard = nil; dismiss()
+                } else {
+                    model.advanceWizard(by: -1)
+                }
             }
             .buttonStyle(ConsoleButtonStyle(kind: .quiet))
             Button(commitLabel) {
-                if model.wizardStep == 2 { model.wizard = nil; dismiss() }
-                else { model.advanceWizard(by: 1) }
+                if model.wizardStep == 2 {
+                    model.wizard = nil; dismiss()
+                } else {
+                    model.advanceWizard(by: 1)
+                }
             }
             .buttonStyle(ConsoleButtonStyle(kind: .primary))
         }
@@ -299,12 +306,14 @@ struct WizardSpec: Sendable {
         var badge: String
         var status: OrchestratorStatus
     }
+
     struct Field: Sendable {
         var label: String
         var value: String
         var hint: String
         var highlighted = false
     }
+
     struct Result: Sendable {
         var label: String
         var value: String

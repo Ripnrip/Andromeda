@@ -1,8 +1,7 @@
+@testable import AndromedaOrchestrator
 import SnapshotTesting
 import SwiftUI
 import Testing
-
-@testable import AndromedaOrchestrator
 
 /// The catalogue sweep: every specimen in `OrchestratorCatalogue` gets a
 /// baseline, so no component can drift visually without a red test. The
@@ -17,16 +16,15 @@ import Testing
 @Suite(.serialized, .snapshots(record: OrchestratorSnapshotSupport.recordMode))
 @MainActor
 struct CatalogueSnapshotTests {
-
     /// Sweep canvas size per gallery shelf.
     private static func size(for group: OrchestratorGroup) -> CGSize {
         switch group {
-        case .brand:      CGSize(width: 220, height: 220)
+        case .brand: CGSize(width: 220, height: 220)
         case .vocabulary: CGSize(width: 240, height: 90)
-        case .controls:   CGSize(width: 360, height: 220)
-        case .hud:        CGSize(width: 460, height: 320)
-        case .screens:    CGSize(width: 600, height: 400)
-        case .flows:      CGSize(width: 660, height: 520)
+        case .controls: CGSize(width: 360, height: 220)
+        case .hud: CGSize(width: 460, height: 320)
+        case .screens: CGSize(width: 600, height: 400)
+        case .flows: CGSize(width: 660, height: 520)
         }
     }
 

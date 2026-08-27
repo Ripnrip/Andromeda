@@ -375,6 +375,17 @@ jobs:
         working-directory: Packages/AndromedaOrchestrator
         run: swift test --parallel --num-workers 1
 
+      # Compile gate BEFORE the tolerant record step. Record mode fails the
+      # test run on purpose (continue-on-error below), which also swallows
+      # COMPILE failures — and the artifact then re-uploads the previously
+      # committed baselines unchanged, masquerading as fresh runner output.
+      # This strict build makes that failure mode loud instead of silent.
+      # (Provenance rule: byte-diff the artifact against HEAD before landing.)
+      - name: Record gate · AndromedaOrchestrator compiles
+        if: steps.scope.outputs.run_orchestrator == 'true' && steps.snapshots.outputs.record == 'true'
+        working-directory: Packages/AndromedaOrchestrator
+        run: swift build --build-tests
+
       - name: Test AndromedaOrchestrator (nested package, record snapshots)
         if: steps.scope.outputs.run_orchestrator == 'true' && steps.snapshots.outputs.record == 'true'
         working-directory: Packages/AndromedaOrchestrator
@@ -382,6 +393,16 @@ jobs:
           SNAPSHOT_TESTING_RECORD: "1"
         run: swift test --parallel --num-workers 1
         continue-on-error: true
+
+      # SwiftLint + SwiftFormat — the Orchestrator package is under lint
+      # first (see .swiftlint.yml `included`); widen per package as they're
+      # brought in. Zero serious violations required.
+      - name: Lint (swiftlint + swiftformat)
+        if: steps.scope.outputs.run_orchestrator == 'true'
+        run: |
+          brew install swiftlint swiftformat
+          swiftlint --strict
+          swiftformat --lint Packages/AndromedaOrchestrator
 
       - name: Upload CI snapshot baselines
         # SnapshotTesting .all records PNGs then fails on purpose ("Record mode is on").
