@@ -56,6 +56,7 @@ jobs:
           run_powerkit=false
           run_statusline=false
           run_andromeda_ui=false
+          run_orchestrator=false
 
           while IFS= read -r file; do
             [ -z "$file" ] && continue
@@ -68,6 +69,7 @@ jobs:
                 run_memorykit=true
                 run_memorykit_live_e2e=true
                 run_anima=true
+                run_orchestrator=true
                 ;;
               Package.swift|Package.resolved|Sources/*|Tests/*)
                 run_root=true
@@ -91,6 +93,9 @@ jobs:
               Packages/AndromedaUI/Package.swift|Packages/AndromedaUI/Package.resolved|Packages/AndromedaUI/Sources/*|Packages/AndromedaUI/Tests/*)
                 run_andromeda_ui=true
                 ;;
+              Packages/AndromedaOrchestrator/Package.swift|Packages/AndromedaOrchestrator/Package.resolved|Packages/AndromedaOrchestrator/Sources/*|Packages/AndromedaOrchestrator/Tests/*)
+                run_orchestrator=true
+                ;;
             esac
 
             case "$file" in
@@ -112,7 +117,7 @@ jobs:
           fi
 
           any_lane=false
-          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ] || [ "$run_andromeda_ui" = true ]; then
+          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ] || [ "$run_andromeda_ui" = true ] || [ "$run_orchestrator" = true ]; then
             any_lane=true
           fi
 
@@ -126,6 +131,7 @@ jobs:
             echo "run_powerkit=$run_powerkit"
             echo "run_statusline=$run_statusline"
             echo "run_andromeda_ui=$run_andromeda_ui"
+            echo "run_orchestrator=$run_orchestrator"
             echo "needs_qdrant=$needs_qdrant"
             echo "any_lane=$any_lane"
           } >> "$GITHUB_OUTPUT"
@@ -361,6 +367,22 @@ jobs:
         run: swift test --parallel --num-workers 1
         continue-on-error: true
 
+      # Nested SwiftUI orchestrator-console package. Same Gate-0 shape as
+      # AndromedaUI: preview-parity + catalogue sweep baselines are
+      # runner-image-bound; record tips rewrite them via the artifact upload.
+      - name: Test AndromedaOrchestrator (nested package)
+        if: steps.scope.outputs.run_orchestrator == 'true' && steps.snapshots.outputs.record != 'true'
+        working-directory: Packages/AndromedaOrchestrator
+        run: swift test --parallel --num-workers 1
+
+      - name: Test AndromedaOrchestrator (nested package, record snapshots)
+        if: steps.scope.outputs.run_orchestrator == 'true' && steps.snapshots.outputs.record == 'true'
+        working-directory: Packages/AndromedaOrchestrator
+        env:
+          SNAPSHOT_TESTING_RECORD: "1"
+        run: swift test --parallel --num-workers 1
+        continue-on-error: true
+
       - name: Upload CI snapshot baselines
         # SnapshotTesting .all records PNGs then fails on purpose ("Record mode is on").
         # Always upload after a record tip so we can commit the rewritten baselines.
@@ -374,6 +396,7 @@ jobs:
             Packages/MemoryKit/Tests/MemoryKitTests/__Snapshots__/
             Packages/MemoryKit/Tests/MemoryKitTests/Snapshots/__Snapshots__/
             Packages/AndromedaUI/Tests/AndromedaUITests/__Snapshots__/
+            Packages/AndromedaOrchestrator/Tests/AndromedaOrchestratorTests/__Snapshots__/
           if-no-files-found: error
 
       # Explicit e2e gate (also covered by MemoryKit suite). Skips cleanly when
