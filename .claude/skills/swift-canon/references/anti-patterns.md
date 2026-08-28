@@ -388,3 +388,44 @@ Exhibit 6: AndromedaUI enum labels via `rawValue` concatenation — flagged by
 BofA in review (Aug 2026), swept repo-wide in issue #57, enforcement rules
 in `canon/ast-grep/`.
 Project-specific scar details live in the project skill layered on this canon.
+
+## Exhibit 11 — The Go-shaped actor: porting another language's structure instead of its meaning
+
+**Shape**: a rewrite that carries the old language's imperative flow into Swift — policy
+inline in the actor, concrete dependencies with no seam, strings where enums belong.
+
+Real offender (multica `server-swift` Phase 0 first draft, flagged in review 2026-08-26,
+fixed same session in HAB-374):
+
+```swift
+public actor PoolOfSouls {
+    // ❌ decision logic inline in the actor — untestable without a database
+    if let rested = idle.popLast() { soul = rested }          // branch 1
+    else if total < config.maxConns { soul = try await summonSoul() }  // branch 2
+    else { emptyAcquireCount += 1                              // branch 3 — the wait case
+           soul = try await withCheckedThrowingContinuation { ... } }
+}
+```
+
+**Why it's wrong** (numbered failures):
+
+1. **Policy trapped in the shell.** Admission (idle-reuse vs summon vs wait) is a pure
+   function of `(idle, total, max)` — inline in an actor over a live PostgresNIO
+   connection, it can only be tested against a real database.
+2. **Concrete dependency, no seam.** Naming `PostgresConnection` directly means no
+   scripted souls, no fake summoner, zero unit tests of custody logic.
+3. **Stringly-typed moods.** `pressure: "gathering"` as a String field — typos compile;
+   galleries can't switch exhaustively.
+4. **Field-list parity, not meaning parity.** Porting pgxpool's `Stat()` fields verbatim
+   without asking which *decisions* the numbers feed.
+
+**Replacement shape** (what shipped): pure `Admission.decide(idle:total:max:)` +
+`Pressure` enum (sigil/caption via exhaustive switch — Exhibit 6 discipline) +
+`ConnectionSummoner`/`PooledConnection` protocols so tests stage scripted souls; the
+actor keeps custody only. Testing went from "needs a database" to 9/9 pure-table tests
+in 0.001s.
+
+**Provenance**: multica Go→Hummingbird rewrite (HAB-374), 2026-08-26. Originally
+appended to the `~/.agents` sync copy as Exhibit 8 — **clobbered by the PR #63 canon
+sync**, restored here as Exhibit 11. Meta-lesson now law: canon edits land in the
+git-tracked source (this file), never the synced copy.
