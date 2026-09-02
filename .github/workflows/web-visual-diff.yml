@@ -30,7 +30,8 @@ jobs:
   visual-diff:
     name: Screenshot diff (base vs head)
     # macOS runner: Swift toolchain is preinstalled for the orchestrator.
-    runs-on: macos-15
+    # ADR-0018: macos-26 matches the fleet OS generation + ci.yml runner.
+    runs-on: macos-26
     steps:
       - name: Checkout (full history for base checkout)
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
