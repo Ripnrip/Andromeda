@@ -102,6 +102,7 @@ jobs:
                 ;;
               Packages/AndromedaGuardian/Package.swift|Packages/AndromedaGuardian/Package.resolved|Packages/AndromedaGuardian/Sources/*|Packages/AndromedaGuardian/Tests/*)
                 run_guardian=true
+                ;;
               Packages/AndromedaOrchestrator/Package.swift|Packages/AndromedaOrchestrator/Package.resolved|Packages/AndromedaOrchestrator/Sources/*|Packages/AndromedaOrchestrator/Tests/*)
                 run_orchestrator=true
                 ;;
@@ -126,8 +127,7 @@ jobs:
           fi
 
           any_lane=false
-          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ] || [ "$run_andromeda_ui" = true ] || [ "$run_guardian" = true ]; then
-          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ] || [ "$run_andromeda_ui" = true ] || [ "$run_orchestrator" = true ]; then
+          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ] || [ "$run_andromeda_ui" = true ] || [ "$run_guardian" = true ] || [ "$run_orchestrator" = true ]; then
             any_lane=true
           fi
 
