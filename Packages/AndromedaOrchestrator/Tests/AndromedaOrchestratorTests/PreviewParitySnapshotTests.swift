@@ -1,8 +1,7 @@
+@testable import AndromedaOrchestrator
 import SnapshotTesting
 import SwiftUI
 import Testing
-
-@testable import AndromedaOrchestrator
 
 /// Xcode-preview parity: every `#Preview` state in the package has a snapshot
 /// twin here, so the canvas grid and the recorded baseline matrix can never
@@ -20,7 +19,6 @@ import Testing
 @Suite(.serialized, .snapshots(record: OrchestratorSnapshotSupport.recordMode))
 @MainActor
 struct PreviewParitySnapshotTests {
-
     private func verify(
         _ view: some View,
         _ size: CGSize,
@@ -341,5 +339,188 @@ struct PreviewParitySnapshotTests {
             name: "gallery-light",
             dark: false
         )
+    }
+
+    // MARK: - Control vocabulary (canvas parity)
+
+    /// Twin of `#Preview("Buttons · all kinds")`.
+    @Test("Buttons · all kinds")
+    func buttonsAllKinds() throws {
+        try verify(
+            VStack(alignment: .leading, spacing: 12) {
+                Button("PRIMARY") {}.buttonStyle(ConsoleButtonStyle(kind: .primary))
+                Button("DANGER") {}.buttonStyle(ConsoleButtonStyle(kind: .danger))
+                Button("GHOST") {}.buttonStyle(ConsoleButtonStyle(kind: .ghost))
+                Button("QUIET") {}.buttonStyle(ConsoleButtonStyle(kind: .quiet))
+            }
+            .padding(24)
+            .background(OrchestratorPalette.obsidian.void)
+            .orchestratorPalette(),
+            CGSize(width: 360, height: 220),
+            name: "buttons-all-kinds",
+            dark: true
+        )
+    }
+
+    /// Twin of `#Preview("NavRow · plain + selected")`.
+    @Test("NavRow · plain + selected")
+    func navRowPair() throws {
+        try verify(
+            VStack(alignment: .leading, spacing: 8) {
+                NavRow(screen: .usage, badge: nil, isSelected: false) {}
+                NavRow(screen: .usage, badge: "3", isSelected: true) {}
+            }
+            .frame(width: 280)
+            .padding(24)
+            .background(OrchestratorPalette.obsidian.void)
+            .orchestratorPalette(),
+            CGSize(width: 360, height: 220),
+            name: "navrow-pair",
+            dark: true
+        )
+    }
+
+    /// Twin of `#Preview("MetricTile · both")`.
+    @Test("MetricTile · both")
+    func metricTilesBoth() throws {
+        try verify(
+            HStack(spacing: 14) {
+                MetricTile(label: "req/min", value: "1,240", samples: CatalogueSamples.wave)
+                MetricTile(label: "tokens/s", value: "18.4", unit: "tok", note: "p95 across aliases", samples: CatalogueSamples.climb)
+            }
+            .padding(24)
+            .background(OrchestratorPalette.obsidian.void)
+            .orchestratorPalette(),
+            CGSize(width: 360, height: 220),
+            name: "metrictiles-both",
+            dark: true
+        )
+    }
+
+    /// Twin of `#Preview("Sparkline + ShareBar")`.
+    @Test("Sparkline + ShareBar")
+    func sparklineSharebar() throws {
+        try verify(
+            VStack(alignment: .leading, spacing: 14) {
+                Sparkline(samples: CatalogueSamples.wave, tint: .cyan).frame(width: 220)
+                ShareBar(share: 0.62, tint: .cyan).frame(width: 220)
+            }
+            .padding(24)
+            .background(OrchestratorPalette.obsidian.void)
+            .orchestratorPalette(),
+            CGSize(width: 360, height: 220),
+            name: "sparkline-sharebar",
+            dark: true
+        )
+    }
+
+    /// Twin of `#Preview("Kicker + TypedText")`.
+    @Test("Kicker + TypedText")
+    func kickerTypedText() throws {
+        try verify(
+            VStack(alignment: .leading, spacing: 8) {
+                Kicker("v1 gateway")
+                TypedText("one base URL for every client", font: OrchestratorFont.editorial(18))
+            }
+            .frame(width: 300, alignment: .leading)
+            .padding(24)
+            .background(OrchestratorPalette.obsidian.void)
+            .orchestratorPalette(),
+            CGSize(width: 360, height: 220),
+            name: "kicker-typedtext-preview",
+            dark: true
+        )
+    }
+
+    // MARK: - Specimen plumbing (canvas parity)
+
+    /// Twin of `#Preview("SpecimenFrame · mark")`.
+    @Test("SpecimenFrame · mark")
+    func specimenFrameMark() throws {
+        try verify(
+            SpecimenFrame(name: "mark · 120", specimen: AnyView(AndromedaMarkView(size: 120)))
+                .frame(width: 320)
+                .padding(24)
+                .background(OrchestratorPalette.obsidian.void)
+                .orchestratorPalette(),
+            CGSize(width: 400, height: 320),
+            name: "specimenframe-mark",
+            dark: true
+        )
+    }
+
+    /// Twin of `#Preview("GalleryShelf · brand")`.
+    @Test("GalleryShelf · brand")
+    func galleryShelfBrand() throws {
+        try verify(
+            GalleryShelf(specimens: OrchestratorCatalogue.specimens(in: .brand))
+                .frame(width: 1280)
+                .padding(24)
+                .background(OrchestratorPalette.obsidian.void)
+                .orchestratorPalette(),
+            CGSize(width: 1280, height: 460),
+            name: "galleryshelf-brand",
+            dark: true
+        )
+    }
+
+    // MARK: - Journal (canvas parity)
+
+    /// Twin of `#Preview("Journal · obsidian")`.
+    @Test("Journal · obsidian")
+    func journalObsidian() throws {
+        try verify(
+            JournalWall(journal: Self.seededJournal())
+                .frame(width: 640)
+                .padding(24)
+                .background(OrchestratorPalette.obsidian.void)
+                .environment(\.journalNow) { Date(timeIntervalSinceReferenceDate: 800_000_000) }
+                .orchestratorPalette(),
+            CGSize(width: 720, height: 420),
+            name: "journal-obsidian",
+            dark: true
+        )
+    }
+
+    /// Twin of `#Preview("Journal · light")`.
+    @Test("Journal · light")
+    func journalLight() throws {
+        try verify(
+            JournalWall(journal: Self.seededJournal())
+                .frame(width: 640)
+                .padding(24)
+                .background(OrchestratorPalette.observatory.void)
+                .environment(\.colorScheme, .light)
+                .environment(\.journalNow) { Date(timeIntervalSinceReferenceDate: 800_000_000) }
+                .orchestratorPalette(),
+            CGSize(width: 720, height: 420),
+            name: "journal-light",
+            dark: false
+        )
+    }
+
+    /// Deterministic journal fixture — fixed ids/timestamps relative to a
+    /// pinned instant so baselines stay byte-stable (the `ago` derivation
+    /// quantizes to seconds; entries are seeded at fixed offsets).
+    static func seededJournal() -> OrchestratorJournal {
+        let journal = OrchestratorJournal()
+        let pinned = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let seeded: [JournalEntry] = [
+            (12, OrchestratorEvent.screenChanged(.overview)),
+            (10, .wizardOpened(.addModel)),
+            (8, .scopeToggled("mcp.write", withheld: true)),
+            (6, .probeAdvanced(line: 3, of: 5)),
+            (4, .probeCompleted),
+            (3, .hudDetached(true)),
+            (1, .streamPaused),
+        ].map { offset, event in
+            JournalEntry(
+                id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", Int(offset * 10)))!,
+                at: pinned.addingTimeInterval(-offset),
+                event: event
+            )
+        }
+        journal.replaceAll(with: seeded)
+        return journal
     }
 }

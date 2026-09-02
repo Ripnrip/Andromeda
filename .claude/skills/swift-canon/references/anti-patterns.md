@@ -368,6 +368,87 @@ CI enforcement: `canon/ast-grep/enum-raw-value-concat.yml` and
 `canon/ast-grep/bare-capability-literal.yml` (warning severity until the
 existing sites are cleaned via HAB-316/317, then error).
 
+## Exhibit 7 — A `.task`-gated "settled" state (reduce-motion stills that render void)
+
+**The scar (Andromeda PR #61, Aug 2026 — merged, then fixed in-PR):** the
+orchestrator console's `EntranceModifier` gated its settled state on a task:
+
+```swift
+@State private var shown = false
+content
+    .opacity(shown ? 1 : 0)
+    .task {
+        guard !reduceMotion else { shown = true; return }   // ← never runs offscreen
+        try? await Task.sleep(for: .seconds(stagger))
+        withAnimation(OrchestratorMotion.entrance) { shown = true }
+    }
+```
+
+Under reduce motion the "still frame" is supposed to be the settled frame.
+But snapshot hosts and offscreen pre-heat do not reliably start `.task`s for
+ScrollView-hosted content — so the recorded "still" was `opacity(0)`: a
+2-unique-color void. All 47 baselines were green against nothing
+(vacuously green suite), and the wall shipped in the PR body as a dark
+rectangle.
+
+**The replacement shape — settled state derives from the environment:**
+
+```swift
+let settled = shown || reduceMotion
+content
+    .opacity(settled ? 1 : 0)
+    .offset(y: settled ? 0 : 12)
+    .task { /* animate to shown when motion is allowed */ }
+```
+
+The same law covers any environment-derivable determinism (clocks, RNG,
+locale): inject and derive, never hope a task fires. CI enforcement for the
+baseline side: `BaselineIntegrityTests` (a committed baseline that is a
+2-color flat image fails the suite).
+
+## Exhibit 8 — Lazy containers for fixed, small collections
+
+`LazyVStack`/`LazyVGrid` defer materialization until "needed" — and offscreen
+hosts (snapshot capture, Xcode canvas pre-heat) never need them, rendering
+empty voids where content should be. Laziness is an optimization for large
+or unbounded collections; a fixed 28-specimen wall gains nothing and pays in
+nondeterminism. Eager `VStack` + chunked rows render identically everywhere.
+
+Rule of thumb: **lazy only when the count is unbounded or the cells are
+expensive; fixed collections are eager.**
+
+## Exhibit 9 — `@_nonSendable(_assumed)` types crossing isolation as returns
+
+AppKit SDKs mark `NSImage` `@_nonSendable(_assumed)` — its Sendable
+conformance is explicitly unavailable, and `@preconcurrency import` CANNOT
+suppress that (different mechanism from ordinary non-Sendable). Returning it
+from `MainActor.assumeIsolated { … }` compiles on Xcode 26 and fails on the
+macos-15 CI toolchain — "compiles locally" proves nothing.
+
+**The replacement shape — return Void, hand the value through an
+`@unchecked Sendable` box (same thread end-to-end):**
+
+```swift
+private final class ImageBox: @unchecked Sendable { var image: NSImage? }
+// inside the pullback:
+let box = ImageBox()
+MainActor.assumeIsolated { box.image = makeImage(view) }   // returns Void
+return box.image!
+```
+
+## Exhibit 10 — A tolerant record lane re-shipping committed files as "fresh" output
+
+A CI record step with `continue-on-error: true` (needed because record mode
+fails tests on purpose) also swallows COMPILE failures. When compilation
+dies, the artifact upload globs pick up the previously committed baselines
+and upload them unchanged — indistinguishable from fresh output. Landed
+once as "runner-recorded baselines" that were byte-identical studio bytes.
+
+**The gates:** (1) strict `swift build --build-tests` step before the
+tolerant record step; (2) never claim artifact provenance without a
+byte-diff (`shasum` artifact vs committed — identical bytes = the run
+produced nothing).
+
 ## How to use this file in review
 
 When a diff matches an exhibit's shape, cite the exhibit, name which
@@ -386,7 +467,12 @@ the same server's error-response encoder (PR #48) — hand-rolled keyed
 encoding replaced by an `@EncodeNull` property wrapper proposed in review.
 Exhibit 6: AndromedaUI enum labels via `rawValue` concatenation — flagged by
 BofA in review (Aug 2026), swept repo-wide in issue #57, enforcement rules
-in `canon/ast-grep/`.
+in `canon/ast-grep/`. Exhibits 7–10: the Andromeda orchestrator
+console landing (PR #61, Aug 2026) — the void-gallery incident chain: a
+green-against-void snapshot suite, offscreen lazy materialization, an
+NSImage Sendable toolchain split that hid inside a tolerant record lane, and
+the artifact-provenance byte-diff rule born from landing stale bytes as
+"runner-recorded".
 Project-specific scar details live in the project skill layered on this canon.
 
 ## Exhibit 7: snapshot tests that capture animated or reveal states without pinning the random source

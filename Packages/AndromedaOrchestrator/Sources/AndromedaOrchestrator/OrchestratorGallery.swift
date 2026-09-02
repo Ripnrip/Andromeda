@@ -1,6 +1,7 @@
 import SwiftUI
 
 // MARK: - Gallery
+
 //
 // The browsable library: every catalogue specimen on one scrollable wall,
 // grouped by shelf. Same view the snapshot sweep records, so what you browse
@@ -32,14 +33,13 @@ public struct SpecimenFrame: View {
     }
 }
 
-
 /// One gallery shelf: kicker + an EAGER wall of specimen frames in fixed
 /// three-across rows. The wall is intentionally not lazy — 28 fixed
 /// specimens gain nothing from deferred materialization, while lazy
 /// containers never materialize offscreen (Xcode canvas pre-heat, snapshot
 /// hosts), where they render as an empty void. Eager is deterministic
 /// everywhere.
-private struct GalleryShelf: View {
+struct GalleryShelf: View {
     @Environment(\.palette) private var palette
 
     let specimens: [OrchestratorSpecimen]
@@ -62,7 +62,7 @@ private struct GalleryShelf: View {
                         }
                         // Keep ragged last-row cards at column width instead of
                         // letting HStack stretch them across the missing slots.
-                        ForEach(0..<(columns - row.count), id: \.self) { _ in
+                        ForEach(0 ..< (columns - row.count), id: \.self) { _ in
                             Color.clear.frame(maxWidth: .infinity)
                         }
                     }
@@ -77,7 +77,7 @@ private struct GalleryShelf: View {
 
     private var rows: [[OrchestratorSpecimen]] {
         stride(from: 0, to: specimens.count, by: columns).map {
-            Array(specimens[$0..<min($0 + columns, specimens.count)])
+            Array(specimens[$0 ..< min($0 + columns, specimens.count)])
         }
     }
 }
@@ -97,7 +97,7 @@ public struct OrchestratorGallery: View {
                 }
             }
             .padding(28)
-            .frame(maxWidth: 1_280)
+            .frame(maxWidth: 1280)
             .frame(maxWidth: .infinity)
         }
         .background(palette.void)
@@ -106,13 +106,32 @@ public struct OrchestratorGallery: View {
 
 #Preview("Gallery · obsidian") {
     OrchestratorGallery()
-        .frame(width: 1_280, height: 900)
+        .frame(width: 1280, height: 900)
         .orchestratorPalette()
 }
 
 #Preview("Gallery · light") {
     OrchestratorGallery()
-        .frame(width: 1_280, height: 900)
+        .frame(width: 1280, height: 900)
         .environment(\.colorScheme, .light)
+        .orchestratorPalette()
+}
+
+#Preview("SpecimenFrame · mark") {
+    SpecimenFrame(
+        name: "mark · 120",
+        specimen: AnyView(AndromedaMarkView(size: 120))
+    )
+    .frame(width: 320)
+    .padding(24)
+    .background(OrchestratorPalette.obsidian.void)
+    .orchestratorPalette()
+}
+
+#Preview("GalleryShelf · brand") {
+    GalleryShelf(specimens: OrchestratorCatalogue.specimens(in: .brand))
+        .frame(width: 1280)
+        .padding(24)
+        .background(OrchestratorPalette.obsidian.void)
         .orchestratorPalette()
 }

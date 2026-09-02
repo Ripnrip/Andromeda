@@ -1,6 +1,7 @@
 import SwiftUI
 
 // MARK: - Launch reveal
+
 //
 // What the user sees when Andromeda comes up out of the HUD: the workspace
 // dims and blurs away, the mark flies up out of the HUD corner, the wordmark
@@ -20,7 +21,9 @@ public struct LaunchRevealView: View {
         self.model = model
     }
 
-    private var dissolving: Bool { model.launchPhase == .dissolving }
+    private var dissolving: Bool {
+        model.launchPhase == .dissolving
+    }
 
     public var body: some View {
         ZStack {
