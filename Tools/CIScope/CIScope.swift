@@ -32,6 +32,66 @@ struct Scope {
     }
 }
 
+// MARK: - Repo layout (typed)
+
+/// Repo-root paths — every literal path string lives exactly once, here.
+enum RepoPath {
+    static let ciWorkflow = ".github/workflows/ci.yml"
+    static let rootManifest = "Package.swift"
+    static let rootResolved = "Package.resolved"
+    static let sources = "Sources/"
+    static let tests = "Tests/"
+    static let ciscopeTool = "Tools/CIScope/"
+}
+
+/// The nested SPM packages — the rawValue is the directory name; every
+/// derived path (root / manifest / resolved / sources / tests) composes
+/// from it. No rule spells a package path by hand.
+enum Package: String, CaseIterable {
+    case memoryKit = "MemoryKit"
+    case anima = "Anima"
+    case andromedaMCP = "AndromedaMCP"
+    case powerKit = "AndromedaPowerKit"
+    case statusline = "AndromedaStatusline"
+    case andromedaUI = "AndromedaUI"
+    case guardian = "AndromedaGuardian"
+    case orchestrator = "AndromedaOrchestrator"
+
+    /// `Packages/<dir>/`
+    var root: String { "Packages/\(rawValue)/" }
+    /// `Packages/<dir>/Package.swift`
+    var manifest: String { root + "Package.swift" }
+    /// `Packages/<dir>/Package.resolved`
+    var resolved: String { root + "Package.resolved" }
+    /// `Packages/<dir>/Sources/`
+    var sources: String { root + "Sources/" }
+    /// `Packages/<dir>/Tests/`
+    var tests: String { root + "Tests/" }
+}
+
+/// Root-level Swift modules (outside the Packages tree) that the E2E rules
+/// select — the rawValue is the module name; which tree it lives under is
+/// declared per case, never inferred from string shape.
+enum RootModule: String, CaseIterable {
+    case andromedaMemory = "AndromedaMemory"
+    case projections = "AndromedaProjections"
+    case hudCore = "AndromedaHUDCore"
+    case homeCore = "AndromedaHomeCore"
+    case projectionTests = "AndromedaProjectionTests"
+    case hudTests = "AndromedaHUDTests"
+    case homeTests = "AndromedaHomeTests"
+
+    /// `Sources/<module>/` or `Tests/<module>/` — exhaustive, compile-checked.
+    var path: String {
+        switch self {
+        case .andromedaMemory, .projections, .hudCore, .homeCore:
+            return RepoPath.sources + rawValue + "/"
+        case .projectionTests, .hudTests, .homeTests:
+            return RepoPath.tests + rawValue + "/"
+        }
+    }
+}
+
 /// Path matchers for lane / E2E classification (exact path or directory prefix).
 enum PathMatcher {
     case exact(String)
@@ -66,59 +126,59 @@ enum LaneRule: CaseIterable {
     var matchers: [PathMatcher] {
         switch self {
         case .workflowCI:
-            return [.exact(".github/workflows/ci.yml")]
+            return [.exact(RepoPath.ciWorkflow)]
         case .ciScopeTool:
             // Classifier lives outside product prefixes; a rewrite must not skip gates.
-            return [.prefix("Tools/CIScope/")]
+            return [.prefix(RepoPath.ciscopeTool)]
         case .rootPackage:
-            return [.exact("Package.swift"), .exact("Package.resolved")]
+            return [.exact(RepoPath.rootManifest), .exact(RepoPath.rootResolved)]
         case .sources:
-            return [.prefix("Sources/")]
+            return [.prefix(RepoPath.sources)]
         case .tests:
-            return [.prefix("Tests/")]
+            return [.prefix(RepoPath.tests)]
         case .memoryKit:
             return [
-                .prefix("Packages/MemoryKit/"),
-                .exact("Packages/MemoryKit/Package.swift"),
-                .exact("Packages/MemoryKit/Package.resolved"),
+                .prefix(Package.memoryKit.root),
+                .exact(Package.memoryKit.manifest),
+                .exact(Package.memoryKit.resolved),
             ]
         case .anima:
             return [
-                .prefix("Packages/Anima/"),
-                .exact("Packages/Anima/Package.swift"),
-                .exact("Packages/Anima/Package.resolved"),
+                .prefix(Package.anima.root),
+                .exact(Package.anima.manifest),
+                .exact(Package.anima.resolved),
             ]
         case .andromedaMCP:
             return [
-                .prefix("Packages/AndromedaMCP/"),
-                .exact("Packages/AndromedaMCP/Package.swift"),
-                .exact("Packages/AndromedaMCP/Package.resolved"),
+                .prefix(Package.andromedaMCP.root),
+                .exact(Package.andromedaMCP.manifest),
+                .exact(Package.andromedaMCP.resolved),
             ]
         case .powerKit:
-            return [.prefix("Packages/AndromedaPowerKit/")]
+            return [.prefix(Package.powerKit.root)]
         case .statusline:
             return [
-                .prefix("Packages/AndromedaStatusline/"),
-                .exact("Packages/AndromedaStatusline/Package.swift"),
-                .exact("Packages/AndromedaStatusline/Package.resolved"),
+                .prefix(Package.statusline.root),
+                .exact(Package.statusline.manifest),
+                .exact(Package.statusline.resolved),
             ]
         case .andromedaUI:
             return [
-                .prefix("Packages/AndromedaUI/"),
-                .exact("Packages/AndromedaUI/Package.swift"),
-                .exact("Packages/AndromedaUI/Package.resolved"),
+                .prefix(Package.andromedaUI.root),
+                .exact(Package.andromedaUI.manifest),
+                .exact(Package.andromedaUI.resolved),
             ]
         case .guardian:
             return [
-                .prefix("Packages/AndromedaGuardian/"),
-                .exact("Packages/AndromedaGuardian/Package.swift"),
-                .exact("Packages/AndromedaGuardian/Package.resolved"),
+                .prefix(Package.guardian.root),
+                .exact(Package.guardian.manifest),
+                .exact(Package.guardian.resolved),
             ]
         case .orchestrator:
             return [
-                .prefix("Packages/AndromedaOrchestrator/"),
-                .exact("Packages/AndromedaOrchestrator/Package.swift"),
-                .exact("Packages/AndromedaOrchestrator/Package.resolved"),
+                .prefix(Package.orchestrator.root),
+                .exact(Package.orchestrator.manifest),
+                .exact(Package.orchestrator.resolved),
             ]
         }
     }
@@ -169,28 +229,28 @@ enum E2ETrigger: CaseIterable {
         switch self {
         case .rootE2E:
             return [
-                .exact(".github/workflows/ci.yml"),
-                .exact("Package.swift"),
-                .exact("Package.resolved"),
-                .exact("Packages/MemoryKit/Package.swift"),
-                .exact("Packages/MemoryKit/Package.resolved"),
-                .prefix("Packages/MemoryKit/Sources/"),
-                .prefix("Packages/MemoryKit/Tests/"),
-                .prefix("Sources/AndromedaMemory/"),
-                .prefix("Sources/AndromedaProjections/"),
-                .prefix("Tests/AndromedaProjectionTests/"),
-                .prefix("Sources/AndromedaHUDCore/"),
-                .prefix("Sources/AndromedaHomeCore/"),
-                .prefix("Tests/AndromedaHUDTests/"),
-                .prefix("Tests/AndromedaHomeTests/"),
+                .exact(RepoPath.ciWorkflow),
+                .exact(RepoPath.rootManifest),
+                .exact(RepoPath.rootResolved),
+                .exact(Package.memoryKit.manifest),
+                .exact(Package.memoryKit.resolved),
+                .prefix(Package.memoryKit.sources),
+                .prefix(Package.memoryKit.tests),
+                .prefix(RootModule.andromedaMemory.path),
+                .prefix(RootModule.projections.path),
+                .prefix(RootModule.projectionTests.path),
+                .prefix(RootModule.hudCore.path),
+                .prefix(RootModule.homeCore.path),
+                .prefix(RootModule.hudTests.path),
+                .prefix(RootModule.homeTests.path),
             ]
         case .memoryKitLiveE2E:
             return [
-                .exact(".github/workflows/ci.yml"),
-                .exact("Packages/MemoryKit/Package.swift"),
-                .exact("Packages/MemoryKit/Package.resolved"),
-                .prefix("Packages/MemoryKit/Sources/"),
-                .prefix("Packages/MemoryKit/Tests/"),
+                .exact(RepoPath.ciWorkflow),
+                .exact(Package.memoryKit.manifest),
+                .exact(Package.memoryKit.resolved),
+                .prefix(Package.memoryKit.sources),
+                .prefix(Package.memoryKit.tests),
             ]
         }
     }
