@@ -26,6 +26,33 @@ Window("Panel", id: "panel") {
 
 `NSWindow.Level.floating` via `WindowGroup` + host configuration when borderless drag needed.
 
+### Always-on-top companion HUD (NSPanel) [ML — proven in Morphling]
+
+For floating overlays that ride above ALL windows/spaces (companion HUDs,
+pets, status orbs) — plain `Window` style is not enough; use an `NSPanel`:
+
+```swift
+let panel = NSPanel(
+    contentRect: .init(x: 0, y: 0, width: 340, height: 420),
+    styleMask: [.borderless, .nonactivatingPanel],
+    backing: .buffered, defer: false
+)
+panel.isFloatingPanel = true
+panel.level = .floating
+panel.collectionBehavior = [.canJoinAllSpaces, .stationary]
+panel.isOpaque = false
+panel.backgroundColor = .clear
+panel.setContentView(NSHostingView(rootView: CompanionView()))
+panel.orderFrontRegardless()
+```
+
+Key properties: `.nonactivatingPanel` (clicks don't steal app focus),
+`.canJoinAllSpaces + .stationary` (visible on every Space, doesn't move on
+mission-control), clear + non-opaque for shaped/transparent SwiftUI content.
+The hosted SwiftUI view can then morph shape/size freely (see
+`animations.md` → Shape morphing) — the panel just needs a frame big enough
+to contain the largest form.
+
 ## NSStatusItem (custom)
 
 When `MenuBarExtra` insufficient (custom drawn icon, badge):
