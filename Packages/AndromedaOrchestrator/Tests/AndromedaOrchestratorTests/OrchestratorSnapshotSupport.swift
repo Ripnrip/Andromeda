@@ -4,14 +4,15 @@ import SwiftUI
 import XCTest
 
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #elseif canImport(AppKit)
-@preconcurrency import AppKit
+    @preconcurrency import AppKit
 #endif
 
 @testable import AndromedaOrchestrator
 
 // MARK: - Hosting
+
 //
 // Shared hosting for the snapshot suites: same framing + appearance control on
 // every platform, so a UIKit-only habit cannot quietly dead-file the suite on
@@ -22,51 +23,51 @@ import UIKit
 @MainActor
 enum OrchestratorSnapshotHosting {
     #if canImport(UIKit)
-    static func makeHost(_ view: some View, _ size: CGSize, dark: Bool) -> UIViewController {
-        let vc = UIHostingController(
-            rootView: view
-                .environment(\._accessibilityReduceMotion, true)
-                .frame(width: size.width, height: size.height)
-        )
-        vc.view.frame = CGRect(origin: .zero, size: size)
-        vc.overrideUserInterfaceStyle = dark ? .dark : .light
-        return vc
-    }
+        static func makeHost(_ view: some View, _ size: CGSize, dark: Bool) -> UIViewController {
+            let vc = UIHostingController(
+                rootView: view
+                    .environment(\._accessibilityReduceMotion, true)
+                    .frame(width: size.width, height: size.height)
+            )
+            vc.view.frame = CGRect(origin: .zero, size: size)
+            vc.overrideUserInterfaceStyle = dark ? .dark : .light
+            return vc
+        }
     #elseif canImport(AppKit)
-    static func makeHost(_ view: some View, _ size: CGSize, dark: Bool) -> NSViewController {
-        let themed = view
-            .environment(\._accessibilityReduceMotion, true)
-            .environment(\.colorScheme, dark ? ColorScheme.dark : ColorScheme.light)
-            .frame(width: size.width, height: size.height)
-        let vc = NSHostingController(rootView: AnyView(themed))
-        vc.view.frame = CGRect(origin: .zero, size: size)
+        static func makeHost(_ view: some View, _ size: CGSize, dark: Bool) -> NSViewController {
+            let themed = view
+                .environment(\._accessibilityReduceMotion, true)
+                .environment(\.colorScheme, dark ? ColorScheme.dark : ColorScheme.light)
+                .frame(width: size.width, height: size.height)
+            let vc = NSHostingController(rootView: AnyView(themed))
+            vc.view.frame = CGRect(origin: .zero, size: size)
 
-        // Pre-host the controller in an offscreen window and run the runloop
-        // briefly so `.task` closures land before the snapshot capture:
-        // `EntranceModifier` starts hidden and reveals from its `.task`, and a
-        // purely synchronous draw would record the pre-task (hidden) frame.
-        // The window is ordered front (from an offscreen origin) so ScrollView
-        // + lazy containers actually materialize their items — an unordered
-        // window never engages the layout/compositing path that lazily
-        // instantiates children, and the capture records an empty void.
-        let window = NSWindow(contentViewController: vc)
-        window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-        window.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
-        window.setFrame(CGRect(origin: .zero, size: size), display: true)
-        window.orderFrontRegardless()
-        window.displayIfNeeded()
-        window.display()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.4))
-        // The view stays ATTACHED to this window (which outlives the capture
-        // via the associated object below). Detaching before the snapshot
-        // strategy's async hop — `window.contentViewController = nil` — let
-        // SwiftUI tear the render tree down over the next runloop turns, and
-        // `cacheDisplay` then recorded a void: heavier trees (the gallery
-        // wall) lost everything, lighter ones (the console shell) lost only
-        // their uncached interiors. Attached, the capture is deterministic.
-        objc_setAssociatedObject(vc, &OrchestratorSnapshotHosting.hostWindowSlot, window, .OBJC_ASSOCIATION_RETAIN)
-        return vc
-    }
+            // Pre-host the controller in an offscreen window and run the runloop
+            // briefly so `.task` closures land before the snapshot capture:
+            // `EntranceModifier` starts hidden and reveals from its `.task`, and a
+            // purely synchronous draw would record the pre-task (hidden) frame.
+            // The window is ordered front (from an offscreen origin) so ScrollView
+            // + lazy containers actually materialize their items — an unordered
+            // window never engages the layout/compositing path that lazily
+            // instantiates children, and the capture records an empty void.
+            let window = NSWindow(contentViewController: vc)
+            window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+            window.setFrameOrigin(NSPoint(x: -20000, y: -20000))
+            window.setFrame(CGRect(origin: .zero, size: size), display: true)
+            window.orderFrontRegardless()
+            window.displayIfNeeded()
+            window.display()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+            // The view stays ATTACHED to this window (which outlives the capture
+            // via the associated object below). Detaching before the snapshot
+            // strategy's async hop — `window.contentViewController = nil` — let
+            // SwiftUI tear the render tree down over the next runloop turns, and
+            // `cacheDisplay` then recorded a void: heavier trees (the gallery
+            // wall) lost everything, lighter ones (the console shell) lost only
+            // their uncached interiors. Attached, the capture is deterministic.
+            objc_setAssociatedObject(vc, &OrchestratorSnapshotHosting.hostWindowSlot, window, .OBJC_ASSOCIATION_RETAIN)
+            return vc
+        }
     #endif
 
     private nonisolated(unsafe) static var hostWindowSlot: UInt8 = 0
@@ -133,6 +134,7 @@ enum OrchestratorSnapshotSupport {
 }
 
 // MARK: - Deterministic fixtures
+
 //
 // The live model is a simulator: every tick randomizes requests and metrics.
 // Snapshots pin the same view states the previews show, but with fixtures the
@@ -140,7 +142,6 @@ enum OrchestratorSnapshotSupport {
 
 @MainActor
 enum SnapshotFixtures {
-
     /// Steady-state console model: no onboarding, no launch reveal, ticker
     /// frozen, telemetry pinned. The view tree is identical to the
     /// `OrchestratorModel(firstRun: false)` the previews build.
@@ -148,7 +149,7 @@ enum SnapshotFixtures {
         let model = OrchestratorModel(firstRun: false)
         model.isStreaming = false
         model.requests = SampleData.deterministicRequests
-        model.requestsPerMinute = 1_240
+        model.requestsPerMinute = 1240
         model.tokensPerSecond = 18.4
         model.cacheHitRate = 0.34
         return model
@@ -160,7 +161,7 @@ enum SnapshotFixtures {
         let model = OrchestratorModel(firstRun: true, launchReveal: false)
         model.isStreaming = false
         model.requests = SampleData.deterministicRequests
-        model.requestsPerMinute = 1_240
+        model.requestsPerMinute = 1240
         model.tokensPerSecond = 18.4
         model.cacheHitRate = 0.34
         model.onboardingStep = step
@@ -168,10 +169,10 @@ enum SnapshotFixtures {
     }
 }
 
-// NSImage is `@_nonSendable(_assumed)` in AppKit SDKs; this box lets the
-// captured image change hands from the main-actor capture to the strategy's
-// pullback without an isolation-diagnosed transfer. Created and consumed on
-// the same thread by the assertion path.
+/// NSImage is `@_nonSendable(_assumed)` in AppKit SDKs; this box lets the
+/// captured image change hands from the main-actor capture to the strategy's
+/// pullback without an isolation-diagnosed transfer. Created and consumed on
+/// the same thread by the assertion path.
 private final class OrchestratorImageBox: @unchecked Sendable {
     var image: NSImage?
 }

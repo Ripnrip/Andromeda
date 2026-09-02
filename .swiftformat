@@ -1,0 +1,11 @@
+--swiftversion 5.9
+--disable spaceAroundParens
+--indent 4
+--trimwhitespace always
+--self remove
+--semicolons inline
+--stripunusedargs closure-only
+--conflictmarkers reject
+--header strip
+--wraparguments preserve
+--wrapparameters preserve
