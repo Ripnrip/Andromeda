@@ -172,14 +172,16 @@ func git(_ args: [String]) -> String? {
 
 /// Mirrors the bash base-ref resolution: HEAD^1 on PR merge commits,
 /// HEAD^ on ordinary commits, root commit as last resort.
+/// SE-0380 if-expression chain — short-circuits the git probes in order
+/// (switch-on-tuple would eagerly evaluate every probe in every branch).
 func resolveBaseRef(event: String) -> String {
-    if event == "pull_request", git(["rev-parse", "--verify", "HEAD^1"]) != nil {
-        return "HEAD^1"
+    return if event == "pull_request", git(["rev-parse", "--verify", "HEAD^1"]) != nil {
+        "HEAD^1"
+    } else if git(["rev-parse", "--verify", "HEAD^"]) != nil {
+        "HEAD^"
+    } else {
+        git(["rev-list", "--max-parents=0", "HEAD"])?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "HEAD^"
     }
-    if git(["rev-parse", "--verify", "HEAD^"]) != nil {
-        return "HEAD^"
-    }
-    return git(["rev-list", "--max-parents=0", "HEAD"])?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "HEAD^"
 }
 
 // MARK: - Observability
