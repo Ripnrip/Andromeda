@@ -9,7 +9,8 @@
 // HEAD^1 base on PRs, root-commit fallback, same pattern → lane mapping).
 //
 // Security: Tools/CIScope/** is itself a classified path that triggers every
-// lane — a PR that rewrites the classifier can never skip the gates it feeds.
+// lane. Paired with ci.yml compiling the *base* parent's CIScope on
+// pull_request (not the PR rewrite), a neutered classifier cannot skip gates.
 
 import Foundation
 
@@ -36,7 +37,31 @@ enum Lane: String, CaseIterable, Sendable {
 
     /// Live E2E lanes gate their own jobs and are excluded from `anyLane`,
     /// which arms the build/test jobs (mirrors the retired bash semantics).
-    var isLiveE2E: Bool { self == .rootE2E || self == .memoryKitLiveE2E }
+    var isLiveE2E: Bool {
+        switch self {
+        case .rootE2E, .memoryKitLiveE2E: true
+        case .root, .memoryKit, .anima, .andromedaMCP, .powerKit, .statusline,
+            .andromedaUI, .guardian, .orchestrator:
+            false
+        }
+    }
+}
+
+// MARK: - Derived outputs
+
+/// Non-lane GITHUB_OUTPUT keys derived from the armed set.
+/// CaseIterable so emission can't forget a derived flag the way the old
+/// hand-written emit list could.
+enum DerivedOutput: String, CaseIterable, Sendable {
+    case needsQdrant = "needs_qdrant"
+    case anyLane = "any_lane"
+
+    func value(in scope: Scope) -> Bool {
+        switch self {
+        case .needsQdrant: scope.needsQdrant
+        case .anyLane: scope.anyLane
+        }
+    }
 }
 
 // MARK: - Event
@@ -58,6 +83,9 @@ enum CIEvent: String, Sendable {
 
 /// How a rule matches a changed file. Replaces the retired `\0none` sentinel
 /// prefix and the parallel prefix/exact string arrays.
+///
+/// Matching lives here — not as a free function, not as a `String` extension.
+/// `FilePattern` owns the closed algebra of match strategies; `String` does not.
 enum FilePattern: Equatable, Sendable {
     /// Matches any file under the prefix (bash glob `prefix*` also crossed `/`).
     case under(String)
@@ -68,9 +96,9 @@ enum FilePattern: Equatable, Sendable {
 
     func matches(_ file: String) -> Bool {
         switch self {
-        case .under(let prefix): return file.hasPrefix(prefix)
-        case .exact(let paths): return paths.contains(file)
-        case .anyOf(let prefix, let paths): return file.hasPrefix(prefix) || paths.contains(file)
+        case .under(let prefix): file.hasPrefix(prefix)
+        case .exact(let paths): paths.contains(file)
+        case .anyOf(let prefix, let paths): file.hasPrefix(prefix) || paths.contains(file)
         }
     }
 }
@@ -80,7 +108,13 @@ enum FilePattern: Equatable, Sendable {
 /// A classification rule: files matching `pattern` arm `lanes`.
 /// Multiple rules may fire for the same file (behavior mirrors the retired
 /// bash case-statement fallthrough).
-struct Rule: Sendable {
+///
+/// Deliberately a *struct*, not a protocol. Rule is pure data (pattern + lanes);
+/// matching polymorphism already lives on `FilePattern`'s associated values.
+/// A protocol would buy existential/generic dispatch for a single closed shape
+/// with no second implementation. If rule *kinds* appear later, upgrade to an
+/// enum-with-associated-values (same doctrine as FilePattern) — not a protocol.
+struct Rule: Equatable, Sendable {
     let pattern: FilePattern
     let lanes: [Lane]
 
@@ -93,13 +127,13 @@ struct Rule: Sendable {
 // MARK: - Scope
 
 /// The armed-lane set for this diff.
+///
+/// Deliberately a *struct* wrapping `Set<Lane>`, not an enum. Scope is an
+/// aggregate that accumulates an arbitrary subset of lanes (up to 2^N states).
+/// Enums model mutually exclusive sum types; this is a set. `Lane` itself is
+/// the enum — Scope is the bag of armed ones.
 struct Scope: Sendable {
     private(set) var lanes: Set<Lane> = []
-
-    /// CI-critical surfaces — the workflow itself, the package manifests, and
-    /// the classifier (this tool) — arm every lane. A change to how lanes are
-    /// decided must never be able to skip the lanes it decides.
-    static let allLanes: [Lane] = Lane.allCases
 
     mutating func arm(_ lanes: some Sequence<Lane>) {
         self.lanes.formUnion(lanes)
@@ -115,7 +149,9 @@ struct Scope: Sendable {
     /// (Live E2E lanes gate their own jobs via their individual outputs.)
     var anyLane: Bool { lanes.contains { !$0.isLiveE2E } }
 
-    var needsQdrant: Bool { lanes.contains(.rootE2E) || lanes.contains(.memoryKitLiveE2E) }
+    var needsQdrant: Bool {
+        lanes.contains(.rootE2E) || lanes.contains(.memoryKitLiveE2E)
+    }
 }
 
 // MARK: - Rules
@@ -141,8 +177,9 @@ let laneRules: [Rule] = [
 
     // SECURITY: the classifier classifies itself. A diff that rewrites the
     // scope engine arms every lane — it can never skip the gates it feeds.
-    // (Cursor Security MEDIUM 2026-09-02: Tools/CIScope was previously an
-    // unclassified path; a classifier-only PR emitted any_lane=false.)
+    // Runs from the *trusted* base-parent binary (ci.yml HEAD^1 compile), so
+    // a PR that deletes this rule still gets classified by the base copy.
+    // (Cursor Security MEDIUM 2026-09-02 + Manus trust review.)
     Rule(.under("Tools/CIScope/"), Lane.allCases),
 ]
 
@@ -185,18 +222,27 @@ func git(_ args: [String]) -> String? {
     return String(data: data, encoding: .utf8)
 }
 
+/// Candidate base refs the probe chain may return.
+enum BaseRef: String, Sendable {
+    case mergeParent = "HEAD^1"
+    case parent = "HEAD^"
+}
+
 /// Mirrors the bash base-ref resolution: HEAD^1 on PR merge commits,
 /// HEAD^ on ordinary commits, root commit as last resort.
-/// SE-0380 switch-expression — `where` clauses evaluate lazily in case
-/// order, preserving the probe short-circuit.
+///
+/// SE-0380 `return switch` verified: yes, Swift 5.9+. `where` clauses evaluate
+/// lazily in case order, so the git probes keep their short-circuit (a
+/// switch-on-tuple would eager-evaluate every probe — don't do that).
 func resolveBaseRef(event: CIEvent) -> String {
     return switch event {
-    case .pullRequest where git(["rev-parse", "--verify", "HEAD^1"]) != nil:
-        "HEAD^1"
-    case _ where git(["rev-parse", "--verify", "HEAD^"]) != nil:
-        "HEAD^"
+    case .pullRequest where git(["rev-parse", "--verify", BaseRef.mergeParent.rawValue]) != nil:
+        BaseRef.mergeParent.rawValue
+    case _ where git(["rev-parse", "--verify", BaseRef.parent.rawValue]) != nil:
+        BaseRef.parent.rawValue
     default:
-        git(["rev-list", "--max-parents=0", "HEAD"])?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "HEAD^"
+        git(["rev-list", "--max-parents=0", "HEAD"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? BaseRef.parent.rawValue
     }
 }
 
@@ -220,7 +266,9 @@ func flag(_ name: String) -> String? {
 let baseRefOverride = flag("--base-ref")
 let event = CIEvent(rawOrPush: flag("--event") ?? "push")
 
-log("🚀", "ciscope event=\(event)\(baseRefOverride.map { " base-ref-override=\($0)" } ?? "")")
+log(
+    "🚀",
+    "ciscope event=\(event.rawValue)\(baseRefOverride.map { " base-ref-override=\($0)" } ?? "")")
 
 var scope = Scope()
 let baseRef: String
@@ -256,13 +304,14 @@ for file in changedFiles {
     }
 }
 
-// CaseIterable-driven emission — one source of truth for keys and lanes.
+// CaseIterable-driven emission — lanes + derived flags, one source of truth.
 var out = ""
 for lane in Lane.allCases {
     out += "\(lane.outputKey)=\(scope.lanes.contains(lane))\n"
 }
-out += "needs_qdrant=\(scope.needsQdrant)\n"
-out += "any_lane=\(scope.anyLane)\n"
+for derived in DerivedOutput.allCases {
+    out += "\(derived.rawValue)=\(derived.value(in: scope))\n"
+}
 FileHandle.standardOutput.write(out.data(using: .utf8)!)
 
 let armedLanes = scope.lanes.map(\.rawValue).sorted()
