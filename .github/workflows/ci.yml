@@ -38,114 +38,15 @@ jobs:
           # against the first parent and cheaply scope CI without a full-history fetch.
           fetch-depth: 2
 
-      - name: Determine CI scope
+      # Scope classification lives in Swift (AGENTS.md: no project-maintained
+      # shell automation). A/B-verified identical to the retired bash script.
+      - name: Determine CI scope (Swift)
         id: scope
         shell: bash
         run: |
           set -euo pipefail
-
-          if [ "${{ github.event_name }}" = "pull_request" ] && git rev-parse HEAD^1 >/dev/null 2>&1; then
-            base_ref="HEAD^1"
-          elif git rev-parse HEAD^ >/dev/null 2>&1; then
-            base_ref="HEAD^"
-          else
-            base_ref="$(git rev-list --max-parents=0 HEAD)"
-          fi
-
-          run_root=false
-          run_root_e2e=false
-          run_memorykit=false
-          run_memorykit_live_e2e=false
-          run_anima=false
-          run_andromeda_mcp=false
-          run_powerkit=false
-          run_statusline=false
-          run_andromeda_ui=false
-          run_guardian=false
-          run_orchestrator=false
-
-          while IFS= read -r file; do
-            [ -z "$file" ] && continue
-            echo "changed: $file"
-
-            case "$file" in
-              .github/workflows/ci.yml)
-                run_root=true
-                run_root_e2e=true
-                run_memorykit=true
-                run_memorykit_live_e2e=true
-                run_anima=true
-                run_guardian=true
-                run_orchestrator=true
-                ;;
-              Package.swift|Package.resolved|Sources/*|Tests/*)
-                run_root=true
-                ;;
-              Packages/MemoryKit/Package.swift|Packages/MemoryKit/Package.resolved|Packages/MemoryKit/Sources/*|Packages/MemoryKit/Tests/*)
-                run_root=true
-                run_memorykit=true
-                ;;
-              Packages/Anima/Package.swift|Packages/Anima/Package.resolved|Packages/Anima/Sources/*|Packages/Anima/Tests/*)
-                run_anima=true
-                ;;
-              Packages/AndromedaMCP/Package.swift|Packages/AndromedaMCP/Package.resolved|Packages/AndromedaMCP/Sources/*|Packages/AndromedaMCP/Tests/*)
-                run_andromeda_mcp=true
-                ;;
-              Packages/AndromedaPowerKit/*)
-                run_powerkit=true
-                ;;
-              Packages/AndromedaStatusline/Package.swift|Packages/AndromedaStatusline/Package.resolved|Packages/AndromedaStatusline/Sources/*|Packages/AndromedaStatusline/Tests/*)
-                run_statusline=true
-                ;;
-              Packages/AndromedaUI/Package.swift|Packages/AndromedaUI/Package.resolved|Packages/AndromedaUI/Sources/*|Packages/AndromedaUI/Tests/*)
-                run_andromeda_ui=true
-                ;;
-              Packages/AndromedaGuardian/Package.swift|Packages/AndromedaGuardian/Package.resolved|Packages/AndromedaGuardian/Sources/*|Packages/AndromedaGuardian/Tests/*)
-                run_guardian=true
-                ;;
-              Packages/AndromedaOrchestrator/Package.swift|Packages/AndromedaOrchestrator/Package.resolved|Packages/AndromedaOrchestrator/Sources/*|Packages/AndromedaOrchestrator/Tests/*)
-                run_orchestrator=true
-                ;;
-            esac
-
-            case "$file" in
-              .github/workflows/ci.yml|Package.swift|Package.resolved|Packages/MemoryKit/Package.swift|Packages/MemoryKit/Package.resolved|Packages/MemoryKit/Sources/*|Packages/MemoryKit/Tests/*|Sources/AndromedaMemory/*|Sources/AndromedaProjections/*|Tests/AndromedaProjectionTests/*|Sources/AndromedaHUDCore/*|Sources/AndromedaHomeCore/*|Tests/AndromedaHUDTests/*|Tests/AndromedaHomeTests/*)
-                run_root_e2e=true
-                ;;
-            esac
-
-            case "$file" in
-              .github/workflows/ci.yml|Packages/MemoryKit/Package.swift|Packages/MemoryKit/Package.resolved|Packages/MemoryKit/Sources/*|Packages/MemoryKit/Tests/*)
-                run_memorykit_live_e2e=true
-                ;;
-            esac
-          done < <(git diff --name-only "$base_ref" HEAD)
-
-          needs_qdrant=false
-          if [ "$run_root_e2e" = true ] || [ "$run_memorykit_live_e2e" = true ]; then
-            needs_qdrant=true
-          fi
-
-          any_lane=false
-          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ] || [ "$run_andromeda_ui" = true ] || [ "$run_guardian" = true ] || [ "$run_orchestrator" = true ]; then
-            any_lane=true
-          fi
-
-          {
-            echo "run_root=$run_root"
-            echo "run_root_e2e=$run_root_e2e"
-            echo "run_memorykit=$run_memorykit"
-            echo "run_memorykit_live_e2e=$run_memorykit_live_e2e"
-            echo "run_anima=$run_anima"
-            echo "run_andromeda_mcp=$run_andromeda_mcp"
-            echo "run_powerkit=$run_powerkit"
-            echo "run_statusline=$run_statusline"
-            echo "run_andromeda_ui=$run_andromeda_ui"
-            echo "run_guardian=$run_guardian"
-            echo "run_orchestrator=$run_orchestrator"
-            echo "needs_qdrant=$needs_qdrant"
-            echo "any_lane=$any_lane"
-          } >> "$GITHUB_OUTPUT"
+          swiftc Tools/CIScope/CIScope.swift -o /tmp/ciscope
+          /tmp/ciscope --event "${{ github.event_name }}" >> "$GITHUB_OUTPUT"
 
       - name: No build/test lanes matched this diff
         if: steps.scope.outputs.any_lane != 'true'
