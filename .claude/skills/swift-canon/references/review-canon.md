@@ -16,6 +16,11 @@ General Swift PR discipline for any project.
 
 ## 3. Visual proof should be real
 
+- **Every behavioral PR carries a sequence/flow diagram** — mermaid
+  `sequenceDiagram`, `flowchart`, or `stateDiagram` of what the PR does,
+  rendered to an image for review (`npx -p @mermaid-js/mermaid-cli mmdc`).
+  Pure docs/config PRs may mark "n/a — no behavior change". (BofA law,
+  2026-08-12 for AI-Config; made fleet-wide 2026-08-26.)
 - Snapshot/UI PRs should carry body-level proof when the repo expects it.
 - Use real images, stable links, or committed artifacts — not hand-wavy descriptions.
 

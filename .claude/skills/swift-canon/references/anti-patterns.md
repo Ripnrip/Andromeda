@@ -389,6 +389,65 @@ BofA in review (Aug 2026), swept repo-wide in issue #57, enforcement rules
 in `canon/ast-grep/`.
 Project-specific scar details live in the project skill layered on this canon.
 
+## Exhibit 7: snapshot tests that capture animated or reveal states without pinning the random source
+
+**Shape**: a snapshot suite records a view whose pixels depend on anything
+time-, RNG-, or appearance-dependent — then passes locally and flakes on
+re-run or on the CI runner.
+
+Real offender (AndromedaOrchestrator landing, 2026-08-26): a catalogue
+sweep spec passed its own record run, then failed the very next verify run.
+The moving part was not animation — it was a demo model that re-rolled its
+`requests` array with `Double.random` on every process launch, so the
+recorded baseline and the verify render were different data wearing a
+deterministic-looking costume.
+
+**Why it's wrong** (numbered failures):
+
+1. **The flake hides behind an obvious suspect.** "Animation
+   nondeterminism" was the tempting diagnosis; the actual cause was an
+   unpinned data array. Chasing the visible animation while the data
+   re-randomizes wastes a debugging cycle in exactly the confident
+   direction.
+2. **Cross-process RNG beats per-run freezes.** Freezing the ticker
+   (`isStreaming = false`) is not enough when the *initial* fixtures are
+   random — record and verify are separate processes with separate dice.
+3. **`.task`-driven reveals capture invisible frames.** A modifier that
+   starts `shown = false` and reveals from its `.task` is captured pre-task
+   by a synchronous draw: every baseline renders as an empty panel —
+   consistently, which looks stable until you notice the panels are blank.
+4. **SDK-stable assumptions rot.** `accessibilityReduceMotion` was writable
+   for a decade of SwiftUI; the macOS 26 SDK made it get-only. Code that
+   compiled "forever" fails with an overload-resolution error that looks
+   like a type-inference flake (and was documented as one, wrongly, in a
+   prior memory file).
+
+**Replacement shape**:
+
+```swift
+// Pin the data in the SOURCE module — gallery and tests share one truth:
+public extension SampleData {
+    static let deterministicRequests: [GatewayRequest] = [ /* fixed rows */ ]
+}
+
+// Host: still frame via the SPI key (macOS 26+) + runloop pump for .task reveals:
+let themed = view
+    .environment(\._accessibilityReduceMotion, true)   // get-only public key on macOS 26 SDK
+    .environment(\.colorScheme, dark ? .dark : .light)
+    .frame(width: size.width, height: size.height)
+let vc = NSHostingController(rootView: AnyView(themed))
+let window = NSWindow(contentViewController: vc)
+window.displayIfNeeded(); window.display()
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))   // let .task closures land
+window.contentViewController = nil
+// then assertSnapshot(of: vc, ...) — state persists on the hosting controller
+```
+
+Canon rule: a snapshot suite must force **every** nondeterminism source —
+data RNG, ambient loops, entrance timing, appearance — to a still, complete
+frame with pinned content before capture. Verify by running the suite twice
+back-to-back and diffing, before ever pushing a `[record-snapshots]` tip.
+Proven in `Ripnrip/Andromeda` PR #61 (34/34 ×2 byte-stable).
 ## Exhibit 11 — The Go-shaped actor: porting another language's structure instead of its meaning
 
 **Shape**: a rewrite that carries the old language's imperative flow into Swift — policy
