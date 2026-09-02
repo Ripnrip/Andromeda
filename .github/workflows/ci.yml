@@ -40,12 +40,29 @@ jobs:
 
       # Scope classification lives in Swift (AGENTS.md: no project-maintained
       # shell automation). A/B-verified identical to the retired bash script.
+      #
+      # TRUST BOUNDARY (Manus / Cursor Security): on pull_request, compile the
+      # base parent's CIScope (HEAD^1 on the merge commit) — never the PR's own
+      # rewrite. Self-classification in that trusted binary arms every lane when
+      # Tools/CIScope/ is in the diff; a neutered PR binary cannot delete the
+      # rule from the classifier that actually runs. Bootstrap: if base has no
+      # CIScope yet, fall back to the PR copy (first-land only).
       - name: Determine CI scope (Swift)
         id: scope
         shell: bash
         run: |
           set -euo pipefail
-          swiftc Tools/CIScope/CIScope.swift -o /tmp/ciscope
+          SOURCE="Tools/CIScope/CIScope.swift"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if git cat-file -e "HEAD^1:Tools/CIScope/CIScope.swift" 2>/dev/null; then
+              git show "HEAD^1:Tools/CIScope/CIScope.swift" > /tmp/CIScope-trusted.swift
+              SOURCE=/tmp/CIScope-trusted.swift
+              echo "🔒 compiling trusted CIScope from HEAD^1 (base parent)"
+            else
+              echo "⚠️ base has no CIScope yet — compiling PR copy (bootstrap)"
+            fi
+          fi
+          swiftc "$SOURCE" -o /tmp/ciscope
           /tmp/ciscope --event "${{ github.event_name }}" >> "$GITHUB_OUTPUT"
 
       - name: No build/test lanes matched this diff
