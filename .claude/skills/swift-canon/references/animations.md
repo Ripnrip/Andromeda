@@ -150,6 +150,25 @@ struct BlobShape: Shape {
 Also set `.contentShape(BlobShape(...))` with the same parameters so the
 hit region follows the morph.
 
+**`animatableData` is required or params jump, not morph.** `Shape` defaults
+to empty animation data — stored properties are NOT auto-animatable. Expose
+every interpolatable parameter, and represent integer-ish params (like side
+count) as `CGFloat` so they interpolate:
+
+```swift
+extension BlobShape {
+    var animatableData: AnimatablePair<CGFloat, AnimatablePair<CGFloat, CGFloat>> {
+        get { AnimatablePair(wildness, AnimatablePair(sides, phase)) }
+        set {
+            wildness = newValue.first
+            sides = Int(newValue.second.first.rounded())
+            phase = newValue.second.second
+        }
+    }
+}
+// store `sides` as CGFloat in the Shape; snap with .rounded() in the setter
+```
+
 ## Escalating morph theater (sequenced form chain) [ML]
 
 The "dance between forms" pattern — orb → wild dance → snap to target:
