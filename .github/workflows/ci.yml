@@ -278,6 +278,20 @@ jobs:
             echo "record=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # SwiftLint + SwiftFormat — the Orchestrator package is under lint
+      # first (see .swiftlint.yml `included`); widen per package as they're
+      # brought in. Zero serious violations required. Runs BEFORE the test
+      # lanes (fast gate) and with `always()` semantics of its own flag —
+      # a custom `if` without a status check is implicitly ANDed with
+      # success(), so a failed test step would silently skip lint otherwise.
+      - name: Lint (swiftlint + swiftformat)
+        if: ${{ always() && steps.scope.outputs.run_orchestrator == 'true' }}
+        run: |
+          brew install swiftlint swiftformat
+          # Gate: zero SERIOUS violations (errors). Warnings are visible debt.
+          swiftlint
+          swiftformat --lint Packages/AndromedaOrchestrator
+
       - name: Test (root package)
         if: steps.scope.outputs.run_root == 'true' && steps.snapshots.outputs.record != 'true'
         env:
@@ -394,6 +408,17 @@ jobs:
         if: steps.scope.outputs.run_orchestrator == 'true' && steps.snapshots.outputs.record != 'true'
         working-directory: Packages/AndromedaOrchestrator
         run: swift test --parallel --num-workers 1
+
+      # Compile gate BEFORE the tolerant record step. Record mode fails the
+      # test run on purpose (continue-on-error below), which also swallows
+      # COMPILE failures — and the artifact then re-uploads the previously
+      # committed baselines unchanged, masquerading as fresh runner output.
+      # This strict build makes that failure mode loud instead of silent.
+      # (Provenance rule: byte-diff the artifact against HEAD before landing.)
+      - name: Record gate · AndromedaOrchestrator compiles
+        if: steps.scope.outputs.run_orchestrator == 'true' && steps.snapshots.outputs.record == 'true'
+        working-directory: Packages/AndromedaOrchestrator
+        run: swift build --build-tests
 
       - name: Test AndromedaOrchestrator (nested package, record snapshots)
         if: steps.scope.outputs.run_orchestrator == 'true' && steps.snapshots.outputs.record == 'true'

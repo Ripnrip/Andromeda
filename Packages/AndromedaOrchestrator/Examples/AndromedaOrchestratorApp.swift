@@ -1,5 +1,5 @@
-import SwiftUI
 import AndromedaOrchestrator
+import SwiftUI
 
 // Minimal host. Drop this into an app target — the package ships the surface,
 // the app ships the window.
@@ -8,14 +8,14 @@ import AndromedaOrchestrator
 struct AndromedaOrchestratorApp: App {
     @State private var model = OrchestratorModel()
     #if os(macOS)
-    @State private var detachedHUD: HUDWindowController?
+        @State private var detachedHUD: HUDWindowController?
     #endif
 
     var body: some Scene {
         WindowGroup {
             OrchestratorConsole(model: model)
                 .frame(minWidth: 1180, minHeight: 760)
-                #if os(macOS)
+            #if os(macOS)
                 // DETACH/DOCK wiring: the console button flips hudDetached;
                 // the app owns window presentation — present the floating
                 // NSPanel on detach, close it on dock.
@@ -29,7 +29,7 @@ struct AndromedaOrchestratorApp: App {
                         detachedHUD = nil
                     }
                 }
-                #endif
+            #endif
         }
         #if os(macOS)
         .windowStyle(.hiddenTitleBar)
@@ -37,14 +37,14 @@ struct AndromedaOrchestratorApp: App {
         #endif
 
         #if os(macOS)
-        MenuBarExtra {
-            HUDPanel(model: model)
-                .orchestratorPalette()
-                .frame(width: 292)
-        } label: {
-            Image(systemName: "triangle")
-        }
-        .menuBarExtraStyle(.window)
+            MenuBarExtra {
+                HUDPanel(model: model)
+                    .orchestratorPalette()
+                    .frame(width: 292)
+            } label: {
+                Image(systemName: "triangle")
+            }
+            .menuBarExtraStyle(.window)
         #endif
     }
 }

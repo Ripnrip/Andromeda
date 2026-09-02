@@ -1,6 +1,7 @@
 import SwiftUI
 
 // MARK: - First run
+
 //
 // Four beats, continuing the pattern established in the companion HUD's
 // `Onboarding.swift`: promise → what we already found → the consolidation →
@@ -10,9 +11,13 @@ public struct OnboardingFlow: View {
     @Environment(\.palette) private var palette
     @Bindable public var model: OrchestratorModel
 
-    public init(model: OrchestratorModel) { self.model = model }
+    public init(model: OrchestratorModel) {
+        self.model = model
+    }
 
-    private var step: Int { model.onboardingStep ?? 0 }
+    private var step: Int {
+        model.onboardingStep ?? 0
+    }
 
     public var body: some View {
         VStack(spacing: 0) {
@@ -67,12 +72,16 @@ public struct OnboardingFlow: View {
             VStack(spacing: 10) {
                 TypedText(model.onboardingTitle, font: OrchestratorFont.editorial(40))
                     .multilineTextAlignment(.center)
-                Text("Andromeda consolidates your MCP servers and model providers behind a single local endpoint that speaks Anthropic messages, OpenAI responses, and chat completions. Nothing leaves this machine unless you route it out.")
-                    .font(OrchestratorFont.sans(14.5))
-                    .foregroundStyle(palette.muted)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-                    .frame(maxWidth: 560)
+                Text(
+                    "Andromeda consolidates your MCP servers and model providers behind a single local "
+                        + "endpoint that speaks Anthropic messages, OpenAI responses, and chat completions. "
+                        + "Nothing leaves this machine unless you route it out."
+                )
+                .font(OrchestratorFont.sans(14.5))
+                .foregroundStyle(palette.muted)
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+                .frame(maxWidth: 560)
             }
             HStack(spacing: 10) {
                 ForEach(Array(["local-first", "keys never leave the broker", "one usage ledger"].enumerated()), id: \.offset) { index, promise in
@@ -179,7 +188,10 @@ public struct OnboardingFlow: View {
 
     private var clients: some View {
         VStack(alignment: .leading, spacing: 16) {
-            header("Three dialects, one endpoint, one usage ledger. Existing SDKs need only a base URL change — the gateway translates request shapes and injects cache breakpoints on the way through.")
+            header(
+                "Three dialects, one endpoint, one usage ledger. Existing SDKs need only a base URL "
+                    + "change — the gateway translates request shapes and injects cache breakpoints on the way through."
+            )
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Kicker("base url")
@@ -233,7 +245,7 @@ public struct OnboardingFlow: View {
     private var footer: some View {
         HStack(spacing: 14) {
             HStack(spacing: 8) {
-                ForEach(0..<OrchestratorModel.onboardingTitles.count, id: \.self) { index in
+                ForEach(0 ..< OrchestratorModel.onboardingTitles.count, id: \.self) { index in
                     Capsule()
                         .fill(index <= step ? palette.cyan : palette.hairline)
                         .frame(width: index == step ? 26 : 10, height: 4)
@@ -290,13 +302,16 @@ public struct OnboardingFlow: View {
 }
 
 // MARK: - Flow layout
+
 //
 // Wrapping chip row. `Layout` rather than a nested HStack grid so chips reflow
 // with the window instead of clipping.
 
 public struct FlowLayout: Layout {
     public var spacing: CGFloat
-    public init(spacing: CGFloat = 8) { self.spacing = spacing }
+    public init(spacing: CGFloat = 8) {
+        self.spacing = spacing
+    }
 
     public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let maxWidth = proposal.width ?? .infinity
