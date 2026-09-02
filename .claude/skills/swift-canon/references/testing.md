@@ -43,15 +43,24 @@ func appearance() {
 }
 ```
 
-Record: `RECORD_SNAPSHOTS=1 swift test`
+Record: `SNAPSHOT_TESTING_RECORD=1 swift test` (fleet convention; CI records via a `[record-snapshots]` tip commit and the baselines artifact).
 
-Commit `__Snapshots__/`. CI: compare mode only.
+Commit `__Snapshots__/` — but only baselines recorded on the CI runner image; local macOS 26 PNGs do not pixel-match macos-15 runners. CI: compare mode only.
 
 ## Determinism
 
-- `.environment(\.accessibilityReduceMotion, true)` for motion views
-- Fixed dates in fixtures
-- Mock all clients
+Every nondeterminism source must be forced to a still, complete frame with pinned content before capture:
+
+- **Reduce-motion forces stills — but the key changed in macOS 26 SDK.** `accessibilityReduceMotion` is now **get-only** (`SwiftUICore` declares `get` only); writing `.environment(\.accessibilityReduceMotion, true)` cannot compile. Write the long-lived SPI storage instead: `.environment(\._accessibilityReduceMotion, true)` (compiles on Xcode 16.4 CI and Xcode 26).
+- **`.task`-driven reveals need a runloop pump.** A modifier that starts hidden (`shown = false`) and reveals from its `.task` will be captured pre-task (invisible) by a synchronous draw. Pre-host in an `NSWindow` (`contentViewController`), `window.display()`, then `RunLoop.main.run(until: +0.4s)` so MainActor tasks land; the hosting controller keeps the state when the capture re-hosts it.
+- **Pin the RNG source, not just the motion.** Simulators/demo models that randomize data per init or per tick make baselines cross-process flaky even when animations are frozen. Ship a deterministic fixture list in the *source* module (e.g. `SampleData.deterministicRequests`) shared by gallery specimens AND test fixtures; pin metrics too.
+- Fixed dates in fixtures; seed any sample generators.
+- Mock all clients.
+
+## swift-testing + pointfree 1.19
+
+- Suite trait is `.snapshots(record:)` (plural); `assertSnapshot` takes no `sourceLocation:` — pass `file:`/`testName:` through helpers explicitly, or `#filePath`/`#function` resolve at the helper and every baseline lands under the helper's name.
+- One framework per suite: an XCTest class is discoverable by BOTH XCTest and swift-testing runners in one `swift test` — duplicate baselines (`testFoo.`/`foo.` name prefixes) result.
 
 ## OTel in tests
 
@@ -86,3 +95,4 @@ Reduce-motion stills, journal clocks, RNG, locale: derive settled state from
 injected environment values (`shown || reduceMotion`, `\.journalNow`),
 never from hoping a `.task` fires before capture. See anti-patterns
 Exhibit 7.
+- Snapshot tests that capture animated or reveal states without pinning the random source (data RNG, ambient loops, entrance timing)
