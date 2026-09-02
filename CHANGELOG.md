@@ -2,6 +2,26 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-08-26 — Plans vault: memory bridge + herd-gather roadmaps (HAB-365 / HAB-362)
+
+**Tone hat:** Archivist with a lantern 🏮
+**Commit message of the day:** `docs: open the Plans vault — bridge + sweep roadmaps, event-law codified`
+**Steps taken (UTC):** Verified MemoryKit's actual substrate against the year-old bridge draft (Realm→SwiftData correction; JSONOutboxAuthority already ships the push machinery); upgraded the plan DRAFT→PHASE-1 PLANNED with executable phases; opened `Plans/` as the home for executable roadmaps; wrote the terminal-sweep roadmap beside it.
+
+### Added
+- `Plans/` — the executable-roadmaps home (first residents below).
+- `Plans/2026-08-26-memory-bridge-plan.md` — Andromeda ↔ claude knowledge-stack bridge: locked schema mapping, Phase 0 gateway surface (`POST /v1/memory/retain`, export, tombstone), pull-before-push ordering. Canonical copy; the `andromeda-sync` skill's BRIDGE-PLAN.md defers to it.
+- `Plans/2026-08-26-herd-gather-roadmap.md` — terminal sweep → fresh Herd workspace (never fuses) → recap/filing pipeline; v1 shipped same day (HAB-362).
+
+### Codified
+- **Design law — the agent IS the log:** memory is event-sourced; worldview is assembled from agent-attributed events, projections are rebuildable derivatives. The bridge pushes retain/forget events (never state blobs), keeps `agent`/`provenance` first-class, surfaces `deadLetter` honestly, and never lets a recap masquerade as the record.
+
+### Reflection
+- The draft waited a year for an ingest endpoint that was half-built the whole time. Reading the source *is* the roadmap. 🏮
+
+### Easter egg
+- Realm ghosts exorcised: 1. Sweeps filed with evidence: 8 tabs. 🧹
+
 ## 2026-08-08 — Universal agent memory over MCP
 
 **Tone hat:** Hacker 🕶️

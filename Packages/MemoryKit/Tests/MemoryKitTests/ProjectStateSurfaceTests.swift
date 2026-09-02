@@ -220,6 +220,84 @@ struct ProjectStateSurfaceTests {
         print("🎉 ✨ MULTICA-ONLY CREATE COMPLETE!")
     }
 
+    @Test("🌊 Multica-only create when Linear provider fails (e.g., usage limit)")
+    func testCreateDegradesToMulticaOnLinearFailure() async throws {
+        let multica = MockMulticaProvider(issues: [])
+        let bridge = OperatorProjectStateBridge(
+            linear: FailingLinearProvider(error: .providerFailure("usage limit exceeded")),
+            multica: multica
+        )
+        let item = try await bridge.createItem(
+            ProjectStateDraft(
+                projectID: ProjectStateID(rawValue: "andromeda"),
+                title: "Linear-quota fallback",
+                status: .backlog
+            )
+        )
+        #expect(item.title == "Linear-quota fallback")
+        #expect(item.id.rawValue.hasPrefix("ps-"))
+        #expect(multica.created.count == 1)
+        let encoded = try JSONEncoder().encode(item)
+        let json = String(decoding: encoded, as: UTF8.self)
+        #expect(!json.contains("HAB-"))
+        #expect(!json.contains("usage limit"))
+        print("🎉 ✨ LINEAR-FAILURE DEGRADATION COMPLETE!")
+    }
+
+    @Test("🌊 List degrades to Multica-only when Linear impaired (quota)")
+    func testListDegradesToMulticaOnlyOnLinearFailure() async throws {
+        let multica = MockMulticaProvider(issues: [
+            MulticaIssueFragment(id: "HAB-40", title: "Capability curtain", status: "active"),
+            MulticaIssueFragment(id: "HAB-41", title: "Habitat-only row", status: "todo"),
+        ])
+        let bridge = OperatorProjectStateBridge(
+            linear: FailingLinearProvider(error: .providerFailure("usage limit exceeded")),
+            multica: multica,
+            projectID: ProjectStateID(rawValue: "andromeda"),
+            projectTitle: "Andromeda"
+        )
+        let listed = try await bridge.listProjects()
+        #expect(listed.count == 1)
+        #expect(listed[0].items.count == 2)
+        let encoded = try JSONEncoder().encode(listed[0])
+        let json = String(decoding: encoded, as: UTF8.self)
+        #expect(!json.contains("HAB-"))
+        #expect(!json.contains("usage limit"))
+        print("🎉 ✨ LINEAR-IMPAIRED LIST DEGRADATION COMPLETE!")
+    }
+
+    @Test("🌩️ Partial mutation response (data + errors) with written issue succeeds")
+    func testPartialMutationResponseWithWrittenIssueSucceeds() throws {
+        let json = """
+        {"data":{"issueCreate":{"success":true,"issue":{"identifier":"BIN-77","title":"Partial","state":{"name":"Todo"}}}},"errors":[{"message":"nested field failed"}]}
+        """
+        let fragment = try LiveLinearProjectProvider.mutationFragment(Data(json.utf8), container: "issueCreate")
+        #expect(fragment.id == "BIN-77")
+        #expect(fragment.title == "Partial")
+        #expect(fragment.state == "Todo")
+        print("🎉 ✨ PARTIAL MUTATION RESPONSE SALVAGED!")
+    }
+
+    @Test("🌩️ Mutation errors without written issue surface GraphQL messages")
+    func testMutationErrorsWithoutIssueSurfacesMessages() {
+        let json = """
+        {"errors":[{"message":"usage limit exceeded"}]}
+        """
+        do {
+            _ = try LiveLinearProjectProvider.mutationFragment(Data(json.utf8), container: "issueCreate")
+            Issue.record("expected providerFailure")
+        } catch let error as ProjectStateError {
+            guard case .providerFailure(let message) = error else {
+                Issue.record("expected providerFailure, got \(error)")
+                return
+            }
+            #expect(message.contains("usage limit exceeded"))
+        } catch {
+            Issue.record("expected ProjectStateError, got \(error)")
+        }
+        print("🎉 ✨ MUTATION ERROR SURFACING COMPLETE!")
+    }
+
     /// 🧪 Codex P1 landmine — create salt ≠ refresh salt caused itemNotFound after list.
     @Test("🧷 create → refresh → update keeps stable item id (no itemNotFound)")
     func testCreateRefreshUpdateStableID() async throws {
@@ -445,5 +523,13 @@ private struct UnwiredLinearProvider: LinearProjectProvider {
     func updateIssue(id: String, title: String?, state: String?) async throws -> LinearIssueFragment {
         throw ProjectStateError.bridgeNotWired
     }
+}
+
+private struct FailingLinearProvider: LinearProjectProvider {
+    let error: ProjectStateError
+
+    func fetchIssues() async throws -> [LinearIssueFragment] { throw error }
+    func createIssue(title: String, description: String?) async throws -> LinearIssueFragment { throw error }
+    func updateIssue(id: String, title: String?, state: String?) async throws -> LinearIssueFragment { throw error }
 }
 
