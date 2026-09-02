@@ -82,9 +82,9 @@ jobs:
           path: |
             ~/.swiftpm
             ~/Library/Caches/org.swift.swiftpm
-          key: swiftpm-shared-${{ runner.os }}-xcode-16.4-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
+          key: swiftpm-shared-${{ runner.os }}-xcode-26-6-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
           restore-keys: |
-            swiftpm-shared-${{ runner.os }}-xcode-16.4-
+            swiftpm-shared-${{ runner.os }}-xcode-26-6-
 
       - name: Cache Swift build artifacts
         if: steps.scope.outputs.any_lane == 'true'
@@ -96,9 +96,9 @@ jobs:
             Packages/Anima/.build
           # Key on manifests/lockfiles only so identical dependency graphs can reuse
           # incremental build products across reruns and nearby PRs.
-          key: swiftpm-builds-${{ runner.os }}-xcode-16.4-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
+          key: swiftpm-builds-${{ runner.os }}-xcode-26-6-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
           restore-keys: |
-            swiftpm-builds-${{ runner.os }}-xcode-16.4-
+            swiftpm-builds-${{ runner.os }}-xcode-26-6-
 
       # Fork PRs do not receive repository secrets (Codex P2 / BIN-218). Gate live
       # Qdrant so ordinary build+unit tests still run without TS_AUTHKEY.
@@ -177,6 +177,20 @@ jobs:
           else
             echo "record=false" >> "$GITHUB_OUTPUT"
           fi
+
+      # SwiftLint + SwiftFormat — the Orchestrator package is under lint
+      # first (see .swiftlint.yml `included`); widen per package as they're
+      # brought in. Zero serious violations required. Runs BEFORE the test
+      # lanes (fast gate) and with `always()` semantics of its own flag —
+      # a custom `if` without a status check is implicitly ANDed with
+      # success(), so a failed test step would silently skip lint otherwise.
+      - name: Lint (swiftlint + swiftformat)
+        if: ${{ always() && steps.scope.outputs.run_orchestrator == 'true' }}
+        run: |
+          brew install swiftlint swiftformat
+          # Gate: zero SERIOUS violations (errors). Warnings are visible debt.
+          swiftlint
+          swiftformat --lint Packages/AndromedaOrchestrator
 
       - name: Test (root package)
         if: steps.scope.outputs.run_root == 'true' && steps.snapshots.outputs.record != 'true'
@@ -299,6 +313,17 @@ jobs:
         if: steps.scope.outputs.run_orchestrator == 'true' && steps.snapshots.outputs.record != 'true'
         working-directory: Packages/AndromedaOrchestrator
         run: swift test --parallel --num-workers 1
+
+      # Compile gate BEFORE the tolerant record step. Record mode fails the
+      # test run on purpose (continue-on-error below), which also swallows
+      # COMPILE failures — and the artifact then re-uploads the previously
+      # committed baselines unchanged, masquerading as fresh runner output.
+      # This strict build makes that failure mode loud instead of silent.
+      # (Provenance rule: byte-diff the artifact against HEAD before landing.)
+      - name: Record gate · AndromedaOrchestrator compiles
+        if: steps.scope.outputs.run_orchestrator == 'true' && steps.snapshots.outputs.record == 'true'
+        working-directory: Packages/AndromedaOrchestrator
+        run: swift build --build-tests
 
       - name: Test AndromedaOrchestrator (nested package, record snapshots)
         if: steps.scope.outputs.run_orchestrator == 'true' && steps.snapshots.outputs.record == 'true'

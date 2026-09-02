@@ -1,6 +1,7 @@
 import Foundation
 
 // MARK: - Domain
+
 //
 // Pure value types. No view knows how to build one; no model knows how one
 // looks. Everything here is `Sendable` so it crosses task boundaries under
@@ -11,29 +12,31 @@ public enum Dialect: String, Sendable, CaseIterable, Identifiable {
     case responses
     case completions
 
-    public var id: String { rawValue }
+    public var id: String {
+        rawValue
+    }
 
     /// The path clients actually POST to.
     public var path: String {
         switch self {
-        case .messages:    "/v1/messages"
-        case .responses:   "/v1/responses"
+        case .messages: "/v1/messages"
+        case .responses: "/v1/responses"
         case .completions: "/v1/chat/completions"
         }
     }
 
     public var note: String {
         switch self {
-        case .messages:    "Anthropic dialect, native. Cache breakpoints injected on the way through."
-        case .responses:   "OpenAI responses, shape-translated both ways."
+        case .messages: "Anthropic dialect, native. Cache breakpoints injected on the way through."
+        case .responses: "OpenAI responses, shape-translated both ways."
         case .completions: "Legacy completions for anything that still speaks it."
         }
     }
 
     public var clients: String {
         switch self {
-        case .messages:    "Claude Code · Claude Desktop"
-        case .responses:   "Codex · custom agents"
+        case .messages: "Claude Code · Claude Desktop"
+        case .responses: "Codex · custom agents"
         case .completions: "Cursor · Zed · scripts"
         }
     }
@@ -52,7 +55,10 @@ public struct GatewayRequest: Sendable, Identifiable {
 }
 
 public struct MCPServer: Sendable, Identifiable {
-    public var id: String { name }
+    public var id: String {
+        name
+    }
+
     public var name: String
     public var origin: String
     public var transport: String
@@ -65,7 +71,10 @@ public struct MCPServer: Sendable, Identifiable {
 }
 
 public struct Provider: Sendable, Identifiable {
-    public var id: String { name }
+    public var id: String {
+        name
+    }
+
     public var name: String
     public var endpoint: String
     /// Circuit-breaker position, not a vibe: closed = passing traffic.
@@ -83,9 +92,9 @@ public struct Provider: Sendable, Identifiable {
 
         public var status: OrchestratorStatus {
             switch self {
-            case .closed:   .healthy
+            case .closed: .healthy
             case .halfOpen: .degraded
-            case .open:     .failed
+            case .open: .failed
             }
         }
     }
@@ -93,7 +102,10 @@ public struct Provider: Sendable, Identifiable {
 
 /// What clients call. The alias is the contract; the target is ours to move.
 public struct ModelAlias: Sendable, Identifiable {
-    public var id: String { alias }
+    public var id: String {
+        alias
+    }
+
     public var alias: String
     public var target: String
     public var provider: String
@@ -105,7 +117,10 @@ public struct ModelAlias: Sendable, Identifiable {
 }
 
 public struct AliasSpend: Sendable, Identifiable {
-    public var id: String { alias }
+    public var id: String {
+        alias
+    }
+
     public var alias: String
     public var spend: Double
     public var requests: Int
@@ -114,6 +129,7 @@ public struct AliasSpend: Sendable, Identifiable {
 }
 
 // MARK: - Sample data
+
 //
 // Demo fixtures, explicitly named as such per the review canon: this is the
 // shape of real telemetry, not a claim that any of it shipped.
@@ -186,11 +202,11 @@ public enum SampleData {
     ]
 
     public static let spend: [AliasSpend] = [
-        .init(alias: "sonnet-latest", spend: 71.40, requests: 12_418, cacheHitRate: 0.38, share: 0.51),
-        .init(alias: "gpt-omni", spend: 38.10, requests: 6_204, cacheHitRate: 0.19, share: 0.27),
-        .init(alias: "flash-cheap", spend: 14.20, requests: 9_881, cacheHitRate: 0.44, share: 0.10),
-        .init(alias: "haiku-fast", spend: 9.80, requests: 15_260, cacheHitRate: 0.61, share: 0.07),
+        .init(alias: "sonnet-latest", spend: 71.40, requests: 12418, cacheHitRate: 0.38, share: 0.51),
+        .init(alias: "gpt-omni", spend: 38.10, requests: 6204, cacheHitRate: 0.19, share: 0.27),
+        .init(alias: "flash-cheap", spend: 14.20, requests: 9881, cacheHitRate: 0.44, share: 0.10),
+        .init(alias: "haiku-fast", spend: 9.80, requests: 15260, cacheHitRate: 0.61, share: 0.07),
         .init(alias: "reasoner", spend: 6.30, requests: 412, cacheHitRate: 0.02, share: 0.05),
-        .init(alias: "turbo-local", spend: 0, requests: 3_140, cacheHitRate: 0, share: 0),
+        .init(alias: "turbo-local", spend: 0, requests: 3140, cacheHitRate: 0, share: 0),
     ]
 }
