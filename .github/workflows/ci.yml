@@ -6,9 +6,6 @@ on:
   # workflow_dispatch is the manual lane for webhook-lost pushes.
   pull_request:
   workflow_dispatch:
-  pull_request
-  # Manual lane for webhook-lost pushes — dispatchable from any branch.
-  workflow_dispatch:
   # Only run on push for the default branch (main) to catch direct merges.
   # Feature-branch pushes are validated via the pull_request trigger above;
   # this prevents merge-triggered CI reruns from clogging the queue.
@@ -27,10 +24,11 @@ jobs:
     # macOS runner is required: the snapshot suite is AppKit-guarded and would be
     # silently skipped on Linux, hiding red snapshots.
     # Snapshot PNGs are tied to this image (re-record with [record-snapshots] if changed).
-    # Hosted macOS preserves the pinned snapshot toolchain. Qdrant is reached
-    # through the ephemeral Tailscale node below; Studio remains a secondary
-    # self-hosted fallback runner.
-    runs-on: macos-15
+    # ADR-0018: macos-26 matches the fleet's OS generation, collapsing the
+    # runner-image-bound baseline drift (the 30 local snapshot failures).
+    # Qdrant is reached through the ephemeral Tailscale node below; Studio remains
+    # a secondary self-hosted fallback runner.
+    runs-on: macos-26
     steps:
       - name: Checkout
         # Pin to immutable SHA (v4.3.1); mutable @v4 tags are a supply-chain risk.
@@ -165,11 +163,12 @@ jobs:
           brew install ast-grep
           sg scan
 
-      - name: Select Xcode 16.4 (Swift 6.1)
+      - name: Select Xcode 26.6 (Swift 6.1+)
         if: steps.scope.outputs.any_lane == 'true'
         # Package.swift requires swift-tools-version 6.1; pin Xcode so the toolchain
-        # does not drift when the hosted runner default changes.
-        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+        # does not drift when the hosted runner default changes. ADR-0018: macos-26
+        # image ships Xcode 26.6 as default — same major as the fleet.
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
 
       - name: Swift version
         if: steps.scope.outputs.any_lane == 'true'
@@ -253,8 +252,8 @@ jobs:
         if: steps.scope.outputs.run_root == 'true'
         run: swift build
 
-      # Baselines must be recorded on macos-15 + Xcode 16.4 (this job). Local macOS 26 /
-      # Xcode 26 PNGs will not pixel-match the runner. Tip a commit with [record-snapshots]
+      # Baselines must be recorded on macos-26 + Xcode 26.6 (this job; ADR-0018). Other
+      # OS/Xcode combinations will not pixel-match the runner. Tip a commit with [record-snapshots]
       # to rewrite **/__Snapshots__ here, then download the artifact and commit.
       # pull_request checkouts are merge commits whose message often mirrors the PR title —
       # only the PR head tip commit message may enable record mode.
