@@ -474,3 +474,103 @@ NSImage Sendable toolchain split that hid inside a tolerant record lane, and
 the artifact-provenance byte-diff rule born from landing stale bytes as
 "runner-recorded".
 Project-specific scar details live in the project skill layered on this canon.
+
+## Exhibit 7: snapshot tests that capture animated or reveal states without pinning the random source
+
+**Shape**: a snapshot suite records a view whose pixels depend on anything
+time-, RNG-, or appearance-dependent — then passes locally and flakes on
+re-run or on the CI runner.
+
+Real offender (AndromedaOrchestrator landing, 2026-08-26): a catalogue
+sweep spec passed its own record run, then failed the very next verify run.
+The moving part was not animation — it was a demo model that re-rolled its
+`requests` array with `Double.random` on every process launch, so the
+recorded baseline and the verify render were different data wearing a
+deterministic-looking costume.
+
+**Why it's wrong** (numbered failures):
+
+1. **The flake hides behind an obvious suspect.** "Animation
+   nondeterminism" was the tempting diagnosis; the actual cause was an
+   unpinned data array. Chasing the visible animation while the data
+   re-randomizes wastes a debugging cycle in exactly the confident
+   direction.
+2. **Cross-process RNG beats per-run freezes.** Freezing the ticker
+   (`isStreaming = false`) is not enough when the *initial* fixtures are
+   random — record and verify are separate processes with separate dice.
+3. **`.task`-driven reveals capture invisible frames.** A modifier that
+   starts `shown = false` and reveals from its `.task` is captured pre-task
+   by a synchronous draw: every baseline renders as an empty panel —
+   consistently, which looks stable until you notice the panels are blank.
+4. **SDK-stable assumptions rot.** `accessibilityReduceMotion` was writable
+   for a decade of SwiftUI; the macOS 26 SDK made it get-only. Code that
+   compiled "forever" fails with an overload-resolution error that looks
+   like a type-inference flake (and was documented as one, wrongly, in a
+   prior memory file).
+
+**Replacement shape**:
+
+```swift
+// Pin the data in the SOURCE module — gallery and tests share one truth:
+public extension SampleData {
+    static let deterministicRequests: [GatewayRequest] = [ /* fixed rows */ ]
+}
+
+// Host: still frame via the SPI key (macOS 26+) + runloop pump for .task reveals:
+let themed = view
+    .environment(\._accessibilityReduceMotion, true)   // get-only public key on macOS 26 SDK
+    .environment(\.colorScheme, dark ? .dark : .light)
+    .frame(width: size.width, height: size.height)
+let vc = NSHostingController(rootView: AnyView(themed))
+let window = NSWindow(contentViewController: vc)
+window.displayIfNeeded(); window.display()
+RunLoop.main.run(until: Date().addingTimeInterval(0.4))   // let .task closures land
+window.contentViewController = nil
+// then assertSnapshot(of: vc, ...) — state persists on the hosting controller
+```
+
+Canon rule: a snapshot suite must force **every** nondeterminism source —
+data RNG, ambient loops, entrance timing, appearance — to a still, complete
+frame with pinned content before capture. Verify by running the suite twice
+back-to-back and diffing, before ever pushing a `[record-snapshots]` tip.
+Proven in `Ripnrip/Andromeda` PR #61 (34/34 ×2 byte-stable).
+## Exhibit 11 — The Go-shaped actor: porting another language's structure instead of its meaning
+
+**Shape**: a rewrite that carries the old language's imperative flow into Swift — policy
+inline in the actor, concrete dependencies with no seam, strings where enums belong.
+
+Real offender (multica `server-swift` Phase 0 first draft, flagged in review 2026-08-26,
+fixed same session in HAB-374):
+
+```swift
+public actor PoolOfSouls {
+    // ❌ decision logic inline in the actor — untestable without a database
+    if let rested = idle.popLast() { soul = rested }          // branch 1
+    else if total < config.maxConns { soul = try await summonSoul() }  // branch 2
+    else { emptyAcquireCount += 1                              // branch 3 — the wait case
+           soul = try await withCheckedThrowingContinuation { ... } }
+}
+```
+
+**Why it's wrong** (numbered failures):
+
+1. **Policy trapped in the shell.** Admission (idle-reuse vs summon vs wait) is a pure
+   function of `(idle, total, max)` — inline in an actor over a live PostgresNIO
+   connection, it can only be tested against a real database.
+2. **Concrete dependency, no seam.** Naming `PostgresConnection` directly means no
+   scripted souls, no fake summoner, zero unit tests of custody logic.
+3. **Stringly-typed moods.** `pressure: "gathering"` as a String field — typos compile;
+   galleries can't switch exhaustively.
+4. **Field-list parity, not meaning parity.** Porting pgxpool's `Stat()` fields verbatim
+   without asking which *decisions* the numbers feed.
+
+**Replacement shape** (what shipped): pure `Admission.decide(idle:total:max:)` +
+`Pressure` enum (sigil/caption via exhaustive switch — Exhibit 6 discipline) +
+`ConnectionSummoner`/`PooledConnection` protocols so tests stage scripted souls; the
+actor keeps custody only. Testing went from "needs a database" to 9/9 pure-table tests
+in 0.001s.
+
+**Provenance**: multica Go→Hummingbird rewrite (HAB-374), 2026-08-26. Originally
+appended to the `~/.agents` sync copy as Exhibit 8 — **clobbered by the PR #63 canon
+sync**, restored here as Exhibit 11. Meta-lesson now law: canon edits land in the
+git-tracked source (this file), never the synced copy.
