@@ -335,7 +335,12 @@ jobs:
       - name: Test Anima (nested package, Phase 1)
         if: steps.scope.outputs.run_anima == 'true' && steps.snapshots.outputs.record != 'true'
         working-directory: Packages/Anima
-        run: swift test --parallel --num-workers 1
+        # Purge stale .build first: shared checkouts may carry modules compiled
+        # by a different Swift than the Xcode-select pin (e.g. 6.1.2 artifacts
+        # under the 6.3.3 compiler after the ADR-0018 toolchain bump).
+        run: |
+          rm -rf .build
+          swift test --parallel --num-workers 1
 
       # Nested MCP server package. The protocol tests drive the built binary
       # end-to-end and need the ast-grep engine on PATH, which GitHub runners
