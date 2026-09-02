@@ -89,7 +89,8 @@ struct BaselineIntegrityTests {
             let nearFlatColorBound = Self.flatColorCount + 2
             if colorCounts.count <= nearFlatColorBound,
                let dominantShare = colorCounts.values.max(), dominantShare >= Self.minimumSampleCount,
-               Double(dominantShare) / Double(samples) > Self.voidDominance {
+               Double(dominantShare) / Double(samples) > Self.voidDominance
+            {
                 let share = Double(dominantShare) / Double(samples)
                 voids.append(
                     "\(png.lastPathComponent) — near-void (dominant color covers \(String(format: "%.1f", share * 100))% of \(samples) samples, \(colorCounts.count) colors)"
