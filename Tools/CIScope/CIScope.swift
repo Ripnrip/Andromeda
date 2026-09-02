@@ -39,9 +39,15 @@ func git(_ args: [String]) -> String? {
     proc.standardOutput = pipe
     proc.standardError = FileHandle.nullDevice
     guard (try? proc.run()) != nil else { return nil }
+    // Drain the pipe BEFORE waiting (Codex P2): git blocks once the pipe
+    // buffer fills (a large snapshot-tree diff exceeds 64 KB) while
+    // waitUntilExit() waits on the child — a mutual deadlock. Drain first:
+    // readDataToEndOfFile returns at EOF, i.e. once the child exits; then
+    // waitUntilExit merely reaps the termination status.
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
     proc.waitUntilExit()
     guard proc.terminationStatus == 0 else { return nil }
-    return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+    return String(data: data, encoding: .utf8)
 }
 
 /// Mirrors the bash base-ref resolution: HEAD^1 on PR merge commits,
