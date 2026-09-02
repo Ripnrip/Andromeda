@@ -102,21 +102,6 @@ let laneRules: [Rule] = [
     ]) { $0.runOrchestrator = true },
 ]
 
-// Case 2 — root E2E.
-let rootE2ERule = Rule(prefix: "\0none", exact: [
-    ".github/workflows/ci.yml", "Package.swift", "Package.resolved",
-    "Packages/MemoryKit/Package.swift", "Packages/MemoryKit/Package.resolved",
-]) { scope in
-    let e2ePrefixes = [
-        "Packages/MemoryKit/Sources/", "Packages/MemoryKit/Tests/",
-        "Sources/AndromedaMemory/", "Sources/AndromedaProjections/",
-        "Tests/AndromedaProjectionTests/", "Sources/AndromedaHUDCore/",
-        "Sources/AndromedaHomeCore/", "Tests/AndromedaHUDTests/", "Tests/AndromedaHomeTests/",
-    ]
-    // handled by caller via prefix list
-    scope.runRootE2E = scope.runRootE2E // placeholder, real logic below
-}
-
 // Case 3 — MemoryKit live E2E.
 let memoryKitLiveE2EPrefixes = ["Packages/MemoryKit/Sources/", "Packages/MemoryKit/Tests/"]
 let memoryKitLiveE2EExact = [
