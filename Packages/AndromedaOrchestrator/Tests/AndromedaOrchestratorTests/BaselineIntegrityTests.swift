@@ -57,7 +57,7 @@ struct BaselineIntegrityTests {
             }
             let width = rep.pixelsWide, height = rep.pixelsHigh
             let stride = Self.stride(for: min(width, height))
-            var colors = Set<UInt32>()
+            var colorCounts: [UInt32: Int] = [:]
             var samples = 0
             var y = 0
             while y < height {
@@ -68,15 +68,32 @@ struct BaselineIntegrityTests {
                         let r = UInt32(c.redComponent * 31)
                         let g = UInt32(c.greenComponent * 31)
                         let b = UInt32(c.blueComponent * 31)
-                        colors.insert(r << 10 | g << 5 | b)
+                        colorCounts[r << 10 | g << 5 | b, default: 0] += 1
                     }
                     x += stride
                 }
                 y += stride
             }
             guard samples >= Self.minimumSampleCount else { continue }
-            if colors.count <= Self.flatColorCount {
-                voids.append("\(png.lastPathComponent) — flat (\(colors.count) sampled colors)")
+            if colorCounts.count <= Self.flatColorCount {
+                voids.append("\(png.lastPathComponent) — flat (\(colorCounts.count) sampled colors)")
+                continue
+            }
+            // Near-void: a handful of incidental colors AND one color dominating.
+            // Codex P2: "a void snapshot containing three or four incidental
+            // colors with 99%+ of samples in one background color passes."
+            // Legitimately minimal specimens (brand mark, quiet button) carry
+            // 12+ distinct sampled colors in their glyphs — they spread real
+            // content even though the canvas background dominates. So the
+            // dominance test only condemns near-flat color counts.
+            let nearFlatColorBound = Self.flatColorCount + 2
+            if colorCounts.count <= nearFlatColorBound,
+               let dominantShare = colorCounts.values.max(), dominantShare >= Self.minimumSampleCount,
+               Double(dominantShare) / Double(samples) > Self.voidDominance {
+                let share = Double(dominantShare) / Double(samples)
+                voids.append(
+                    "\(png.lastPathComponent) — near-void (dominant color covers \(String(format: "%.1f", share * 100))% of \(samples) samples, \(colorCounts.count) colors)"
+                )
             }
         }
         #expect(voids.isEmpty, "Void/near-void baselines (the vacuous-suite failure): \(voids.joined(separator: "; "))")

@@ -180,9 +180,7 @@ public final class OrchestratorModel {
     public func advanceWizard(by delta: Int) {
         let next = wizardStep + delta
         if next < 0 || next > 2 {
-            journal.record(.wizardClosed(atStep: wizardStep))
-            wizard = nil
-            wizardStep = 0
+            closeWizard()
         } else {
             journal.record(.wizardAdvanced(from: wizardStep, to: next))
             wizardStep = next
@@ -190,6 +188,16 @@ public final class OrchestratorModel {
                 probeProgress = 0
             }
         }
+    }
+
+    /// The single dismissal path: every UI route that closes the wizard
+    /// (Cancel, Esc, finishing the final step) funnels here so the
+    /// `.wizardClosed` event always reaches the journal and OSLog.
+    public func closeWizard() {
+        guard wizard != nil else { return }
+        journal.record(.wizardClosed(atStep: wizardStep))
+        wizard = nil
+        wizardStep = 0
     }
 
     public func toggleScope(_ scope: String) {
