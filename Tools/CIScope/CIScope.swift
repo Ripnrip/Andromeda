@@ -39,9 +39,26 @@ func git(_ args: [String]) -> String? {
     proc.standardOutput = pipe
     proc.standardError = FileHandle.nullDevice
     guard (try? proc.run()) != nil else { return nil }
+    // Drain concurrently: a large diff can exceed the pipe buffer and
+    // deadlock if we only read after waitUntilExit (canon anti-pattern).
+    let reader = pipe.fileHandleForReading
+    var data = Data()
+    let drainQueue = DispatchQueue(label: "ciscope.git.drain")
+    let drainSource = DispatchSource.makeReadSource(fileDescriptor: reader.fileDescriptor, queue: drainQueue)
+    drainSource.setEventHandler {
+        let chunk = reader.availableData
+        if chunk.isEmpty {
+            drainSource.cancel()
+        } else {
+            data.append(chunk)
+        }
+    }
+    drainSource.setCancelHandler { reader.closeFile() }
+    drainSource.resume()
     proc.waitUntilExit()
+    drainSource.cancel()
     guard proc.terminationStatus == 0 else { return nil }
-    return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+    return String(data: data, encoding: .utf8)
 }
 
 /// Mirrors the bash base-ref resolution: HEAD^1 on PR merge commits,

@@ -82,9 +82,9 @@ jobs:
           path: |
             ~/.swiftpm
             ~/Library/Caches/org.swift.swiftpm
-          key: swiftpm-shared-${{ runner.os }}-xcode-16.4-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
+          key: swiftpm-shared-${{ runner.os }}-xcode-26.6-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
           restore-keys: |
-            swiftpm-shared-${{ runner.os }}-xcode-16.4-
+            swiftpm-shared-${{ runner.os }}-xcode-26.6-
 
       - name: Cache Swift build artifacts
         if: steps.scope.outputs.any_lane == 'true'
@@ -96,9 +96,9 @@ jobs:
             Packages/Anima/.build
           # Key on manifests/lockfiles only so identical dependency graphs can reuse
           # incremental build products across reruns and nearby PRs.
-          key: swiftpm-builds-${{ runner.os }}-xcode-16.4-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
+          key: swiftpm-builds-${{ runner.os }}-xcode-26.6-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
           restore-keys: |
-            swiftpm-builds-${{ runner.os }}-xcode-16.4-
+            swiftpm-builds-${{ runner.os }}-xcode-26.6-
 
       # Fork PRs do not receive repository secrets (Codex P2 / BIN-218). Gate live
       # Qdrant so ordinary build+unit tests still run without TS_AUTHKEY.

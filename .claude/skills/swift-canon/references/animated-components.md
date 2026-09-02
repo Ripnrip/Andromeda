@@ -28,21 +28,27 @@
 struct TypewriterText: View {
     let text: String
     @State private var shown = ""
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         Text(shown)
             .task {
+                if reduceMotion { shown = text; return }   // instant fallback
                 for ch in text {
                     try? await Task.sleep(for: .milliseconds(28))
-                    shown.append(ch)
-                }
-            }
+                    guard !Task.isCancelled else { return } // honor cancellation:
+                    shown.append(ch)                        // try? swallows the
+                }                                          // CancellationError, so the
+            }                                              // loop would race-append
             .accessibilityLabel(text)   // VoiceOver gets full text instantly
     }
 }
 ```
 
-`.task` gives auto-cancellation on disappear — prefer it over Timer loops
-for one-shot reveal animations.
+`.task` gives auto-cancellation on disappear — but note the cancellation
+guard: `Task.sleep` throws `CancellationError` on cancel, and a bare `try?`
+swallows it, after which every subsequent sleep throws instantly and the
+loop appends the whole string in one frame. Always `guard !Task.isCancelled`
+after the sleep (canon anti-pattern: swallowed cancellation).
 
 ## Per-word swoosh entrance
 
@@ -98,7 +104,8 @@ x-axis window slides instead of compressing.
 ## Rules that cut across all components
 
 1. Every animation gated on `accessibilityReduceMotion` (nil animation /
-   instant set / static fallback).
+   instant set / static fallback) — including reveal loops like TypewriterText
+   (instant full text), not just spring/scale animations.
 2. Interactive custom views get real accessibility labels/hints — the
    animated value is not the accessible value.
 3. Infinite loops live in `.task`/`.onAppear` with cancellation paths;
