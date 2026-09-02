@@ -6,9 +6,6 @@ on:
   # workflow_dispatch is the manual lane for webhook-lost pushes.
   pull_request:
   workflow_dispatch:
-  pull_request
-  # Manual lane for webhook-lost pushes — dispatchable from any branch.
-  workflow_dispatch:
   # Only run on push for the default branch (main) to catch direct merges.
   # Feature-branch pushes are validated via the pull_request trigger above;
   # this prevents merge-triggered CI reruns from clogging the queue.
@@ -27,10 +24,11 @@ jobs:
     # macOS runner is required: the snapshot suite is AppKit-guarded and would be
     # silently skipped on Linux, hiding red snapshots.
     # Snapshot PNGs are tied to this image (re-record with [record-snapshots] if changed).
-    # Hosted macOS preserves the pinned snapshot toolchain. Qdrant is reached
-    # through the ephemeral Tailscale node below; Studio remains a secondary
-    # self-hosted fallback runner.
-    runs-on: macos-15
+    # ADR-0018: macos-26 matches the fleet's OS generation, collapsing the
+    # runner-image-bound baseline drift (the 30 local snapshot failures).
+    # Qdrant is reached through the ephemeral Tailscale node below; Studio remains
+    # a secondary self-hosted fallback runner.
+    runs-on: macos-26
     steps:
       - name: Checkout
         # Pin to immutable SHA (v4.3.1); mutable @v4 tags are a supply-chain risk.
@@ -104,6 +102,7 @@ jobs:
                 ;;
               Packages/AndromedaGuardian/Package.swift|Packages/AndromedaGuardian/Package.resolved|Packages/AndromedaGuardian/Sources/*|Packages/AndromedaGuardian/Tests/*)
                 run_guardian=true
+                ;;
               Packages/AndromedaOrchestrator/Package.swift|Packages/AndromedaOrchestrator/Package.resolved|Packages/AndromedaOrchestrator/Sources/*|Packages/AndromedaOrchestrator/Tests/*)
                 run_orchestrator=true
                 ;;
@@ -128,8 +127,7 @@ jobs:
           fi
 
           any_lane=false
-          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ] || [ "$run_andromeda_ui" = true ] || [ "$run_guardian" = true ]; then
-          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ] || [ "$run_andromeda_ui" = true ] || [ "$run_orchestrator" = true ]; then
+          if [ "$run_root" = true ] || [ "$run_memorykit" = true ] || [ "$run_anima" = true ] || [ "$run_andromeda_mcp" = true ] || [ "$run_powerkit" = true ] || [ "$run_statusline" = true ] || [ "$run_andromeda_ui" = true ] || [ "$run_guardian" = true ] || [ "$run_orchestrator" = true ]; then
             any_lane=true
           fi
 
@@ -165,11 +163,12 @@ jobs:
           brew install ast-grep
           sg scan
 
-      - name: Select Xcode 16.4 (Swift 6.1)
+      - name: Select Xcode 26.6 (Swift 6.1+)
         if: steps.scope.outputs.any_lane == 'true'
         # Package.swift requires swift-tools-version 6.1; pin Xcode so the toolchain
-        # does not drift when the hosted runner default changes.
-        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+        # does not drift when the hosted runner default changes. ADR-0018: macos-26
+        # image ships Xcode 26.6 as default — same major as the fleet.
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
 
       - name: Swift version
         if: steps.scope.outputs.any_lane == 'true'
@@ -182,9 +181,9 @@ jobs:
           path: |
             ~/.swiftpm
             ~/Library/Caches/org.swift.swiftpm
-          key: swiftpm-shared-${{ runner.os }}-xcode-16.4-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
+          key: swiftpm-shared-${{ runner.os }}-xcode-26-6-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
           restore-keys: |
-            swiftpm-shared-${{ runner.os }}-xcode-16.4-
+            swiftpm-shared-${{ runner.os }}-xcode-26-6-
 
       - name: Cache Swift build artifacts
         if: steps.scope.outputs.any_lane == 'true'
@@ -196,9 +195,9 @@ jobs:
             Packages/Anima/.build
           # Key on manifests/lockfiles only so identical dependency graphs can reuse
           # incremental build products across reruns and nearby PRs.
-          key: swiftpm-builds-${{ runner.os }}-xcode-16.4-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
+          key: swiftpm-builds-${{ runner.os }}-xcode-26-6-${{ hashFiles('Package.swift', 'Package.resolved', 'Packages/MemoryKit/Package.swift', 'Packages/MemoryKit/Package.resolved', 'Packages/Anima/Package.swift', 'Packages/Anima/Package.resolved') }}
           restore-keys: |
-            swiftpm-builds-${{ runner.os }}-xcode-16.4-
+            swiftpm-builds-${{ runner.os }}-xcode-26-6-
 
       # Fork PRs do not receive repository secrets (Codex P2 / BIN-218). Gate live
       # Qdrant so ordinary build+unit tests still run without TS_AUTHKEY.
@@ -253,8 +252,8 @@ jobs:
         if: steps.scope.outputs.run_root == 'true'
         run: swift build
 
-      # Baselines must be recorded on macos-15 + Xcode 16.4 (this job). Local macOS 26 /
-      # Xcode 26 PNGs will not pixel-match the runner. Tip a commit with [record-snapshots]
+      # Baselines must be recorded on macos-26 + Xcode 26.6 (this job; ADR-0018). Other
+      # OS/Xcode combinations will not pixel-match the runner. Tip a commit with [record-snapshots]
       # to rewrite **/__Snapshots__ here, then download the artifact and commit.
       # pull_request checkouts are merge commits whose message often mirrors the PR title —
       # only the PR head tip commit message may enable record mode.
@@ -350,7 +349,12 @@ jobs:
       - name: Test Anima (nested package, Phase 1)
         if: steps.scope.outputs.run_anima == 'true' && steps.snapshots.outputs.record != 'true'
         working-directory: Packages/Anima
-        run: swift test --parallel --num-workers 1
+        # Purge stale .build first: shared checkouts may carry modules compiled
+        # by a different Swift than the Xcode-select pin (e.g. 6.1.2 artifacts
+        # under the 6.3.3 compiler after the ADR-0018 toolchain bump).
+        run: |
+          rm -rf .build
+          swift test --parallel --num-workers 1
 
       # Nested MCP server package. The protocol tests drive the built binary
       # end-to-end and need the ast-grep engine on PATH, which GitHub runners
