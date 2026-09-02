@@ -56,7 +56,7 @@ public struct AddResourceSheet: View {
                     .foregroundStyle(palette.ink)
             }
             Spacer()
-            Button("esc") { model.wizard = nil; dismiss() }
+            Button("esc") { model.closeWizard(); dismiss() }
                 .buttonStyle(ConsoleButtonStyle(kind: .quiet))
         }
         .padding(16)
@@ -98,7 +98,7 @@ public struct AddResourceSheet: View {
             Spacer()
             Button(model.wizardStep == 0 ? "CANCEL" : "BACK") {
                 if model.wizardStep == 0 {
-                    model.wizard = nil; dismiss()
+                    model.closeWizard(); dismiss()
                 } else {
                     model.advanceWizard(by: -1)
                 }
@@ -106,7 +106,7 @@ public struct AddResourceSheet: View {
             .buttonStyle(ConsoleButtonStyle(kind: .quiet))
             Button(commitLabel) {
                 if model.wizardStep == 2 {
-                    model.wizard = nil; dismiss()
+                    model.closeWizard(); dismiss()
                 } else {
                     model.advanceWizard(by: 1)
                 }
