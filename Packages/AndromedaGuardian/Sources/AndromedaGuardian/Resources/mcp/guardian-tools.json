@@ -1,0 +1,43 @@
+{
+  "tools": [
+    {
+      "name": "guardian.status",
+      "description": "Guardian liveness, memory pressure, and last-sweep summary. Read-only.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "guardian.census",
+      "description": "Process-family summary of the current census (counts + notable outliers). Read-only, no mutations.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "guardian.sweep",
+      "description": "Run one guardian sweep. Dry-run by default: decisions are computed but nothing is signaled. Executing kills requires dry_run=false and acts only on recoverable, on-demand-respawn helpers — user applications are structural never-touch.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "default": true,
+            "description": "When false, decisions are executed (SIGTERM, SIGKILL after grace)."
+          },
+          "grace_seconds": {
+            "type": "number",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 120
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

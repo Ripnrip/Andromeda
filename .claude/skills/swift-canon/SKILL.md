@@ -54,6 +54,7 @@ This canon explicitly covers:
 8. `references/previews.md` — state matrix before full builds
 9. `references/testing.md` — unit + snapshot + TestStore
 10. `references/review-canon.md` — generic PR, scope, and merge law
+11. `references/dependency-injection.md` — protocol boundaries, composition root, erasers
 
 ### SwiftUI surface
 1. `references/swiftui-state.md` — property wrappers, `@Observable`
