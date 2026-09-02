@@ -39,6 +39,21 @@ enum Lane: String, CaseIterable, Sendable {
     var isLiveE2E: Bool { self == .rootE2E || self == .memoryKitLiveE2E }
 }
 
+// MARK: - Event
+
+/// The GitHub event that triggered the run — a closed taxonomy, so an enum
+/// (retires the stringly-typed `event == "pull_request"` compare).
+enum CIEvent: String, Sendable {
+    case pullRequest = "pull_request"
+    case push
+    case workflowDispatch = "workflow_dispatch"
+
+    /// Unknown event names behave like push (retired-bash semantics).
+    init(rawOrPush raw: String) {
+        self = CIEvent(rawValue: raw) ?? .push
+    }
+}
+
 // MARK: - Pattern
 
 /// How a rule matches a changed file. Replaces the retired `\0none` sentinel
@@ -172,14 +187,15 @@ func git(_ args: [String]) -> String? {
 
 /// Mirrors the bash base-ref resolution: HEAD^1 on PR merge commits,
 /// HEAD^ on ordinary commits, root commit as last resort.
-/// SE-0380 if-expression chain — short-circuits the git probes in order
-/// (switch-on-tuple would eagerly evaluate every probe in every branch).
-func resolveBaseRef(event: String) -> String {
-    return if event == "pull_request", git(["rev-parse", "--verify", "HEAD^1"]) != nil {
+/// SE-0380 switch-expression — `where` clauses evaluate lazily in case
+/// order, preserving the probe short-circuit.
+func resolveBaseRef(event: CIEvent) -> String {
+    return switch event {
+    case .pullRequest where git(["rev-parse", "--verify", "HEAD^1"]) != nil:
         "HEAD^1"
-    } else if git(["rev-parse", "--verify", "HEAD^"]) != nil {
+    case _ where git(["rev-parse", "--verify", "HEAD^"]) != nil:
         "HEAD^"
-    } else {
+    default:
         git(["rev-list", "--max-parents=0", "HEAD"])?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "HEAD^"
     }
 }
@@ -202,7 +218,7 @@ func flag(_ name: String) -> String? {
 }
 
 let baseRefOverride = flag("--base-ref")
-let event = flag("--event") ?? "push"
+let event = CIEvent(rawOrPush: flag("--event") ?? "push")
 
 log("🚀", "ciscope event=\(event)\(baseRefOverride.map { " base-ref-override=\($0)" } ?? "")")
 
