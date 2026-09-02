@@ -42,3 +42,20 @@ Bad:
 - Is the privacy level appropriate?
 - Is the emoji convention consistent or just noise?
 - Should this be a metric/span instead of a log line?
+
+
+## Emoji-prefixed, typed internal events (Aug 2026)
+
+Internal observability is a product surface, not an afterthought — BofA
+directive: "no observability/emoji-logging internally" is a review blocker.
+
+- **One event enum, associated values, never call-site strings:**
+  `case screenChanged(Screen)` — glyph/name/summary derived in single
+  switches. `Codable` for export, `Sendable` for crossing.
+- **One bridge to `os.Logger`** — emoji rides on the event, categories map
+  to log streams; no format strings scattered around the codebase.
+- **An observable ring journal** (`capacity` is a named constant) feeds an
+  in-app surface (the States screen's SELF section in the orchestrator
+  console) — observability exists before providers wire up.
+- Clocks in journal views read an injected environment value so snapshots
+  stay deterministic.

@@ -1,6 +1,7 @@
 import SwiftUI
 
 // MARK: - States gallery
+
 //
 // The six canonical states. Each names the cause, the blast radius, and the
 // one action that fixes it — and each carries hue + glyph + word, never hue
@@ -29,6 +30,10 @@ struct StatesScreen: View {
                 credentialError.entrance(4, step: 0.07)
                 offlineLane.entrance(5, step: 0.07)
             }
+
+            // SELF — the console's internal flight recorder, live.
+            JournalWall(journal: model.journal)
+                .entrance(6, step: 0.07)
         }
     }
 
@@ -37,7 +42,8 @@ struct StatesScreen: View {
     private var emptyRegistry: some View {
         StateCard(status: .idle, kicker: "Empty · registry",
                   title: "No MCP servers yet",
-                  body: "Three client configs on this machine already list nine servers between them. Import once and every client shares one supervised host.") {
+                  body: "Three client configs on this machine already list nine servers between them. Import once and every client shares one supervised host.")
+        {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
                     .strokeBorder(palette.hairline, style: .init(lineWidth: 1, dash: [4, 4]))
@@ -56,7 +62,8 @@ struct StatesScreen: View {
     private var idleGateway: some View {
         StateCard(status: .idle, kicker: "Empty · stream",
                   title: "Gateway up · nothing calling it",
-                  body: "Listening on all three dialects. The first request will land here within a second of a client pointing at it.") {
+                  body: "Listening on all three dialects. The first request will land here within a second of a client pointing at it.")
+        {
             ScanningPlaceholder().frame(height: 96)
         } actions: {
             HStack(spacing: 8) {
@@ -74,7 +81,8 @@ struct StatesScreen: View {
     private var reconciling: some View {
         StateCard(status: .verifying, kicker: "Loading · reconciling",
                   title: "Reconciling registry…",
-                  body: "Reading nine servers, deduping three token copies. Traffic keeps flowing on the last known-good registry while this runs.") {
+                  body: "Reading nine servers, deduping three token copies. Traffic keeps flowing on the last known-good registry while this runs.")
+        {
             VStack(spacing: 7) {
                 ForEach(Array([0.88, 0.62, 0.94, 0.47].enumerated()), id: \.offset) { index, width in
                     SkeletonBar(widthFraction: width, delay: Double(index) * 0.12)
@@ -96,7 +104,8 @@ struct StatesScreen: View {
         StateCard(status: .degraded, kicker: "Degraded · breaker half-open",
                   title: "Traffic already moved",
                   body: "gpt-omni is answering from bedrock/claude-sonnet-4.5. Callers saw no error — only 96ms more latency.",
-                  accent: palette.amber) {
+                  accent: palette.amber)
+        {
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
                     Text("openai · 8.4% 5xx")
@@ -121,7 +130,8 @@ struct StatesScreen: View {
         StateCard(status: .failed, kicker: "Error · credential",
                   title: "The broker holds a stale key",
                   body: "No client ever saw the value, so nothing leaked and nothing needs redeploying. Re-bind once, here.",
-                  accent: palette.red) {
+                  accent: palette.red)
+        {
             VStack(alignment: .leading, spacing: 6) {
                 Text("401 invalid_api_key").foregroundStyle(palette.red)
                 Text("host api.openai.com").foregroundStyle(palette.muted)
@@ -141,7 +151,8 @@ struct StatesScreen: View {
     private var offlineLane: some View {
         StateCard(status: .idle, kicker: "Offline · local lane",
                   title: "Serving from the local lane",
-                  body: "qwen3-14b is answering everything. Quality is lower and the console says so — spend is $0 and 41 calls are queued for replay.") {
+                  body: "qwen3-14b is answering everything. Quality is lower and the console says so — spend is $0 and 41 calls are queued for replay.")
+        {
             HStack {
                 VStack(spacing: 4) {
                     Text("cloud").font(OrchestratorFont.mono(10, .semibold)).foregroundStyle(palette.dim)
@@ -172,7 +183,7 @@ struct StateCard<Visual: View, Actions: View>: View {
     var status: OrchestratorStatus
     var kicker: String
     var title: String
-    var body_: String
+    var bodyContent: String
     var accent: Color?
     @ViewBuilder var visual: Visual
     @ViewBuilder var actions: Actions
@@ -180,11 +191,12 @@ struct StateCard<Visual: View, Actions: View>: View {
     init(status: OrchestratorStatus, kicker: String, title: String, body: String,
          accent: Color? = nil,
          @ViewBuilder visual: () -> Visual,
-         @ViewBuilder actions: () -> Actions) {
+         @ViewBuilder actions: () -> Actions)
+    {
         self.status = status
         self.kicker = kicker
         self.title = title
-        self.body_ = body
+        bodyContent = body
         self.accent = accent
         self.visual = visual()
         self.actions = actions()
@@ -203,7 +215,7 @@ struct StateCard<Visual: View, Actions: View>: View {
                 Text(title)
                     .font(OrchestratorFont.sans(13.5, .semibold))
                     .foregroundStyle(palette.ink)
-                Text(body_)
+                Text(bodyContent)
                     .font(OrchestratorFont.sans(11.5))
                     .foregroundStyle(palette.muted)
                     .lineSpacing(2)
@@ -265,7 +277,7 @@ struct ScanningPlaceholder: View {
                     .frame(height: 1)
                     .mask {
                         HStack(spacing: 6) {
-                            ForEach(0..<24, id: \.self) { _ in
+                            ForEach(0 ..< 24, id: \.self) { _ in
                                 Rectangle().frame(width: 6)
                             }
                         }

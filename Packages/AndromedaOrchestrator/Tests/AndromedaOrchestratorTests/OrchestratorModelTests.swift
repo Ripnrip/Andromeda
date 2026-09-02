@@ -1,12 +1,11 @@
-import Testing
 @testable import AndromedaOrchestrator
+import Testing
 
 // Pure-logic coverage. View rendering belongs in a snapshot target; these
 // exercise the state machine the views read.
 
 @MainActor
 struct LaunchSequenceTests {
-
     @Test("First run starts on the launch reveal")
     func firstRunStartsWithReveal() {
         let model = OrchestratorModel()
@@ -60,11 +59,12 @@ struct LaunchSequenceTests {
 
 @MainActor
 struct OnboardingTests {
-
     @Test("Onboarding advances through every step then clears")
     func advancesToEnd() {
         let model = OrchestratorModel()
-        for _ in OrchestratorModel.onboardingTitles.indices { model.advanceOnboarding() }
+        for _ in OrchestratorModel.onboardingTitles.indices {
+            model.advanceOnboarding()
+        }
         #expect(model.onboardingStep == nil)
     }
 
@@ -80,7 +80,6 @@ struct OnboardingTests {
 
 @MainActor
 struct WizardTests {
-
     @Test("Wizard walks three steps and closes past the end")
     func wizardFlow() {
         let model = OrchestratorModel(firstRun: false)
@@ -112,7 +111,6 @@ struct WizardTests {
 }
 
 struct StatusVocabularyTests {
-
     @Test("Every status carries a glyph and a word, not just a hue")
     func neverColorAlone() {
         for status in OrchestratorStatus.allCases {
@@ -137,7 +135,6 @@ struct StatusVocabularyTests {
 }
 
 struct DialectTests {
-
     @Test("All three dialects expose a v1 path")
     func paths() {
         #expect(Dialect.messages.path == "/v1/messages")

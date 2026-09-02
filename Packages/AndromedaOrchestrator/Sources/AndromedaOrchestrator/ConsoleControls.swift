@@ -8,19 +8,21 @@ public struct ConsoleButtonStyle: ButtonStyle {
     @Environment(\.palette) private var palette
     public var kind: Kind
 
-    public init(kind: Kind = .ghost) { self.kind = kind }
+    public init(kind: Kind = .ghost) {
+        self.kind = kind
+    }
 
     public func makeBody(configuration: Configuration) -> some View {
         let accent: Color = switch kind {
         case .primary, .ghost: palette.cyan
-        case .quiet:           palette.hairline
-        case .danger:          palette.red
+        case .quiet: palette.hairline
+        case .danger: palette.red
         }
         let fill: Color = switch kind {
         case .primary: palette.cyan.opacity(0.14)
-        case .danger:  palette.red.opacity(0.12)
-        case .ghost:   palette.panel
-        case .quiet:   .clear
+        case .danger: palette.red.opacity(0.12)
+        case .ghost: palette.panel
+        case .quiet: .clear
         }
         let label: Color = kind == .quiet ? palette.muted : palette.ink
 
@@ -96,7 +98,8 @@ public struct MetricTile: View {
     public var tint: Color?
 
     public init(label: String, value: String, unit: String? = nil, note: String? = nil,
-                samples: [Double] = [], tint: Color? = nil) {
+                samples: [Double] = [], tint: Color? = nil)
+    {
         self.label = label
         self.value = value
         self.unit = unit
@@ -196,4 +199,70 @@ public struct ShareBar: View {
         .animation(OrchestratorMotion.settle, value: share)
         .accessibilityHidden(true)
     }
+}
+
+// MARK: - Canvas parity for every control
+
+//
+// One preview per control kind — the Xcode canvas grid shows the whole
+// vocabulary at a glance; each has a snapshot twin in the parity suite.
+
+#Preview("Buttons · all kinds") {
+    VStack(alignment: .leading, spacing: 12) {
+        Button("PRIMARY") {}
+            .buttonStyle(ConsoleButtonStyle(kind: .primary))
+        Button("DANGER") {}
+            .buttonStyle(ConsoleButtonStyle(kind: .danger))
+        Button("GHOST") {}
+            .buttonStyle(ConsoleButtonStyle(kind: .ghost))
+        Button("QUIET") {}
+            .buttonStyle(ConsoleButtonStyle(kind: .quiet))
+    }
+    .padding(24)
+    .background(OrchestratorPalette.obsidian.void)
+    .orchestratorPalette()
+}
+
+#Preview("NavRow · plain + selected") {
+    VStack(alignment: .leading, spacing: 8) {
+        NavRow(screen: .usage, badge: nil, isSelected: false) {}
+        NavRow(screen: .usage, badge: "3", isSelected: true) {}
+    }
+    .frame(width: 280)
+    .padding(24)
+    .background(OrchestratorPalette.obsidian.void)
+    .orchestratorPalette()
+}
+
+#Preview("MetricTile · both") {
+    HStack(spacing: 14) {
+        MetricTile(label: "req/min", value: "1,240", samples: CatalogueSamples.wave)
+        MetricTile(label: "tokens/s", value: "18.4", unit: "tok", note: "p95 across aliases", samples: CatalogueSamples.climb)
+    }
+    .padding(24)
+    .background(OrchestratorPalette.obsidian.void)
+    .orchestratorPalette()
+}
+
+#Preview("Sparkline + ShareBar") {
+    VStack(alignment: .leading, spacing: 14) {
+        Sparkline(samples: CatalogueSamples.wave, tint: .cyan)
+            .frame(width: 220)
+        ShareBar(share: 0.62, tint: .cyan)
+            .frame(width: 220)
+    }
+    .padding(24)
+    .background(OrchestratorPalette.obsidian.void)
+    .orchestratorPalette()
+}
+
+#Preview("Kicker + TypedText") {
+    VStack(alignment: .leading, spacing: 8) {
+        Kicker("v1 gateway")
+        TypedText("one base URL for every client", font: OrchestratorFont.editorial(18))
+    }
+    .frame(width: 300, alignment: .leading)
+    .padding(24)
+    .background(OrchestratorPalette.obsidian.void)
+    .orchestratorPalette()
 }
