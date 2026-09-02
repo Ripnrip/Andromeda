@@ -6,7 +6,8 @@
 // Changed-file trace goes to stderr.
 //
 // Behavior mirrors the retired bash case-statement exactly (two-dot diff,
-// HEAD^1 base on PRs, root-commit fallback, same pattern → lane mapping).
+// HEAD^1 base on PRs, root-commit fallback, same pattern → lane mapping),
+// plus Tools/CIScope/ → all lanes (classifier changes must not skip gates).
 
 import Foundation
 
@@ -28,6 +29,237 @@ struct Scope {
     var anyLane: Bool {
         runRoot || runMemoryKit || runAnima || runAndromedaMCP || runPowerKit
             || runStatusline || runAndromedaUI || runGuardian || runOrchestrator
+    }
+}
+
+/// Path matchers for lane / E2E classification (exact path or directory prefix).
+enum PathMatcher {
+    case exact(String)
+    case prefix(String)
+
+    func matches(_ file: String) -> Bool {
+        switch self {
+        case .exact(let path):
+            return file == path
+        case .prefix(let path):
+            return file.hasPrefix(path)
+        }
+    }
+}
+
+/// Primary lane rules — exhaustive CaseIterable table replacing the bash globs.
+enum LaneRule: CaseIterable {
+    case workflowCI
+    case ciScopeTool
+    case rootPackage
+    case sources
+    case tests
+    case memoryKit
+    case anima
+    case andromedaMCP
+    case powerKit
+    case statusline
+    case andromedaUI
+    case guardian
+    case orchestrator
+
+    var matchers: [PathMatcher] {
+        switch self {
+        case .workflowCI:
+            return [.exact(".github/workflows/ci.yml")]
+        case .ciScopeTool:
+            // Classifier lives outside product prefixes; a rewrite must not skip gates.
+            return [.prefix("Tools/CIScope/")]
+        case .rootPackage:
+            return [.exact("Package.swift"), .exact("Package.resolved")]
+        case .sources:
+            return [.prefix("Sources/")]
+        case .tests:
+            return [.prefix("Tests/")]
+        case .memoryKit:
+            return [
+                .prefix("Packages/MemoryKit/"),
+                .exact("Packages/MemoryKit/Package.swift"),
+                .exact("Packages/MemoryKit/Package.resolved"),
+            ]
+        case .anima:
+            return [
+                .prefix("Packages/Anima/"),
+                .exact("Packages/Anima/Package.swift"),
+                .exact("Packages/Anima/Package.resolved"),
+            ]
+        case .andromedaMCP:
+            return [
+                .prefix("Packages/AndromedaMCP/"),
+                .exact("Packages/AndromedaMCP/Package.swift"),
+                .exact("Packages/AndromedaMCP/Package.resolved"),
+            ]
+        case .powerKit:
+            return [.prefix("Packages/AndromedaPowerKit/")]
+        case .statusline:
+            return [
+                .prefix("Packages/AndromedaStatusline/"),
+                .exact("Packages/AndromedaStatusline/Package.swift"),
+                .exact("Packages/AndromedaStatusline/Package.resolved"),
+            ]
+        case .andromedaUI:
+            return [
+                .prefix("Packages/AndromedaUI/"),
+                .exact("Packages/AndromedaUI/Package.swift"),
+                .exact("Packages/AndromedaUI/Package.resolved"),
+            ]
+        case .guardian:
+            return [
+                .prefix("Packages/AndromedaGuardian/"),
+                .exact("Packages/AndromedaGuardian/Package.swift"),
+                .exact("Packages/AndromedaGuardian/Package.resolved"),
+            ]
+        case .orchestrator:
+            return [
+                .prefix("Packages/AndromedaOrchestrator/"),
+                .exact("Packages/AndromedaOrchestrator/Package.swift"),
+                .exact("Packages/AndromedaOrchestrator/Package.resolved"),
+            ]
+        }
+    }
+
+    func apply(to scope: inout Scope) {
+        switch self {
+        case .workflowCI, .ciScopeTool:
+            scope.runRoot = true
+            scope.runRootE2E = true
+            scope.runMemoryKit = true
+            scope.runMemoryKitLiveE2E = true
+            scope.runAnima = true
+            scope.runGuardian = true
+            scope.runOrchestrator = true
+        case .rootPackage, .sources, .tests:
+            scope.runRoot = true
+        case .memoryKit:
+            scope.runRoot = true
+            scope.runMemoryKit = true
+        case .anima:
+            scope.runAnima = true
+        case .andromedaMCP:
+            scope.runAndromedaMCP = true
+        case .powerKit:
+            scope.runPowerKit = true
+        case .statusline:
+            scope.runStatusline = true
+        case .andromedaUI:
+            scope.runAndromedaUI = true
+        case .guardian:
+            scope.runGuardian = true
+        case .orchestrator:
+            scope.runOrchestrator = true
+        }
+    }
+
+    func matches(_ file: String) -> Bool {
+        matchers.contains { $0.matches(file) }
+    }
+}
+
+/// Overlay E2E triggers (Case 3 in the retired bash script).
+enum E2ETrigger: CaseIterable {
+    case rootE2E
+    case memoryKitLiveE2E
+
+    var matchers: [PathMatcher] {
+        switch self {
+        case .rootE2E:
+            return [
+                .exact(".github/workflows/ci.yml"),
+                .exact("Package.swift"),
+                .exact("Package.resolved"),
+                .exact("Packages/MemoryKit/Package.swift"),
+                .exact("Packages/MemoryKit/Package.resolved"),
+                .prefix("Packages/MemoryKit/Sources/"),
+                .prefix("Packages/MemoryKit/Tests/"),
+                .prefix("Sources/AndromedaMemory/"),
+                .prefix("Sources/AndromedaProjections/"),
+                .prefix("Tests/AndromedaProjectionTests/"),
+                .prefix("Sources/AndromedaHUDCore/"),
+                .prefix("Sources/AndromedaHomeCore/"),
+                .prefix("Tests/AndromedaHUDTests/"),
+                .prefix("Tests/AndromedaHomeTests/"),
+            ]
+        case .memoryKitLiveE2E:
+            return [
+                .exact(".github/workflows/ci.yml"),
+                .exact("Packages/MemoryKit/Package.swift"),
+                .exact("Packages/MemoryKit/Package.resolved"),
+                .prefix("Packages/MemoryKit/Sources/"),
+                .prefix("Packages/MemoryKit/Tests/"),
+            ]
+        }
+    }
+
+    func apply(to scope: inout Scope) {
+        switch self {
+        case .rootE2E:
+            scope.runRootE2E = true
+        case .memoryKitLiveE2E:
+            scope.runMemoryKitLiveE2E = true
+        }
+    }
+
+    func matches(_ file: String) -> Bool {
+        matchers.contains { $0.matches(file) }
+    }
+}
+
+/// GITHUB_OUTPUT keys — CaseIterable maps each key ↔ Scope field explicitly.
+enum OutputKey: CaseIterable {
+    case runRoot
+    case runRootE2E
+    case runMemoryKit
+    case runMemoryKitLiveE2E
+    case runAnima
+    case runAndromedaMCP
+    case runPowerKit
+    case runStatusline
+    case runAndromedaUI
+    case runGuardian
+    case runOrchestrator
+    case needsQdrant
+    case anyLane
+
+    /// Stable contract string for `$GITHUB_OUTPUT` (exhaustive — no rawValue concat).
+    var githubKey: String {
+        switch self {
+        case .runRoot: return "run_root"
+        case .runRootE2E: return "run_root_e2e"
+        case .runMemoryKit: return "run_memorykit"
+        case .runMemoryKitLiveE2E: return "run_memorykit_live_e2e"
+        case .runAnima: return "run_anima"
+        case .runAndromedaMCP: return "run_andromeda_mcp"
+        case .runPowerKit: return "run_powerkit"
+        case .runStatusline: return "run_statusline"
+        case .runAndromedaUI: return "run_andromeda_ui"
+        case .runGuardian: return "run_guardian"
+        case .runOrchestrator: return "run_orchestrator"
+        case .needsQdrant: return "needs_qdrant"
+        case .anyLane: return "any_lane"
+        }
+    }
+
+    func value(in scope: Scope) -> Bool {
+        switch self {
+        case .runRoot: return scope.runRoot
+        case .runRootE2E: return scope.runRootE2E
+        case .runMemoryKit: return scope.runMemoryKit
+        case .runMemoryKitLiveE2E: return scope.runMemoryKitLiveE2E
+        case .runAnima: return scope.runAnima
+        case .runAndromedaMCP: return scope.runAndromedaMCP
+        case .runPowerKit: return scope.runPowerKit
+        case .runStatusline: return scope.runStatusline
+        case .runAndromedaUI: return scope.runAndromedaUI
+        case .runGuardian: return scope.runGuardian
+        case .runOrchestrator: return scope.runOrchestrator
+        case .needsQdrant: return scope.needsQdrant
+        case .anyLane: return scope.anyLane
+        }
     }
 }
 
@@ -59,80 +291,18 @@ func resolveBaseRef(event: String) -> String {
     if git(["rev-parse", "--verify", "HEAD^"]) != nil {
         return "HEAD^"
     }
-    return git(["rev-list", "--max-parents=0", "HEAD"])?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "HEAD^"
+    let root = git(["rev-list", "--max-parents=0", "HEAD"])?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let root, !root.isEmpty else { return "HEAD^" }
+    return root
 }
-
-/// Bash case globs treat `*` as matching `/` too, so prefix matching is equivalent.
-func matches(_ file: String, _ prefix: String, exact: [String] = []) -> Bool {
-    file.hasPrefix(prefix) || exact.contains(file)
-}
-
-/// A (glob → lanes) rule from the retired bash script.
-struct Rule {
-    let prefix: String
-    let exact: [String]
-    let apply: (inout Scope) -> Void
-}
-
-// Case 1 — lane flags.
-let laneRules: [Rule] = [
-    Rule(prefix: "\0none", exact: [".github/workflows/ci.yml"]) {
-        $0.runRoot = true; $0.runRootE2E = true; $0.runMemoryKit = true
-        $0.runMemoryKitLiveE2E = true; $0.runAnima = true
-        $0.runGuardian = true; $0.runOrchestrator = true
-    },
-    Rule(prefix: "\0none", exact: ["Package.swift", "Package.resolved"]) { $0.runRoot = true },
-    Rule(prefix: "Sources/", exact: []) { $0.runRoot = true },
-    Rule(prefix: "Tests/", exact: []) { $0.runRoot = true },
-    Rule(prefix: "Packages/MemoryKit/", exact: [
-        "Packages/MemoryKit/Package.swift", "Packages/MemoryKit/Package.resolved",
-    ]) { $0.runRoot = true; $0.runMemoryKit = true },
-    Rule(prefix: "Packages/Anima/", exact: [
-        "Packages/Anima/Package.swift", "Packages/Anima/Package.resolved",
-    ]) { $0.runAnima = true },
-    Rule(prefix: "Packages/AndromedaMCP/", exact: [
-        "Packages/AndromedaMCP/Package.swift", "Packages/AndromedaMCP/Package.resolved",
-    ]) { $0.runAndromedaMCP = true },
-    Rule(prefix: "Packages/AndromedaPowerKit/", exact: []) { $0.runPowerKit = true },
-    Rule(prefix: "Packages/AndromedaStatusline/", exact: [
-        "Packages/AndromedaStatusline/Package.swift", "Packages/AndromedaStatusline/Package.resolved",
-    ]) { $0.runStatusline = true },
-    Rule(prefix: "Packages/AndromedaUI/", exact: [
-        "Packages/AndromedaUI/Package.swift", "Packages/AndromedaUI/Package.resolved",
-    ]) { $0.runAndromedaUI = true },
-    Rule(prefix: "Packages/AndromedaGuardian/", exact: [
-        "Packages/AndromedaGuardian/Package.swift", "Packages/AndromedaGuardian/Package.resolved",
-    ]) { $0.runGuardian = true },
-    Rule(prefix: "Packages/AndromedaOrchestrator/", exact: [
-        "Packages/AndromedaOrchestrator/Package.swift", "Packages/AndromedaOrchestrator/Package.resolved",
-    ]) { $0.runOrchestrator = true },
-]
-
-// Case 3 — MemoryKit live E2E.
-let memoryKitLiveE2EPrefixes = ["Packages/MemoryKit/Sources/", "Packages/MemoryKit/Tests/"]
-let memoryKitLiveE2EExact = [
-    ".github/workflows/ci.yml", "Packages/MemoryKit/Package.swift", "Packages/MemoryKit/Package.resolved",
-]
-let rootE2EPrefixes = [
-    "Packages/MemoryKit/Sources/", "Packages/MemoryKit/Tests/",
-    "Sources/AndromedaMemory/", "Sources/AndromedaProjections/",
-    "Tests/AndromedaProjectionTests/", "Sources/AndromedaHUDCore/",
-    "Sources/AndromedaHomeCore/", "Tests/AndromedaHUDTests/", "Tests/AndromedaHomeTests/",
-]
-let rootE2EExact = [
-    ".github/workflows/ci.yml", "Package.swift", "Package.resolved",
-    "Packages/MemoryKit/Package.swift", "Packages/MemoryKit/Package.resolved",
-]
 
 func classify(_ file: String, _ scope: inout Scope) {
-    for rule in laneRules where matches(file, rule.prefix, exact: rule.exact) {
-        rule.apply(&scope)
+    for rule in LaneRule.allCases where rule.matches(file) {
+        rule.apply(to: &scope)
     }
-    if rootE2EExact.contains(file) || rootE2EPrefixes.contains(where: file.hasPrefix) {
-        scope.runRootE2E = true
-    }
-    if memoryKitLiveE2EExact.contains(file) || memoryKitLiveE2EPrefixes.contains(where: file.hasPrefix) {
-        scope.runMemoryKitLiveE2E = true
+    for trigger in E2ETrigger.allCases where trigger.matches(file) {
+        trigger.apply(to: &scope)
     }
 }
 
@@ -150,29 +320,20 @@ let event = flag("--event") ?? "push"
 var scope = Scope()
 let baseRef = baseRefOverride ?? resolveBaseRef(event: event)
 
-if let out = git(["diff", "--name-only", baseRef, "HEAD"]) {
-    for file in out.split(separator: "\n").map(String.init) where !file.isEmpty {
-        FileHandle.standardError.write("changed: \(file)\n".data(using: .utf8)!)
-        classify(file, &scope)
-    }
-} else {
-    FileHandle.standardError.write("ciscope: git diff failed for base \(baseRef)\n".data(using: .utf8)!)
+let diffOutput = git(["diff", "--name-only", baseRef, "HEAD"])
+guard let diffOutput else {
+    FileHandle.standardError.write(
+        "ciscope: git diff failed for base \(baseRef)\n".data(using: .utf8)!)
     exit(1)
 }
 
+for file in diffOutput.split(separator: "\n").map(String.init) where !file.isEmpty {
+    FileHandle.standardError.write("changed: \(file)\n".data(using: .utf8)!)
+    classify(file, &scope)
+}
+
 var out = ""
-func emit(_ key: String, _ value: Bool) { out += "\(key)=\(value)\n" }
-emit("run_root", scope.runRoot)
-emit("run_root_e2e", scope.runRootE2E)
-emit("run_memorykit", scope.runMemoryKit)
-emit("run_memorykit_live_e2e", scope.runMemoryKitLiveE2E)
-emit("run_anima", scope.runAnima)
-emit("run_andromeda_mcp", scope.runAndromedaMCP)
-emit("run_powerkit", scope.runPowerKit)
-emit("run_statusline", scope.runStatusline)
-emit("run_andromeda_ui", scope.runAndromedaUI)
-emit("run_guardian", scope.runGuardian)
-emit("run_orchestrator", scope.runOrchestrator)
-emit("needs_qdrant", scope.needsQdrant)
-emit("any_lane", scope.anyLane)
+for key in OutputKey.allCases {
+    out += "\(key.githubKey)=\(key.value(in: scope))\n"
+}
 FileHandle.standardOutput.write(out.data(using: .utf8)!)
