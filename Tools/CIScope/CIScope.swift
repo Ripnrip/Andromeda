@@ -11,24 +11,56 @@
 
 import Foundation
 
-struct Scope {
-    var runRoot = false
-    var runRootE2E = false
-    var runMemoryKit = false
-    var runMemoryKitLiveE2E = false
-    var runAnima = false
-    var runAndromedaMCP = false
-    var runPowerKit = false
-    var runStatusline = false
-    var runAndromedaUI = false
-    var runGuardian = false
-    var runOrchestrator = false
+/// A CI lane the scope engine can arm — the GHA output key is the rawValue,
+/// so the (key, lane) pair is declared exactly once. CaseIterable drives
+/// emission (declaration order fixes output order); a lane without an
+/// output key no longer compiles.
+enum Lane: String, CaseIterable {
+    case runRoot = "run_root"
+    case runRootE2E = "run_root_e2e"
+    case runMemoryKit = "run_memorykit"
+    case runMemoryKitLiveE2E = "run_memorykit_live_e2e"
+    case runAnima = "run_anima"
+    case runAndromedaMCP = "run_andromeda_mcp"
+    case runPowerKit = "run_powerkit"
+    case runStatusline = "run_statusline"
+    case runAndromedaUI = "run_andromeda_ui"
+    case runGuardian = "run_guardian"
+    case runOrchestrator = "run_orchestrator"
 
-    var needsQdrant: Bool { runRootE2E || runMemoryKitLiveE2E }
+    /// E2E lanes gate their own jobs and never gate the build lanes.
+    var isE2E: Bool {
+        self == .runRootE2E || self == .runMemoryKitLiveE2E
+    }
+}
 
+/// Selected lanes for a diff — a *set*, not an enum: a diff arms any
+/// combination of lanes (an enum expresses one-of-many exclusive states;
+/// 11 combinable lanes would be 2^11 cases). `Lane` is the enum; Scope is
+/// the subset of it a diff selects.
+struct Scope: Sendable {
+    private(set) var lanes: Set<Lane> = []
+
+    /// Arm lanes. Idempotent — a file may match several rules; the same
+    /// lane arming twice is a no-op, exactly like the bash flag ORs.
+    mutating func arm(_ lanes: some Sequence<Lane>) {
+        self.lanes.formUnion(lanes)
+    }
+
+    func armed(_ lane: Lane) -> Bool {
+        lanes.contains(lane)
+    }
+
+    /// Live-Qdrant availability gate.
+    var needsQdrant: Bool {
+        armed(.runRootE2E) || armed(.runMemoryKitLiveE2E)
+    }
+
+    /// True when any build/test lane is armed. E2E lanes gate their own
+    /// jobs via their individual outputs and never gate the build — same
+    /// as the retired bash `any_lane` OR-chain.
     var anyLane: Bool {
-        runRoot || runMemoryKit || runAnima || runAndromedaMCP || runPowerKit
-            || runStatusline || runAndromedaUI || runGuardian || runOrchestrator
+        lanes.contains { !$0.isE2E }
     }
 }
 
@@ -183,35 +215,30 @@ enum LaneRule: CaseIterable {
         }
     }
 
-    func apply(to scope: inout Scope) {
+    /// The lanes this rule arms — the exhaustive switch keeps rule→lane
+    /// mapping compile-checked; `classify` arms them via `Scope.arm`.
+    var lanes: [Lane] {
         switch self {
         case .workflowCI, .ciScopeTool:
-            scope.runRoot = true
-            scope.runRootE2E = true
-            scope.runMemoryKit = true
-            scope.runMemoryKitLiveE2E = true
-            scope.runAnima = true
-            scope.runGuardian = true
-            scope.runOrchestrator = true
+            [.runRoot, .runRootE2E, .runMemoryKit, .runMemoryKitLiveE2E, .runAnima, .runGuardian, .runOrchestrator]
         case .rootPackage, .sources, .tests:
-            scope.runRoot = true
+            [.runRoot]
         case .memoryKit:
-            scope.runRoot = true
-            scope.runMemoryKit = true
+            [.runRoot, .runMemoryKit]
         case .anima:
-            scope.runAnima = true
+            [.runAnima]
         case .andromedaMCP:
-            scope.runAndromedaMCP = true
+            [.runAndromedaMCP]
         case .powerKit:
-            scope.runPowerKit = true
+            [.runPowerKit]
         case .statusline:
-            scope.runStatusline = true
+            [.runStatusline]
         case .andromedaUI:
-            scope.runAndromedaUI = true
+            [.runAndromedaUI]
         case .guardian:
-            scope.runGuardian = true
+            [.runGuardian]
         case .orchestrator:
-            scope.runOrchestrator = true
+            [.runOrchestrator]
         }
     }
 
@@ -255,12 +282,13 @@ enum E2ETrigger: CaseIterable {
         }
     }
 
-    func apply(to scope: inout Scope) {
+    /// The lane this trigger arms.
+    var lane: Lane {
         switch self {
         case .rootE2E:
-            scope.runRootE2E = true
+            .runRootE2E
         case .memoryKitLiveE2E:
-            scope.runMemoryKitLiveE2E = true
+            .runMemoryKitLiveE2E
         }
     }
 
@@ -269,59 +297,6 @@ enum E2ETrigger: CaseIterable {
     }
 }
 
-/// GITHUB_OUTPUT keys — CaseIterable maps each key ↔ Scope field explicitly.
-enum OutputKey: CaseIterable {
-    case runRoot
-    case runRootE2E
-    case runMemoryKit
-    case runMemoryKitLiveE2E
-    case runAnima
-    case runAndromedaMCP
-    case runPowerKit
-    case runStatusline
-    case runAndromedaUI
-    case runGuardian
-    case runOrchestrator
-    case needsQdrant
-    case anyLane
-
-    /// Stable contract string for `$GITHUB_OUTPUT` (exhaustive — no rawValue concat).
-    var githubKey: String {
-        switch self {
-        case .runRoot: return "run_root"
-        case .runRootE2E: return "run_root_e2e"
-        case .runMemoryKit: return "run_memorykit"
-        case .runMemoryKitLiveE2E: return "run_memorykit_live_e2e"
-        case .runAnima: return "run_anima"
-        case .runAndromedaMCP: return "run_andromeda_mcp"
-        case .runPowerKit: return "run_powerkit"
-        case .runStatusline: return "run_statusline"
-        case .runAndromedaUI: return "run_andromeda_ui"
-        case .runGuardian: return "run_guardian"
-        case .runOrchestrator: return "run_orchestrator"
-        case .needsQdrant: return "needs_qdrant"
-        case .anyLane: return "any_lane"
-        }
-    }
-
-    func value(in scope: Scope) -> Bool {
-        switch self {
-        case .runRoot: return scope.runRoot
-        case .runRootE2E: return scope.runRootE2E
-        case .runMemoryKit: return scope.runMemoryKit
-        case .runMemoryKitLiveE2E: return scope.runMemoryKitLiveE2E
-        case .runAnima: return scope.runAnima
-        case .runAndromedaMCP: return scope.runAndromedaMCP
-        case .runPowerKit: return scope.runPowerKit
-        case .runStatusline: return scope.runStatusline
-        case .runAndromedaUI: return scope.runAndromedaUI
-        case .runGuardian: return scope.runGuardian
-        case .runOrchestrator: return scope.runOrchestrator
-        case .needsQdrant: return scope.needsQdrant
-        case .anyLane: return scope.anyLane
-        }
-    }
-}
 
 func git(_ args: [String]) -> String? {
     let proc = Process()
@@ -359,10 +334,10 @@ func resolveBaseRef(event: String) -> String {
 
 func classify(_ file: String, _ scope: inout Scope) {
     for rule in LaneRule.allCases where rule.matches(file) {
-        rule.apply(to: &scope)
+        scope.arm(rule.lanes)
     }
     for trigger in E2ETrigger.allCases where trigger.matches(file) {
-        trigger.apply(to: &scope)
+        scope.arm([trigger.lane])
     }
 }
 
@@ -393,7 +368,12 @@ for file in diffOutput.split(separator: "\n").map(String.init) where !file.isEmp
 }
 
 var out = ""
-for key in OutputKey.allCases {
-    out += "\(key.githubKey)=\(key.value(in: scope))\n"
+// Lane keys come from the one declaration of Lane — CaseIterable drives the
+// emit; declaration order fixes output order (byte-identical to the retired
+// bash script's echo order). The two derived keys follow.
+for lane in Lane.allCases {
+    out += "\(lane.rawValue)=\(scope.armed(lane))\n"
 }
+out += "needs_qdrant=\(scope.needsQdrant)\n"
+out += "any_lane=\(scope.anyLane)\n"
 FileHandle.standardOutput.write(out.data(using: .utf8)!)
