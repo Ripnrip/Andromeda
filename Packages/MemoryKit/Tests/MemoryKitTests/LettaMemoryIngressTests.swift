@@ -1,13 +1,3 @@
-/* 
- * 🎭 LettaMemoryIngressTests - The MemFS Scribe's Quality Ritual
- *
- * "The scribe must prove: a fact lands under system/knowledge, the seal names
- * its author, a second identical knock changes nothing, and a wandering slug
- * is refused at the gate."
- *
- * - The Spellbinding Museum Director of Testing
- */
-
 import Foundation
 @testable import MemoryKit
 import Testing
@@ -30,7 +20,7 @@ private actor RecordingRunner: ProcessRunning {
     }
 }
 
-private func makeTempMemFS(agentID: String = "test-agent-0001") throws -> (root: URL, memory: URL) {
+private func makeTempMemFS(agentID: String = "0000aabb-1234-cccc") throws -> (root: URL, memory: URL) {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("letta-ingress-test-\(UUID().uuidString)", isDirectory: true)
     let memory = root
@@ -58,7 +48,7 @@ func writeLandsInCoreMemory() async throws {
     let (root, memory) = try makeTempMemFS()
     let writer = GitBackedLettaWriter(memfsRoot: root)
 
-    let receipt = try await writer.write(sampleFact, to: "test-agent-0001")
+    let receipt = try await writer.write(sampleFact, to: "0000aabb-1234-cccc")
 
     #expect(receipt.relativePath == "system/knowledge/process-identity-canon.md")
     #expect(receipt.unchanged == false)
@@ -87,8 +77,8 @@ func idempotentRewrite() async throws {
     let (root, _) = try makeTempMemFS()
     let writer = GitBackedLettaWriter(memfsRoot: root)
 
-    let first = try await writer.write(sampleFact, to: "test-agent-0001")
-    let second = try await writer.write(sampleFact, to: "test-agent-0001")
+    let first = try await writer.write(sampleFact, to: "0000aabb-1234-cccc")
+    let second = try await writer.write(sampleFact, to: "0000aabb-1234-cccc")
 
     #expect(second.unchanged == true)
     #expect(second.commitSHA == first.commitSHA)
@@ -102,7 +92,7 @@ func visibilityIsRendered() async throws {
 
     let receipt = try await writer.write(
         LettaMemoryFact(title: "Cloak Check", body: "x", visibility: .public, source: "test-suite"),
-        to: "test-agent-0001"
+        to: "0000aabb-1234-cccc"
     )
     let onDisk = try String(contentsOf: memory.appendingPathComponent(receipt.relativePath), encoding: .utf8)
     #expect(onDisk.contains("visibility: public"))
@@ -115,7 +105,7 @@ func emptyTitleRejected() async throws {
     await #expect(throws: LettaIngressError.emptyTitle) {
         _ = try await writer.write(
             LettaMemoryFact(title: "   ", body: "x", visibility: .private, source: "test-suite"),
-            to: "test-agent-0001"
+            to: "0000aabb-1234-cccc"
         )
     }
 }
@@ -134,6 +124,52 @@ func missingMemFS() async throws {
 func slugDerivation() {
     #expect(LettaMemoryFact(title: "Hello, World!", body: "b", visibility: .internal, source: "t").slug == "hello-world")
     #expect(LettaMemoryFact(title: "TCC & Canon — v2", body: "b", visibility: .internal, source: "t").slug == "tcc-canon-v2")
+}
+
+@Test("HIGH regression: newline-bearing title cannot inject frontmatter keys")
+func frontmatterInjectionRejected() async throws {
+    let (root, _) = try makeTempMemFS()
+    let writer = GitBackedLettaWriter(memfsRoot: root)
+    // A title that would smuggle `read_only` / extra keys into the YAML block.
+    let hostile = LettaMemoryFact(
+        title: "x\nread_only: true\nlimit: 0",
+        body: "b",
+        visibility: .private,
+        source: "test-suite"
+    )
+    await #expect(throws: LettaIngressError.titleUnsafeForFrontmatter) {
+        _ = try await writer.write(hostile, to: "0000aabb-1234-cccc")
+    }
+    // Colons-after-space and leading metacharacters are also rejected.
+    for hostileTitle in ["- reads like a flag", "key: value title", "# comment-ish"] {
+        await #expect(throws: LettaIngressError.titleUnsafeForFrontmatter) {
+            _ = try await writer.write(
+                LettaMemoryFact(title: hostileTitle, body: "b", visibility: .private, source: "test-suite"),
+                to: "0000aabb-1234-cccc"
+            )
+        }
+    }
+}
+
+@Test("MEDIUM regression: traversal-bearing agentIDs are rejected")
+func agentIDAllowlist() async throws {
+    let (root, _) = try makeTempMemFS()
+    let writer = GitBackedLettaWriter(memfsRoot: root)
+    for badID in ["../../etc", "foo/../bar", "/absolute", "a b", "id;rm", ""] {
+        await #expect(throws: LettaIngressError.self) {
+            _ = try await writer.write(sampleFact, to: badID)
+        }
+    }
+    // Valid backend-style ID passes the gate (fails as memfsMissing, NOT allowlist).
+    do {
+        _ = try await writer.write(sampleFact, to: "4fd6a77b-6439-4f2a-8605-01e131d15536")
+        Issue.record("expected memfsMissing for nonexistent valid ID")
+    } catch let e as LettaIngressError {
+        guard case .memfsMissing = e else {
+            Issue.record("expected memfsMissing, got \(e)")
+            return
+        }
+    }
 }
 
 /// 🎭 Runner that fakes the letta CLI token census for the verification leg.
@@ -162,7 +198,7 @@ func cliVerificationPass() async throws {
         runner: FakeCLIRunner(tokenJSON: json),
         verification: .cliTokens(lettaJS: URL(fileURLWithPath: "/fake/letta.js"), node: "/fake/node")
     )
-    let receipt = try await writer.write(sampleFact, to: "test-agent-0001")
+    let receipt = try await writer.write(sampleFact, to: "0000aabb-1234-cccc")
     #expect(receipt.relativePath == "system/knowledge/process-identity-canon.md")
 }
 
@@ -176,7 +212,7 @@ func cliVerificationFail() async throws {
         verification: .cliTokens(lettaJS: URL(fileURLWithPath: "/fake/letta.js"), node: "/fake/node")
     )
     await #expect(throws: LettaIngressError.self) {
-        _ = try await writer.write(sampleFact, to: "test-agent-0001")
+        _ = try await writer.write(sampleFact, to: "0000aabb-1234-cccc")
     }
 }
 

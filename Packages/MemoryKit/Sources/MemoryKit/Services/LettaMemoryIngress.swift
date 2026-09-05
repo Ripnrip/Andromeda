@@ -1,18 +1,3 @@
-/* 
- * 🎭 The GitBackedLettaWriter - The MemFS Scribe
- *
- * "No websocket séances, no REST pilgrimages: the quill lands a fact in
- * system/knowledge, the ledger of git seals it under the ingress name,
- * and the token census itself stands as witness."
- *
- * - The Spellbinding Memory Scribe of Anima
- *
- * Grounded in the Phase-0 spike (2026-09-05), recorded in
- * `docs/plans/LETTA-MEMORY-INGRESS.md`: local Letta agent memory is git-backed
- * memfs at `~/.letta/lc-local-backend/memfs/agent-<id>/memory`, and only files
- * under `system/` are injected into the agent's in-context core memory.
- */
-
 import CryptoKit
 import Foundation
 
@@ -90,6 +75,10 @@ public enum LettaIngressError: Error, LocalizedError, Sendable, Equatable {
     case slugInvalid(String)
     case gitFailed(step: String, stderr: String)
     case verificationFailed(reason: String)
+    /// Title cannot be safely rendered as a single-line YAML scalar.
+    case titleUnsafeForFrontmatter
+    /// agentID failed the memfs charset allowlist.
+    case agentIDInvalid(String)
 
     public var errorDescription: String? {
         switch self {
@@ -105,6 +94,10 @@ public enum LettaIngressError: Error, LocalizedError, Sendable, Equatable {
             "🌩️ git \(step) failed: \(stderr)"
         case let .verificationFailed(reason):
             "🌩️ Post-write verification failed: \(reason)"
+        case .titleUnsafeForFrontmatter:
+            "🌩️ Title contains characters unsafe for single-line YAML frontmatter (newlines, control chars, or leading metacharacters)."
+        case let .agentIDInvalid(id):
+            "🌩️ agentID '\(id)' failed the memfs charset allowlist (expected hex + hyphen)."
         }
     }
 }
@@ -170,6 +163,17 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
         guard !fact.body.trimmingCharacters(in: .whitespaces).isEmpty else { throw LettaIngressError.emptyBody }
         let slug = fact.slug
         guard !slug.isEmpty, !slug.contains(".."), !slug.contains("/") else { throw LettaIngressError.slugInvalid(slug) }
+        // HARD GATE: frontmatter is attacker-controlled input interpolated into YAML.
+        // A title containing newlines/colons could inject extra frontmatter keys
+        // (e.g. read_only) into files Letta loads as in-context core memory.
+        // The rendered description must stay a single scalar line.
+        let safeTitle = Self.yamlSafe(fact.title)
+        guard safeTitle != nil else { throw LettaIngressError.titleUnsafeForFrontmatter }
+        _ = safeTitle // render() re-validates; kept here to fail fast on the write path
+        // Path containment: agentID selects a memfs dir; restrict to the exact charset
+        // the local backend generates (hex + hyphen) so no `..`/`/`/absolute escape
+        // can survive appendingPathComponent.
+        guard Self.isValidAgentID(agentID) else { throw LettaIngressError.agentIDInvalid(agentID) }
 
         let memoryRoot = memfsRoot
             .appendingPathComponent("agent-\(agentID)", isDirectory: true)
@@ -180,7 +184,7 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
         }
 
         let relativePath = "system/knowledge/\(slug).md"
-        let rendered = Self.render(fact: fact, slug: slug)
+        let rendered = try Self.render(fact: fact, slug: slug)
         let hash = Self.contentHash(of: rendered)
 
         let target = memoryRoot.appendingPathComponent(relativePath)
@@ -233,12 +237,15 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
     /// `.md` files under `system/` or `reference/` may carry ONLY the
     /// frontmatter keys `description` (required, non-empty), `read_only`
     /// (protected), `limit` (legacy). All other metadata rides in the body.
-    static func render(fact: LettaMemoryFact, slug: String) -> String {
+    static func render(fact: LettaMemoryFact, slug: String) throws -> String {
+        // yamlSafe is re-validated here so direct calls of `render` cannot bypass
+        // the write-path hard gate (defense in depth; write() checks first).
+        guard let safeTitle = yamlSafe(fact.title) else { throw LettaIngressError.titleUnsafeForFrontmatter }
         let date = Date().formatted(.iso8601.year().month().day())
         let tagLine = fact.tags.isEmpty ? "" : "\n- tags: \(fact.tags.joined(separator: ", "))"
         return """
         ---
-        description: \(fact.title)
+        description: \(safeTitle)
         ---
 
         # \(fact.title)
@@ -255,6 +262,31 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
     static func contentHash(of text: String) -> String {
         let digest = SHA256.hash(data: Data(text.utf8))
         return "sha256:" + digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    // MARK: - Input hardening (Cursor security review 2026-09-05: HIGH + MEDIUM)
+
+    /// True when the string is safe as a bare single-line YAML scalar:
+    /// no newlines, no control characters, no leading YAML metacharacters,
+    /// and no `: ` / ` #` sequences that could read as a key or comment.
+    static func yamlSafe(_ s: String) -> String? {
+        guard !s.contains(where: { $0.isNewline || $0 == "\0" || ($0.asciiValue.map { $0 < 0x20 } ?? false) })
+        else { return nil }
+        let first = s.first
+        guard first != nil else { return nil }
+        guard !"-?:&#*@`\"'%|>[]{}!".contains(first!) else { return nil }
+        guard !s.contains(": "), !s.contains(" #") else { return nil }
+        // Collapse any residual whitespace runs (defensive; newline already rejected).
+        return s
+    }
+
+    /// agentID allowlist: hex + hyphen only (the local backend mints UUID-ish IDs).
+    /// Rejects empty, `..`, separators, and anything path-bearing.
+    static func isValidAgentID(_ id: String) -> Bool {
+        guard !id.isEmpty, id.count <= 128 else { return false }
+        return id.allSatisfy { c in
+            c.isHexDigit || c == "-"
+        }
     }
 
     // MARK: - git plumbing (all via injected ProcessRunning)
