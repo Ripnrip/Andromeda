@@ -77,16 +77,16 @@ jobs:
 
       # Orchestrator snapshots render JetBrainsMono; macOS silently substitutes
       # a fallback font when it is absent, shifting text metrics and failing
-      # pixel-diffs (run 33792817515, PR #65). Install the real face so
-      # rendering is deterministic and baselines stay valid across machines.
-      # Runs only when a lane is armed; brew cask is cached by the runner image.
+      # pixel-diffs (run 33792817515, PR #65). The cask installs all faces
+      # directly into ~/Library/Fonts — no manual copy needed (the Caskroom
+      # layout does not keep per-face ttf paths; copying from it broke the
+      # first attempt, run 33955991024).
       - name: Install UI fonts (JetBrainsMono)
         if: steps.scope.outputs.any_lane == 'true'
         run: |
           brew install --cask font-jetbrains-mono
-          sudo cp "$(brew --prefix)/Caskroom/font-jetbrains-mono"/*/JetBrainsMono-Regular.ttf /Library/Fonts/ 2>/dev/null || \
-            cp "$(brew --prefix)/Caskroom/font-jetbrains-mono"/*/JetBrainsMono-Regular.ttf ~/Library/Fonts/
-          system_profiler SPFontsDataType | grep -m1 "JetBrainsMono" || true
+          ls "$HOME/Library/Fonts" | grep -m1 "JetBrainsMono-Regular" \
+            || { echo "JetBrainsMono-Regular not found after cask install"; exit 1; }
 
       - name: Cache SwiftPM shared dependency artifacts
         if: steps.scope.outputs.any_lane == 'true'
