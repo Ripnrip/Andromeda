@@ -1,4 +1,4 @@
-/**
+/* 
  * 🎭 LettaMemoryIngressTests - The MemFS Scribe's Quality Ritual
  *
  * "The scribe must prove: a fact lands under system/knowledge, the seal names
@@ -9,8 +9,8 @@
  */
 
 import Foundation
-import Testing
 @testable import MemoryKit
+import Testing
 
 /// 🎭 Fake runner that drives git for real but through the ProcessRunning seam.
 /// We use the real git binary against a temp repo so behavior matches production,
@@ -20,6 +20,7 @@ private actor RecordingRunner: ProcessRunning {
         let executable: String
         let arguments: [String]
     }
+
     private(set) var invocations: [Invocation] = []
     private let real = LocalProcessRunner(timeoutSeconds: 15)
 
@@ -74,7 +75,7 @@ func writeLandsInCoreMemory() async throws {
     let closing = lines.dropFirst().firstIndex(of: "---")
     #expect(closing != nil)
     if let closing {
-        let fmLines = Array(lines[1..<closing])
+        let fmLines = Array(lines[1 ..< closing])
         #expect(fmLines.contains { $0.hasPrefix("description:") })
         #expect(!fmLines.contains { $0.hasPrefix("title:") })
         #expect(!fmLines.contains { $0.hasPrefix("visibility:") })
@@ -138,7 +139,10 @@ func slugDerivation() {
 /// 🎭 Runner that fakes the letta CLI token census for the verification leg.
 private actor FakeCLIRunner: ProcessRunning {
     let tokenJSON: String
-    init(tokenJSON: String) { self.tokenJSON = tokenJSON }
+    init(tokenJSON: String) {
+        self.tokenJSON = tokenJSON
+    }
+
     private let real = LocalProcessRunner(timeoutSeconds: 15)
 
     func run(executable: String, arguments: [String], workingDirectory: URL?) async throws -> ProcessRunResult {
