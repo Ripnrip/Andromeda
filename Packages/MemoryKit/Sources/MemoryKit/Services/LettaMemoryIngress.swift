@@ -1,4 +1,4 @@
-/**
+/* 
  * 🎭 The GitBackedLettaWriter - The MemFS Scribe
  *
  * "No websocket séances, no REST pilgrimages: the quill lands a fact in
@@ -13,8 +13,8 @@
  * under `system/` are injected into the agent's in-context core memory.
  */
 
-import Foundation
 import CryptoKit
+import Foundation
 
 /// 🛡️ Visibility/cloak tag — mandatory on every ingress write (multibrain AGENTS.md rule).
 public enum MemoryVisibility: String, Sendable, Codable, CaseIterable {
@@ -52,7 +52,7 @@ public struct LettaMemoryFact: Sendable, Equatable {
             if isAlnum {
                 out.unicodeScalars.append(scalar)
                 lastWasDash = false
-            } else if !lastWasDash && !out.isEmpty {
+            } else if !lastWasDash, !out.isEmpty {
                 out.append("-")
                 lastWasDash = true
             }
@@ -93,18 +93,18 @@ public enum LettaIngressError: Error, LocalizedError, Sendable, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .memfsMissing(let path):
-            return "🌩️ Agent memfs not found at \(path) — is the agent registered with the local backend?"
+        case let .memfsMissing(path):
+            "🌩️ Agent memfs not found at \(path) — is the agent registered with the local backend?"
         case .emptyTitle:
-            return "🌩️ Ingress fact has no title — the slug cannot be conjured from silence."
+            "🌩️ Ingress fact has no title — the slug cannot be conjured from silence."
         case .emptyBody:
-            return "🌩️ Ingress fact has no body — the quill refuses blank parchment."
-        case .slugInvalid(let slug):
-            return "🌩️ Title '\(slug)' produced an unusable slug."
-        case .gitFailed(let step, let stderr):
-            return "🌩️ git \(step) failed: \(stderr)"
-        case .verificationFailed(let reason):
-            return "🌩️ Post-write verification failed: \(reason)"
+            "🌩️ Ingress fact has no body — the quill refuses blank parchment."
+        case let .slugInvalid(slug):
+            "🌩️ Title '\(slug)' produced an unusable slug."
+        case let .gitFailed(step, stderr):
+            "🌩️ git \(step) failed: \(stderr)"
+        case let .verificationFailed(reason):
+            "🌩️ Post-write verification failed: \(reason)"
         }
     }
 }
@@ -131,6 +131,7 @@ struct MemoryTokenReport: Decodable, Sendable {
         let path: String
         let tokens: Int
     }
+
     let total_tokens: Int
     let files: [FileEntry]
 }
@@ -184,21 +185,23 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
 
         let target = memoryRoot.appendingPathComponent(relativePath)
         if let existing = try? String(contentsOf: target, encoding: .utf8),
-           Self.contentHash(of: existing) == hash {
+           Self.contentHash(of: existing) == hash
+        {
             // Idempotency: identical fact already sealed — report, don't duplicate.
             let sha = try await gitRevParseHead(at: memoryRoot)
             return LettaMemoryReceipt(agentID: agentID, relativePath: relativePath, commitSHA: sha, contentHash: hash, unchanged: true)
         }
 
         try FileManager.default.createDirectory(
-            at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            at: target.deletingLastPathComponent(), withIntermediateDirectories: true
+        )
         try rendered.write(to: target, atomically: true, encoding: .utf8)
 
         _ = try await git(at: memoryRoot, ["add", relativePath])
         _ = try await git(at: memoryRoot, [
             "-c", "user.name=\(Self.authorName)",
             "-c", "user.email=\(Self.authorEmail)",
-            "commit", "-m", "memory.write: \(fact.title) (visibility: \(fact.visibility.rawValue))"
+            "commit", "-m", "memory.write: \(fact.title) (visibility: \(fact.visibility.rawValue))",
         ])
         let sha = try await gitRevParseHead(at: memoryRoot)
 
@@ -210,11 +213,12 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
 
         // Optional in-context verification: the bundled CLI's token census must list
         // our file (only `system/**` is injected into the agent's core memory).
-        if case .cliTokens(let lettaJS, let node) = verification {
+        if case let .cliTokens(lettaJS, node) = verification {
             let report = try await lettaTokens(agentID: agentID, lettaJS: lettaJS, node: node)
             guard report.files.contains(where: { $0.path == relativePath }) else {
                 throw LettaIngressError.verificationFailed(
-                    reason: "letta memory tokens does not count \(relativePath) in-context (total=\(report.total_tokens), files=\(report.files.map(\.path)))")
+                    reason: "letta memory tokens does not count \(relativePath) in-context (total=\(report.total_tokens), files=\(report.files.map(\.path)))"
+                )
             }
         }
 
@@ -279,7 +283,8 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
             throw LettaIngressError.verificationFailed(reason: "letta memory tokens exited \(result.exitCode): \(result.stderr)")
         }
         guard let data = result.stdout.data(using: .utf8),
-              let report = try? JSONDecoder().decode(MemoryTokenReport.self, from: data) else {
+              let report = try? JSONDecoder().decode(MemoryTokenReport.self, from: data)
+        else {
             throw LettaIngressError.verificationFailed(reason: "unparseable tokens JSON: \(result.stdout.prefix(200))")
         }
         return report
