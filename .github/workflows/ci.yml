@@ -75,6 +75,19 @@ jobs:
         if: steps.scope.outputs.any_lane == 'true'
         run: swift --version
 
+      # Orchestrator snapshots render JetBrainsMono; macOS silently substitutes
+      # a fallback font when it is absent, shifting text metrics and failing
+      # pixel-diffs (run 33792817515, PR #65). Install the real face so
+      # rendering is deterministic and baselines stay valid across machines.
+      # Runs only when a lane is armed; brew cask is cached by the runner image.
+      - name: Install UI fonts (JetBrainsMono)
+        if: steps.scope.outputs.any_lane == 'true'
+        run: |
+          brew install --cask font-jetbrains-mono
+          sudo cp "$(brew --prefix)/Caskroom/font-jetbrains-mono"/*/JetBrainsMono-Regular.ttf /Library/Fonts/ 2>/dev/null || \
+            cp "$(brew --prefix)/Caskroom/font-jetbrains-mono"/*/JetBrainsMono-Regular.ttf ~/Library/Fonts/
+          system_profiler SPFontsDataType | grep -m1 "JetBrainsMono" || true
+
       - name: Cache SwiftPM shared dependency artifacts
         if: steps.scope.outputs.any_lane == 'true'
         uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
