@@ -147,8 +147,36 @@ jobs:
             echo "any_lane=$any_lane"
           } >> "$GITHUB_OUTPUT"
 
+      # Baselines must be recorded on macos-26 + Xcode 26.6 (this job; ADR-0018). Other
+      # OS/Xcode combinations will not pixel-match the runner. Tip a commit with [record-snapshots]
+      # to rewrite **/__Snapshots__ here, then download the artifact and commit.
+      # pull_request checkouts are merge commits whose message often mirrors the PR title —
+      # only the PR head tip commit message may enable record mode.
+      # A [record-snapshots] tip is an image-change event: record mode forces EVERY
+      # snapshot lane below regardless of diff scope (Codex P1 on #65 — a runner-image
+      # bump invalidates all baseline trees, not just the lanes the diff happens to
+      # enable). Runs before the lane early-exit so record tips never dead-end.
+      - name: Detect snapshot record mode
+        id: snapshots
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_HEAD_SHA" ]; then
+            git fetch --no-tags --depth=1 origin "$PR_HEAD_SHA"
+            MSG="$(git log -1 --pretty=%s "$PR_HEAD_SHA")"
+          else
+            MSG="$(git log -1 --pretty=%s)"
+          fi
+          if printf '%s' "$MSG" | grep -q '\[record-snapshots\]'; then
+            echo "record=true" >> "$GITHUB_OUTPUT"
+            echo "SNAPSHOT_TESTING_RECORD enabled for this commit"
+          else
+            echo "record=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: No build/test lanes matched this diff
-        if: steps.scope.outputs.any_lane != 'true'
+        if: steps.scope.outputs.any_lane != 'true' && steps.snapshots.outputs.record != 'true'
         run: echo "Docs/config-only diff — skipping Swift build/test lanes."
 
       # Canon lint (swift-canon enforcement): ast-grep rules in canon/ast-grep/.
@@ -164,7 +192,7 @@ jobs:
           sg scan
 
       - name: Select Xcode 26.6 (Swift 6.1+)
-        if: steps.scope.outputs.any_lane == 'true'
+        if: steps.scope.outputs.any_lane == 'true' || steps.snapshots.outputs.record == 'true'
         # Package.swift requires swift-tools-version 6.1; pin Xcode so the toolchain
         # does not drift when the hosted runner default changes. ADR-0018: macos-26
         # image ships Xcode 26.6 as default — same major as the fleet.
@@ -175,7 +203,7 @@ jobs:
         run: swift --version
 
       - name: Cache SwiftPM shared dependency artifacts
-        if: steps.scope.outputs.any_lane == 'true'
+        if: steps.scope.outputs.any_lane == 'true' || steps.snapshots.outputs.record == 'true'
         uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: |
@@ -186,7 +214,7 @@ jobs:
             swiftpm-shared-${{ runner.os }}-xcode-26-6-
 
       - name: Cache Swift build artifacts
-        if: steps.scope.outputs.any_lane == 'true'
+        if: steps.scope.outputs.any_lane == 'true' || steps.snapshots.outputs.record == 'true'
         uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: |
@@ -252,31 +280,6 @@ jobs:
         if: steps.scope.outputs.run_root == 'true'
         run: swift build
 
-      # Baselines must be recorded on macos-26 + Xcode 26.6 (this job; ADR-0018). Other
-      # OS/Xcode combinations will not pixel-match the runner. Tip a commit with [record-snapshots]
-      # to rewrite **/__Snapshots__ here, then download the artifact and commit.
-      # pull_request checkouts are merge commits whose message often mirrors the PR title —
-      # only the PR head tip commit message may enable record mode.
-      - name: Detect snapshot record mode
-        if: steps.scope.outputs.any_lane == 'true'
-        id: snapshots
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_HEAD_SHA" ]; then
-            git fetch --no-tags --depth=1 origin "$PR_HEAD_SHA"
-            MSG="$(git log -1 --pretty=%s "$PR_HEAD_SHA")"
-          else
-            MSG="$(git log -1 --pretty=%s)"
-          fi
-          if printf '%s' "$MSG" | grep -q '\[record-snapshots\]'; then
-            echo "record=true" >> "$GITHUB_OUTPUT"
-            echo "SNAPSHOT_TESTING_RECORD enabled for this commit"
-          else
-            echo "record=false" >> "$GITHUB_OUTPUT"
-          fi
-
       # SwiftLint + SwiftFormat — the Orchestrator package is under lint
       # first (see .swiftlint.yml `included`); widen per package as they're
       # brought in. Zero serious violations required. Runs BEFORE the test
@@ -306,18 +309,30 @@ jobs:
           args=(--parallel --num-workers 1 --skip HUDRecallE2ESnapshotTests --skip ProjectionEndToEndTests --skip QdrantProjectionTests)
           swift test "${args[@]}"
 
+      # Compile gate BEFORE the tolerant record steps. Record mode fails the
+      # test runs on purpose (continue-on-error below), which also swallows
+      # COMPILE failures — and the artifact then re-uploads the previously
+      # committed baselines unchanged, masquerading as fresh runner output
+      # (Codex P1: every record lane gets the strict gate, not just one).
+      - name: Record gate · root package compiles
+        if: steps.snapshots.outputs.record == 'true'
+        run: swift build --build-tests
+
       - name: Test (root package, record snapshots)
-        if: steps.scope.outputs.run_root == 'true' && steps.snapshots.outputs.record == 'true'
+        if: steps.snapshots.outputs.record == 'true'
         env:
           SNAPSHOT_TESTING_RECORD: "1"
           ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant_verify.outputs.reachable == 'true' && steps.qdrant.outputs.url || '' }}
         shell: bash
         run: |
           set -euo pipefail
-          args=(--parallel --num-workers 1)
-          if [ "${{ steps.scope.outputs.run_root_e2e }}" != 'true' ]; then
-            args+=(--skip HUDRecallE2ESnapshotTests --skip ProjectionEndToEndTests --skip QdrantProjectionTests)
-          fi
+          # Record tips re-record every baseline-owning suite, including
+          # HUDRecallE2ESnapshotTests (2 PNGs under Tests/AndromedaHUDTests —
+          # Codex P1: it was skipped whenever the diff didn't select the e2e
+          # lane, going stale on runner bumps). The live-infra e2e suites stay
+          # skipped: they own no upload-path baselines and their output would
+          # be environment-dependent (live Qdrant/vault).
+          args=(--parallel --num-workers 1 --skip ProjectionEndToEndTests --skip QdrantProjectionTests)
           swift test "${args[@]}"
         continue-on-error: true
 
@@ -331,8 +346,13 @@ jobs:
           args=(--parallel --num-workers 1 --skip RetrievalServiceVaultLiveTests)
           swift test "${args[@]}"
 
+      - name: Record gate · MemoryKit compiles
+        if: steps.snapshots.outputs.record == 'true'
+        working-directory: Packages/MemoryKit
+        run: swift build --build-tests
+
       - name: Test MemoryKit (nested package, record snapshots)
-        if: steps.scope.outputs.run_memorykit == 'true' && steps.snapshots.outputs.record == 'true'
+        if: steps.snapshots.outputs.record == 'true'
         working-directory: Packages/MemoryKit
         env:
           SNAPSHOT_TESTING_RECORD: "1"
@@ -390,8 +410,13 @@ jobs:
         working-directory: Packages/AndromedaUI
         run: swift test --parallel --num-workers 1
 
+      - name: Record gate · AndromedaUI compiles
+        if: steps.snapshots.outputs.record == 'true'
+        working-directory: Packages/AndromedaUI
+        run: swift build --build-tests
+
       - name: Test AndromedaUI (nested package, record snapshots)
-        if: steps.scope.outputs.run_andromeda_ui == 'true' && steps.snapshots.outputs.record == 'true'
+        if: steps.snapshots.outputs.record == 'true'
         working-directory: Packages/AndromedaUI
         env:
           SNAPSHOT_TESTING_RECORD: "1"
@@ -420,12 +445,12 @@ jobs:
       # This strict build makes that failure mode loud instead of silent.
       # (Provenance rule: byte-diff the artifact against HEAD before landing.)
       - name: Record gate · AndromedaOrchestrator compiles
-        if: steps.scope.outputs.run_orchestrator == 'true' && steps.snapshots.outputs.record == 'true'
+        if: steps.snapshots.outputs.record == 'true'
         working-directory: Packages/AndromedaOrchestrator
         run: swift build --build-tests
 
       - name: Test AndromedaOrchestrator (nested package, record snapshots)
-        if: steps.scope.outputs.run_orchestrator == 'true' && steps.snapshots.outputs.record == 'true'
+        if: steps.snapshots.outputs.record == 'true'
         working-directory: Packages/AndromedaOrchestrator
         env:
           SNAPSHOT_TESTING_RECORD: "1"
@@ -435,7 +460,7 @@ jobs:
       - name: Upload CI snapshot baselines
         # SnapshotTesting .all records PNGs then fails on purpose ("Record mode is on").
         # Always upload after a record tip so we can commit the rewritten baselines.
-        if: ${{ always() && steps.scope.outputs.any_lane == 'true' && steps.snapshots.outputs.record == 'true' }}
+        if: ${{ always() && steps.snapshots.outputs.record == 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ci-snapshot-baselines-${{ github.sha }}

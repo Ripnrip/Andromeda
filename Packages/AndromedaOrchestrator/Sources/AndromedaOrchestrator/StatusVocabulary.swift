@@ -147,7 +147,12 @@ public struct TypedText: View {
 
     public var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 3) {
-            Text(shown)
+            // Exhibit-7 law: the settled still derives from the environment,
+            // synchronously — never from a `.task` having fired. Under
+            // reduce-motion (every snapshot host) the full text renders on
+            // the first pass; the typewriter path is unchanged when motion is
+            // on (empty until `type()` starts appending).
+            Text(reduceMotion ? full : shown)
                 .font(font)
                 .foregroundStyle(palette.ink)
             if showsCaret {
