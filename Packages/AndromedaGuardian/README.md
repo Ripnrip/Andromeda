@@ -136,7 +136,7 @@ Hard-won facts from the landing session (2026-08-26) — keep them close:
   visible status, telemetry, ownership, controls. Every sweep writes a
   SweepReport (JSONL + broadcast) — a reaper you can't audit is a poltergeist.
 - **The flake was the data, not the motion** (sibling lesson from the
-  orchestrator landing — canon anti-patterns Exhibit 7): pin the RNG source;
+  orchestrator landing — canon anti-patterns Exhibit 12): pin the RNG source;
   don't just freeze the animation.
 - **SDK-stable assumptions rot.** `accessibilityReduceMotion` went get-only
   in the macOS 26 SDK (write via `\._accessibilityReduceMotion`). Anything

@@ -48,7 +48,7 @@ backend changes.
   switches), `OrchestrionChip`, `OrchestrionCensusPanel`, `DataSection()`.
 - Decode types for the §4 contracts in the spec; server is source of truth for
   pressure verdicts — never recompute client-side.
-- Snapshot suite per canon Exhibit 7: **pinned** fixtures (copy real `/api/census`
+- Snapshot suite per canon Exhibit 12: **pinned** fixtures (copy real `/api/census`
   output into test fixtures), run twice back-to-back, byte-stable.
 
 ## Hard rules

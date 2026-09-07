@@ -92,7 +92,7 @@ BofA (do not delete apps without his word).
 - **HAB-370** — `andromeda guardian` CLI (sweep/status/install) + LaunchAgent + telemetry log
 - **HAB-371** — Verify the xcodebuildmcp→SourceControl daemon coupling (instrument: next peak, capture parent chains of Git daemons; plan assumes but does not yet prove MCPs trigger the horde)
 - **HAB-372** — Fleet hygiene decision: Xcode 26.0 (Sep 2025) stale install — keep/remove + `com.manus.hab344.*` orphan plists cleanup
-- (cross-link: swift-canon Exhibit 7 + testing.md determinism overhaul ride this branch)
+- (cross-link: swift-canon Exhibit 12 + testing.md determinism overhaul ride this branch)
 
 ## 6. Rollback
 
