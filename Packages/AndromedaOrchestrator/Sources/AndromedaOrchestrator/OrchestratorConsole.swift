@@ -1,6 +1,7 @@
 import SwiftUI
 
 // MARK: - Console shell
+
 //
 // Header · sidebar · screen. The launch reveal and first-run flow sit above
 // the whole thing as full-window overlays, so the console is always mounted
@@ -74,7 +75,7 @@ public struct OrchestratorConsole: View {
         .animation(OrchestratorMotion.entrance, value: model.onboardingStep)
         .animation(OrchestratorMotion.entrance, value: model.screen)
         #if os(macOS)
-        .onExitCommand { model.skipLaunch() }
+            .onExitCommand { model.skipLaunch() }
         #endif
     }
 
@@ -175,27 +176,27 @@ public struct OrchestratorConsole: View {
 
     private func badge(for screen: OrchestratorModel.Screen) -> String? {
         switch screen {
-        case .overview:  "live"
-        case .registry:  "\(model.mcpServers.count)"
+        case .overview: "live"
+        case .registry: "\(model.mcpServers.count)"
         case .providers: "\(model.providers.count)"
-        case .usage:     model.totalSpend
-        case .gateway:   "3"
-        case .states:    "6"
+        case .usage: model.totalSpend
+        case .gateway: "3"
+        case .states: "6"
         }
     }
 
     // MARK: Screens
 
-    @ViewBuilder private var screen: some View {
+    private var screen: some View {
         ScrollView {
             Group {
                 switch model.screen {
-                case .overview:  OverviewScreen(model: model)
-                case .registry:  RegistryScreen(model: model)
+                case .overview: OverviewScreen(model: model)
+                case .registry: RegistryScreen(model: model)
                 case .providers: ProvidersScreen(model: model)
-                case .usage:     UsageScreen(model: model)
-                case .gateway:   GatewayScreen(model: model)
-                case .states:    StatesScreen(model: model)
+                case .usage: UsageScreen(model: model)
+                case .gateway: GatewayScreen(model: model)
+                case .states: StatesScreen(model: model)
                 }
             }
             .padding(18)

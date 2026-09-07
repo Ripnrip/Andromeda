@@ -166,14 +166,14 @@ struct OverviewScreen: View {
 
     private func tint(for dialect: Dialect) -> Color {
         switch dialect {
-        case .messages:    palette.cyan
-        case .responses:   palette.green
+        case .messages: palette.cyan
+        case .responses: palette.green
         case .completions: palette.muted
         }
     }
 
     private func sparkSamples(seed: Int) -> [Double] {
-        (0..<18).map { index in
+        (0 ..< 18).map { index in
             let base = sin(Double(index + seed) * 0.55) * 0.4 + 0.6
             return base + Double((index * 7 + seed) % 5) * 0.04
         }
@@ -260,7 +260,8 @@ struct RegistryScreen: View {
     private var reclaimedCard: some View {
         HStack(spacing: 18) {
             ForEach(Array([("configs collapsed", "4 → 1"), ("duplicate servers", "3 removed"),
-                           ("zombie processes", "6 → 0"), ("secrets deduped", "7 → 1")].enumerated()), id: \.offset) { index, fact in
+                           ("zombie processes", "6 → 0"), ("secrets deduped", "7 → 1")].enumerated()), id: \.offset)
+            { index, fact in
                 VStack(alignment: .leading, spacing: 4) {
                     Kicker(fact.0)
                     Text(fact.1)

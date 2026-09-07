@@ -1,6 +1,7 @@
 import SwiftUI
 
 // MARK: - The mark
+
 //
 // Andromeda's mark is an angular trefoil — a triangle with softened vertices
 // reading as an obscured diamond. It is never a circle. Every orbital, loader,
@@ -50,7 +51,9 @@ public struct AndromedaMarkView: View {
         self.tint = tint
     }
 
-    private var accent: Color { tint ?? palette.cyan }
+    private var accent: Color {
+        tint ?? palette.cyan
+    }
 
     public var body: some View {
         ZStack {
@@ -99,22 +102,22 @@ public struct AndromedaMarkView: View {
     /// `Resources/andromeda-mark.png` — the pixel-accurate trefoil.
     static let bundledMark: Image? = {
         #if canImport(UIKit)
-        if let img = UIImage(named: "andromeda-mark", in: .module, with: nil) {
-            return Image(uiImage: img)
-        }
+            if let img = UIImage(named: "andromeda-mark", in: .module, with: nil) {
+                return Image(uiImage: img)
+            }
         #elseif canImport(AppKit)
-        if let img = Bundle.module.image(forResource: "andromeda-mark") {
-            return Image(nsImage: img)
-        }
+            if let img = Bundle.module.image(forResource: "andromeda-mark") {
+                return Image(nsImage: img)
+            }
         #endif
         return nil
     }()
 }
 
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #elseif canImport(AppKit)
-import AppKit
+    import AppKit
 #endif
 
 #Preview("Mark") {

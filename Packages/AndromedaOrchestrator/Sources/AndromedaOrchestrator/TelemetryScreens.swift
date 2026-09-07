@@ -109,7 +109,8 @@ struct UsageScreen: View {
             ShareBar(share: model.cacheHitRate, tint: palette.green)
             ForEach(Array([("breakpoints injected", "automatic"),
                            ("eligible calls", "62%"),
-                           ("hit rate", "\(Int(model.cacheHitRate * 100))%")].enumerated()), id: \.offset) { index, row in
+                           ("hit rate", "\(Int(model.cacheHitRate * 100))%")].enumerated()), id: \.offset)
+            { index, row in
                 HStack {
                     Text(row.0).font(OrchestratorFont.sans(11.5)).foregroundStyle(palette.muted)
                     Spacer()
@@ -129,7 +130,8 @@ struct UsageScreen: View {
                 Text("◈").font(OrchestratorFont.mono(11, .semibold)).foregroundStyle(palette.cyan)
                 Kicker("what this number is")
             }
-            Text("Metered at the gateway from real token counts returned by each provider — not estimated from characters. Local models report $0 because they cost nothing, not because the meter failed.")
+            Text("Metered at the gateway from real token counts returned by each provider — not estimated from"
+                + "characters. Local models report $0 because they cost nothing, not because the meter failed.")
                 .font(OrchestratorFont.sans(11.5))
                 .foregroundStyle(palette.muted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -140,7 +142,7 @@ struct UsageScreen: View {
     }
 
     private func curve(seed: Int) -> [Double] {
-        (0..<20).map { index in
+        (0 ..< 20).map { index in
             let base = sin(Double(index + seed) * 0.42) * 0.35 + 0.62
             return base + Double((index * 5 + seed) % 4) * 0.03
         }
@@ -157,7 +159,9 @@ struct GatewayScreen: View {
         VStack(alignment: .leading, spacing: 14) {
             ScreenHeader(
                 title: "One endpoint, three dialects",
-                subtitle: "Point any SDK at the same base URL. The gateway translates request and response shapes both ways, so a completions client can call an Anthropic-native model without knowing.",
+                subtitle: "Point any SDK at the same base URL. The gateway translates request and "
+                    + "response shapes both ways, so a completions client can call an "
+                    + "Anthropic-native model without knowing.",
                 trailing: "listening · 3 of 3 healthy"
             )
 
@@ -266,7 +270,8 @@ struct GatewayScreen: View {
                            ("Failover", "cross-vendor, shape-translated"),
                            ("Breaker", "opens at 5% 5xx over 30s"),
                            ("Shedding", "budget cap → haiku-fast"),
-                           ("Offline", "local lane, queued replay")].enumerated()), id: \.offset) { index, row in
+                           ("Offline", "local lane, queued replay")].enumerated()), id: \.offset)
+            { index, row in
                 HStack(alignment: .top) {
                     Text(row.0).font(OrchestratorFont.sans(11.5, .semibold)).foregroundStyle(palette.ink)
                     Spacer()
