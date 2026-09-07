@@ -113,7 +113,11 @@ jobs:
         if: steps.scope.outputs.any_lane == 'true'
         run: |
           brew install --cask font-jetbrains-mono
-          ls "$HOME/Library/Fonts" | grep -m1 "JetBrainsMono-Regular" \
+          font_found=""
+          for font in "$HOME/Library/Fonts"/JetBrainsMono-Regular*; do
+            [ -e "$font" ] && font_found="$font" && break
+          done
+          [ -n "$font_found" ] \
             || { echo "JetBrainsMono-Regular not found after cask install"; exit 1; }
 
       - name: Cache SwiftPM shared dependency artifacts
