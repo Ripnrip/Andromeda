@@ -1,0 +1,21 @@
+sequenceDiagram
+    autonumber
+    participant T as Branch tip<br/>(subject carries [record-snapshots])
+    participant CI as CI · macos-26 / Xcode 26.6
+    participant L as Lint gate<br/>swiftlint + swiftformat 0.62.1
+    participant A as Artifact<br/>ci-snapshot-baselines
+    T->>CI: push tip commit
+    CI->>CI: Detect record mode<br/>(PR-head tip subject, before lane early-exit)
+    CI->>L: zero serious / format clean
+    L-->>CI: pass (was red on main: brace fix efeb384)
+    par record forces EVERY lane (scope-agnostic)
+        CI->>CI: root 79 PNGs
+        CI->>CI: MemoryKit 68 PNGs
+        CI->>CI: AndromedaUI 311 PNGs
+        CI->>CI: Orchestrator 57 PNGs
+    end
+    CI->>A: upload (always)
+    A->>T: byte-diff vs HEAD (provenance law)
+    T->>T: land runner bytes commit
+    T->>CI: verify run (no marker)
+    CI-->>T: green → merge → main green

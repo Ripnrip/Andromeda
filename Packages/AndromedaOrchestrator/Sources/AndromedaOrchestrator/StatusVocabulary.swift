@@ -1,6 +1,7 @@
 import SwiftUI
 
 // MARK: - Status
+
 //
 // House rule: status is never communicated by color alone. Every status
 // carries a hue, a glyph, and a word — so it survives grayscale, color-vision
@@ -16,30 +17,30 @@ public enum OrchestratorStatus: String, Sendable, CaseIterable {
     /// ● ◐ ◯ ○ — the glyph is load-bearing, not decoration.
     public var glyph: String {
         switch self {
-        case .healthy:   "●"
-        case .degraded:  "◐"
-        case .failed:    "◯"
-        case .idle:      "○"
+        case .healthy: "●"
+        case .degraded: "◐"
+        case .failed: "◯"
+        case .idle: "○"
         case .verifying: "◐"
         }
     }
 
     public var label: String {
         switch self {
-        case .healthy:   "HEALTHY"
-        case .degraded:  "DEGRADED"
-        case .failed:    "FAILED"
-        case .idle:      "IDLE"
+        case .healthy: "HEALTHY"
+        case .degraded: "DEGRADED"
+        case .failed: "FAILED"
+        case .idle: "IDLE"
         case .verifying: "VERIFYING"
         }
     }
 
     public func tint(_ palette: OrchestratorPalette) -> Color {
         switch self {
-        case .healthy:   palette.cyan
-        case .degraded:  palette.amber
-        case .failed:    palette.red
-        case .idle:      palette.dim
+        case .healthy: palette.cyan
+        case .degraded: palette.amber
+        case .failed: palette.red
+        case .idle: palette.dim
         case .verifying: palette.amber
         }
     }
@@ -67,7 +68,9 @@ public struct StatusBadge: View {
         self.bordered = bordered
     }
 
-    private var word: String { text ?? status.label }
+    private var word: String {
+        text ?? status.label
+    }
 
     public var body: some View {
         HStack(spacing: 7) {
@@ -144,7 +147,12 @@ public struct TypedText: View {
 
     public var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 3) {
-            Text(shown)
+            // Exhibit-7 law: the settled still derives from the environment,
+            // synchronously — never from a `.task` having fired. Under
+            // reduce-motion (every snapshot host) the full text renders on
+            // the first pass; the typewriter path is unchanged when motion is
+            // on (empty until `type()` starts appending).
+            Text(reduceMotion ? full : shown)
                 .font(font)
                 .foregroundStyle(palette.ink)
             if showsCaret {
