@@ -57,7 +57,7 @@ list pillar: **Data**). Contents = the shipped `/dashboard` redesigned in Androm
 | `Eyebrow` | typography | section labels ("POOL OF SOULS · ORCHESTRION") |
 | `PillarState` protocol | `Pillars/Dreaming/PillarStates.swift` | model `DataState` enum after `MemoryState` (color/caption/detail per case, exhaustive switches — Exhibit 6 discipline) |
 
-SnapshotTesting note (Exhibit 7): pin the spark sample data — never random fixtures.
+SnapshotTesting note (Exhibit 12): pin the spark sample data — never random fixtures.
 
 ## Access & setup (operators)
 

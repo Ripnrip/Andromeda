@@ -173,7 +173,7 @@ numerals `accessibilityLabel`ed ("27 of 35 connections, pressure gathering");
 1. All three surfaces render from the live contracts in §4 with zero stubs.
 2. `DataState` derivations are exhaustive switches; no stringly-typed pressure.
 3. Snapshot suite: two back-to-back runs byte-stable — pinned sample data (canon
-   Exhibit 7: no RNG fixtures, no unpinned `.task` reveals).
+   Exhibit 12: no RNG fixtures, no unpinned `.task` reveals).
 4. `(unnamed)` census rows are visually distinct in light+dark, 100% zoom, and
    accessibility audit.
 5. HUD chip ≤ 1 line at compact width (HUD constraints); Control Plane section
