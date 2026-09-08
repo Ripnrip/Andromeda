@@ -106,7 +106,7 @@ This follows the exact path the orchestrator console took
   schemes and **preview-parity snapshot twins** (Pointfree,
   `SNAPSHOT_TESTING_RECORD`, `[record-snapshots]` CI flow).
 - **Deterministic fixtures**: sweep/census demo data pinned
-  (`SampleData`-style fixtures) so baselines are byte-stable — Exhibit 7
+  (`SampleData`-style fixtures) so baselines are byte-stable — Exhibit 12
   law.
 - **Reduce-motion**: still complete frames under
   `\._accessibilityReduceMotion` (macOS 26 SPI).

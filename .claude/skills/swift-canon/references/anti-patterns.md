@@ -406,6 +406,25 @@ locale): inject and derive, never hope a task fires. CI enforcement for the
 baseline side: `BaselineIntegrityTests` (a committed baseline that is a
 2-color flat image fails the suite).
 
+**Second scar, same law — content, not just reveals (PR #65/#67, Sep 2026):**
+`TypedText` settled its *text* through a task — `@State shown = ""` plus
+`.task { await type() }` whose reduce-motion branch assigns `shown = full`.
+A capture landing before the task fires records an empty label and passes
+quietly until the beat shifts:
+
+```swift
+// Broken: empty until the task lands, even under reduce-motion
+Text(shown) … .task { guard !reduceMotion else { shown = full; return } … }
+
+// Exhibit 7 shape: the settled content derives from the environment, synchronously
+Text(reduceMotion ? full : shown)
+```
+
+The law generalizes: whatever the settled frame *shows* — opacity, offset,
+text, lists — must be derivable from the environment at first render. The
+`.task` may animate toward it when motion is allowed; it must never be the
+only thing standing between the view and its content.
+
 ## Exhibit 8 — Lazy containers for fixed, small collections
 
 `LazyVStack`/`LazyVGrid` defer materialization until "needed" — and offscreen
@@ -475,7 +494,11 @@ the artifact-provenance byte-diff rule born from landing stale bytes as
 "runner-recorded".
 Project-specific scar details live in the project skill layered on this canon.
 
-## Exhibit 7: snapshot tests that capture animated or reveal states without pinning the random source
+## Exhibit 12: snapshot tests that capture animated or reveal states without pinning the random source
+
+*(Renumbered from a colliding "Exhibit 7" — the number now belongs to the
+`.task`-gated settled-state exhibit; pre-September-2026 citations saying
+"Exhibit 7" for RNG-pinning mean this one.)*
 
 **Shape**: a snapshot suite records a view whose pixels depend on anything
 time-, RNG-, or appearance-dependent — then passes locally and flakes on
