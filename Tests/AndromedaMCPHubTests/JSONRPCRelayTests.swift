@@ -84,6 +84,27 @@ struct JSONRPCRelayTests {
         #expect(try String(decoding: #require(rb?.original), as: UTF8.self).contains("for B"))
     }
 
+    @Test("duplicate top-level id members are rejected, never namespaced (hijack vector)")
+    func duplicateIDRejection() {
+        // A shim could smuggle a second, unnamespaced id past the first-span
+        // rewriter; node JSON.parse is last-key-wins upstream — the frame
+        // would route into another connection's namespace. Rejected instead.
+        let attack = #"{"jsonrpc":"2.0","id":1,"id":"c2.5","method":"tools/list"}"#
+        #expect(JSONRPCRelay.clientMessageIsMalformed(Data(attack.utf8)) == true)
+
+        let normal = #"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#
+        #expect(JSONRPCRelay.clientMessageIsMalformed(Data(normal.utf8)) == false)
+
+        // Duplicate requestId inside cancelled params — same vector.
+        let cancelledAttack = #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":7,"requestId":"c2.7"}}"#
+        #expect(JSONRPCRelay.clientMessageIsMalformed(Data(cancelledAttack.utf8)) == true)
+
+        // Nested duplicates (inside params.arguments) are NOT the vector —
+        // they pass (only top-level and params.requestId matter).
+        let nested = #"{"jsonrpc":"2.0","id":1,"method":"m","params":{"x":{"id":1,"id":2}}}"#
+        #expect(JSONRPCRelay.clientMessageIsMalformed(Data(nested.utf8)) == false)
+    }
+
     @Test("server notifications (no id) broadcast — route returns nil")
     func serverNotificationBroadcasts() {
         let notification = #"{"jsonrpc":"2.0","method":"notifications/message","params":{}}"#
