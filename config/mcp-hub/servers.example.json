@@ -1,0 +1,30 @@
+{
+  "socketDirectory": "~/.andromeda/mcp-hub/sockets",
+  "logDirectory": "~/.andromeda/logs",
+  "servers": [
+    {
+      "id": "filesystem",
+      "packageName": "@modelcontextprotocol/server-filesystem",
+      "command": "/opt/homebrew/bin/node",
+      "arguments": [
+        "/Users/admin/.andromeda/mcp-hub/launchers/andromeda-mcpd-filesystem.js"
+      ],
+      "environment": {},
+      "placement": "shared",
+      "duplicateGroup": "server-filesystem"
+    },
+    {
+      "id": "memory",
+      "packageName": "@modelcontextprotocol/server-memory",
+      "command": "/opt/homebrew/bin/node",
+      "arguments": [
+        "/Users/admin/.andromeda/mcp-hub/launchers/andromeda-mcpd-memory.js"
+      ],
+      "environment": {
+        "MEMORY_FILE_PATH": "/Users/admin/.multibrain/mcp-hub-shared-memory.json"
+      },
+      "placement": "shared",
+      "duplicateGroup": "server-memory"
+    }
+  ]
+}

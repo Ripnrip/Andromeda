@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Shared MCP hub — hosts upstream MCP servers behind per-agent shims
+  (docs/plans/SHARED-MCP-HUB.md, ADR-0019).
+
+  KeepAlive=true: the hub is infrastructure — a crash restarts it. This
+  differs from the HUD plist (RunAtLoad-only; quitting via menu must stay
+  quit) because nobody "quits" the hub by hand.
+
+  IMPORTANT: Exec the binary directly under launchd. Do NOT use
+  /usr/bin/open -a — LaunchServices `open` can inherit Aqua/agent-shell
+  env (paid API keys). Same contract as com.andromeda.hud.plist.
+
+  Path template: launchd does NOT expand $HOME/~ — install must rewrite
+  the Studio home string to the real $HOME (absolute paths only).
+  Swift installer contract (BIN-101): same rewrite, no bash.
+
+  Install (typed Swift installer when BIN-101 lands; interim manual):
+    andromeda mcp-hub validate   # config sanity first
+    # render + bootstrap per the hud plist procedure
+  Unload:
+    launchctl bootout gui/$(id -u)/com.andromeda.mcp-hub
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.andromeda.mcp-hub</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/admin/.local/bin/andromeda</string>
+		<string>mcp-hub</string>
+		<string>run</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/admin</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>LimitLoadToSessionType</key>
+	<string>Aqua</string>
+	<key>StandardOutPath</key>
+	<string>/Users/admin/.andromeda/logs/mcp-hub.launchd.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/admin/.andromeda/logs/mcp-hub.launchd.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>/Users/admin</string>
+		<key>PATH</key>
+		<string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/Users/admin/.local/bin</string>
+	</dict>
+</dict>
+</plist>
