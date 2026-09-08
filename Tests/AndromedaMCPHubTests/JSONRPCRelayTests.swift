@@ -105,6 +105,41 @@ struct JSONRPCRelayTests {
         #expect(JSONRPCRelay.clientMessageIsMalformed(Data(nested.utf8)) == false)
     }
 
+    @Test("Unicode-escaped id members are caught — literal-byte keys don't bypass the guard")
+    func unicodeEscapedKeys() {
+        // RFC 8259: `\uXXXX` escapes in object keys decode to the same key,
+        // so `"\u0069d"` IS an id member upstream (JSON.parse collapses it).
+        // A literal-byte scanner counted only the unescaped one — the
+        // duplicate smuggled past the guard (Cursor follow-up to d72ddcf).
+        let escapedDuplicate = #"{"jsonrpc":"2.0","\u0069d":1,"id":"c2.5","method":"tools/list"}"#
+        #expect(JSONRPCRelay.clientMessageIsMalformed(Data(escapedDuplicate.utf8)) == true)
+
+        // Escaped duplicate requestId inside cancelled params — same vector.
+        let escapedCancelled =
+            #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requ\u0065stId":7,"requestId":"c2.7"}}"#
+        #expect(JSONRPCRelay.clientMessageIsMalformed(Data(escapedCancelled.utf8)) == true)
+
+        // Escaped `params` key still found — the cancelled rewrite works.
+        let escapedParams =
+            #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requ\u0065stId":7}}"#
+        let out = JSONRPCRelay.namespaceClientMessage(Data(escapedParams.utf8), connection: connA)
+        #expect(String(decoding: out, as: UTF8.self).contains(#""requ\u0065stId":"c1.7""#))
+
+        // A SINGLE escaped id still gets namespaced (key bytes preserved,
+        // value span rewritten).
+        let escapedSingle = #"{"jsonrpc":"2.0","\u0069d":5,"method":"m"}"#
+        let single = JSONRPCRelay.namespaceClientMessage(Data(escapedSingle.utf8), connection: connA)
+        let singleStr = String(decoding: single, as: UTF8.self)
+        #expect(singleStr.contains(#""\u0069d":"c1.5""#))
+        #expect(JSONRPCRelay.clientMessageIsMalformed(Data(escapedSingle.utf8)) == false)
+
+        // Escapes inside unrelated string VALUES don't perturb the scan.
+        let valueEscape = #"{"jsonrpc":"2.0","id":1,"method":"m","params":{"a":"\u0069d\u0069d"}}"#
+        #expect(JSONRPCRelay.clientMessageIsMalformed(Data(valueEscape.utf8)) == false)
+        let routed = JSONRPCRelay.namespaceClientMessage(Data(valueEscape.utf8), connection: connA)
+        #expect(String(decoding: routed, as: UTF8.self).contains(#""id":"c1.1""#))
+    }
+
     @Test("server notifications (no id) broadcast — route returns nil")
     func serverNotificationBroadcasts() {
         let notification = #"{"jsonrpc":"2.0","method":"notifications/message","params":{}}"#

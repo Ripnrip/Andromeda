@@ -170,7 +170,6 @@ enum JSONIDRewriter: Sendable {
 
     /// Counts occurrences of `"key":` members at the given depth.
     static func memberCount(in bytes: [UInt8], key: String, targetDepth: Int) -> Int {
-        let keyBytes = Array(("\"" + key + "\"").utf8)
         var i = 0
         var depth = 0
         var inString = false
@@ -192,8 +191,10 @@ enum JSONIDRewriter: Sendable {
             }
             switch b {
             case UInt8(ascii: "\""):
-                if depth == targetDepth, matchesKey(bytes, at: i, key: keyBytes) {
-                    var j = i + keyBytes.count
+                if depth == targetDepth, let parsed = parseKeyString(bytes, at: i),
+                   parsed.decoded == key
+                {
+                    var j = parsed.end
                     skipWhitespace(bytes, from: &j)
                     if j < bytes.count, bytes[j] == UInt8(ascii: ":") {
                         count += 1
@@ -260,7 +261,6 @@ enum JSONIDRewriter: Sendable {
     /// Generic: find `"key":` at the given brace depth and return the
     /// value's byte span.
     static func findMemberValueSpan(in bytes: [UInt8], key: String, targetDepth: Int) -> Span? {
-        let keyBytes = Array(("\"" + key + "\"").utf8)
         var i = 0
         var depth = 0
         var inString = false
@@ -283,26 +283,25 @@ enum JSONIDRewriter: Sendable {
 
             switch b {
             case UInt8(ascii: "\""):
-                // Key candidate: match the target key at this position?
-                if depth == targetDepth {
-                    if matchesKey(bytes, at: i, key: keyBytes) {
-                        // Find the ':' after the key (skipping whitespace).
-                        var j = i + keyBytes.count
+                // Key candidate: parse the full string (escape-aware) and
+                // compare the decoded key.
+                if depth == targetDepth, let parsed = parseKeyString(bytes, at: i),
+                   parsed.decoded == key
+                {
+                    var j = parsed.end
+                    skipWhitespace(bytes, from: &j)
+                    if j < bytes.count, bytes[j] == UInt8(ascii: ":") {
+                        j += 1
                         skipWhitespace(bytes, from: &j)
-                        if j < bytes.count, bytes[j] == UInt8(ascii: ":") {
-                            j += 1
-                            skipWhitespace(bytes, from: &j)
-                            let valueStart = j
-                            let valueEnd = endOfValue(bytes, from: j)
-                            if depth == targetDepth {
-                                return Span(start: valueStart, end: valueEnd)
-                            }
+                        let valueStart = j
+                        let valueEnd = endOfValue(bytes, from: j)
+                        if depth == targetDepth {
+                            return Span(start: valueStart, end: valueEnd)
                         }
-                        // Not the member we want (e.g. nested) — continue scan
-                        // from after this key string.
-                        i += keyBytes.count
-                        continue
                     }
+                    // Matched key but no ':' — skip past the key string.
+                    i = parsed.end
+                    continue
                 }
                 inString = true
 
@@ -320,14 +319,66 @@ enum JSONIDRewriter: Sendable {
         return nil
     }
 
-    private static func matchesKey(_ bytes: [UInt8], at i: Int, key: [UInt8]) -> Bool {
-        guard i + key.count <= bytes.count else { return false }
-        for (offset, k) in key.enumerated() where bytes[i + offset] != k {
-            return false
+    /// Parses the JSON string starting at the opening quote `i` and returns
+    /// its decoded key plus the index just past the closing quote. Handles
+    /// the full escape set (`\uXXXX` incl. surrogate pairs). Literal-byte
+    /// key matching missed Unicode-escaped members (`"\u0069d"`) — RFC 8259
+    /// decodes those to the same key, so a duplicate could bypass the
+    /// duplicate-id guard and hijack cross-connection routing (Cursor
+    /// security follow-up to 3960584548).
+    static func parseKeyString(_ bytes: [UInt8], at i: Int) -> (decoded: String, end: Int)? {
+        guard i < bytes.count, bytes[i] == UInt8(ascii: "\"") else { return nil }
+        var units: [UInt16] = []
+        var j = i + 1
+        while j < bytes.count {
+            let b = bytes[j]
+            switch b {
+            case UInt8(ascii: "\""):
+                let decoded = String(decoding: units, as: UTF16.self)
+                return (decoded, j + 1)
+            case UInt8(ascii: "\\"):
+                let next = j + 1 < bytes.count ? bytes[j + 1] : UInt8(ascii: " ")
+                switch next {
+                case UInt8(ascii: "\""): units.append(0x22); j += 2
+                case UInt8(ascii: "\\"): units.append(0x5C); j += 2
+                case UInt8(ascii: "/"): units.append(0x2F); j += 2
+                case UInt8(ascii: "b"): units.append(0x08); j += 2
+                case UInt8(ascii: "f"): units.append(0x0C); j += 2
+                case UInt8(ascii: "n"): units.append(0x0A); j += 2
+                case UInt8(ascii: "r"): units.append(0x0D); j += 2
+                case UInt8(ascii: "t"): units.append(0x09); j += 2
+                case UInt8(ascii: "u"):
+                    guard let (unit, end) = hex4(bytes, at: j + 2) else { return nil }
+                    units.append(unit)
+                    j = end
+                    // Surrogate pair: lead followed by `\uXXXX` low.
+                    if UTF16.isLeadSurrogate(unit), j + 1 < bytes.count,
+                       bytes[j] == UInt8(ascii: "\\"), bytes[j + 1] == UInt8(ascii: "u"),
+                       let (low, lowEnd) = hex4(bytes, at: j + 2), UTF16.isTrailSurrogate(low)
+                    {
+                        units.append(low)
+                        j = lowEnd
+                    }
+                default:
+                    return nil
+                }
+            default:
+                units.append(UInt16(b))
+                j += 1
+            }
         }
-        // Key must END at the quote — byte before position must be the
-        // opening quote we matched at `i`.
-        return true
+        return nil
+    }
+
+    private static func hex4(_ bytes: [UInt8], at start: Int) -> (UInt16, Int)? {
+        guard start + 4 <= bytes.count else { return nil }
+        var value: UInt16 = 0
+        for offset in 0 ..< 4 {
+            guard let digit = Character(Unicode.Scalar(bytes[start + offset])).hexDigitValue
+            else { return nil }
+            value = value << 4 | UInt16(digit)
+        }
+        return (value, start + 4)
     }
 
     private static func skipWhitespace(_ bytes: [UInt8], from j: inout Int) {
