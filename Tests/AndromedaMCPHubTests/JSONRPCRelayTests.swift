@@ -161,6 +161,25 @@ struct HubConfigurationTests {
         }
     }
 
+    @Test("secret-looking env keys are rejected (wave-1 gate)")
+    func secretEnvGate() {
+        let secret = HubServerConfig(
+            id: "firecrawl", packageName: "p", command: "/usr/bin/true",
+            environment: ["FIRECRAWL_API_KEY": "x"], duplicateGroup: "g"
+        )
+        #expect(throws: MCPHubConfiguration.ConfigurationError.self) {
+            try MCPHubConfiguration(servers: [secret]).validated()
+        }
+
+        let benign = HubServerConfig(
+            id: "memory", packageName: "p", command: "/usr/bin/true",
+            environment: ["MEMORY_FILE_PATH": "/tmp/m.json"], duplicateGroup: "g"
+        )
+        #expect(throws: Never.self) {
+            try MCPHubConfiguration(servers: [benign]).validated()
+        }
+    }
+
     @Test("socket path derivation")
     func socketPath() {
         let config = MCPHubConfiguration(servers: [server(id: "filesystem")])

@@ -100,6 +100,7 @@ public struct MCPHubConfiguration: Sendable, Equatable, Codable {
         case invalidServerID(String)
         case emptyCommand(String)
         case placementNotSharedInWave1(String)
+        case secretLookingEnvironmentKey(serverID: String, key: String)
     }
 
     /// ADR invariants: ids are unique, short, `[a-z0-9-]` only (they name
@@ -118,6 +119,15 @@ public struct MCPHubConfiguration: Sendable, Equatable, Codable {
             guard !server.command.isEmpty else { throw ConfigurationError.emptyCommand(server.id) }
             guard server.placement == .shared else {
                 throw ConfigurationError.placementNotSharedInWave1(server.id)
+            }
+            // Cursor style review: env-bearing servers are gated, not just
+            // avoided by convention — keys that look like credentials are
+            // rejected until the SecretsBroker lane can inject them properly
+            // (plan §2.3: "no raw keys in client env"; hub env injection is
+            // host-side and allowed, but secrets route via the broker once
+            // real). Benign config keys (paths, flags) pass.
+            for key in server.environment.keys where Self.looksLikeSecretKey(key) {
+                throw ConfigurationError.secretLookingEnvironmentKey(serverID: server.id, key: key)
             }
         }
         return self
@@ -140,6 +150,15 @@ public struct MCPHubConfiguration: Sendable, Equatable, Codable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(self).write(to: url)
+    }
+
+    /// Credential-shaped env keys (case-insensitive substrings) — the
+    /// wave-1 gate until the broker lands.
+    static let secretKeyMarkers = ["secret", "token", "key", "api", "credential", "password", "passwd"]
+
+    static func looksLikeSecretKey(_ key: String) -> Bool {
+        let lowered = key.lowercased()
+        return secretKeyMarkers.contains { lowered.contains($0) }
     }
 
     /// Default config path (ADR-locked location).

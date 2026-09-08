@@ -71,16 +71,6 @@ public enum JSONRPCRelay: Sendable {
 
     // MARK: Upstream → clients
 
-    /// Result for routing one upstream message.
-    public enum UpstreamRouting: Equatable, Sendable {
-        /// Response belonging to one connection — the message with the id
-        /// restored to that client's original shape.
-        case directed(Data, to: RelayConnectionKey)
-        /// Server-initiated notification (or unroutable message) — deliver
-        /// to every connected client verbatim.
-        case broadcast(Data)
-    }
-
     /// A hub-issued connection key: nonempty, prefix + base-36 counter.
     /// (Foreign dotted ids — e.g. server-initiated request ids — fail this
     /// and broadcast instead of routing to a nonexistent connection.)

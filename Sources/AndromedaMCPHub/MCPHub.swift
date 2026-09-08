@@ -73,11 +73,15 @@ public final class MCPHub: @unchecked Sendable {
     public init(
         configuration: MCPHubConfiguration,
         processHost: UpstreamProcessHosting = ProcessUpstreamHost(),
-        telemetry: HubTelemetry = .shared
+        telemetry: HubTelemetry? = nil
     ) {
         self.configuration = configuration
         self.processHost = processHost
-        self.telemetry = HubTelemetry(jsonlPath: configuration.telemetryLogPath)
+        // Cursor style review: honor the injected telemetry (DI law) —
+        // only the default path derives its JSONL location from config.
+        self.telemetry = telemetry ?? HubTelemetry(
+            jsonlPath: configuration.telemetryLogPath
+        )
     }
 
     public var hostedServerIDs: [String] {
