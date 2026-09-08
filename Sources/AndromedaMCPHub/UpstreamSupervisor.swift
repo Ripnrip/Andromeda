@@ -38,13 +38,24 @@ public struct UpstreamPipes: Sendable {
 public struct ProcessUpstreamHost: UpstreamProcessHosting {
     public init() {}
 
+    /// Environment keys every hosted server needs (allowlist — Codex P1:
+    /// copying the ambient environment hands every hosted process all
+    /// credentials in scope of whoever launched the hub, bypassing the
+    /// per-server env entirely). Secrets-bearing servers get their keys via
+    /// the hub config's `environment` (broker lane later) — never ambient.
+    static let environmentAllowlist: Set<String> = [
+        "PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "XDG_CACHE_HOME",
+    ]
+
     public func launch(
         command: String, arguments: [String], environment: [String: String]
     ) -> UpstreamPipes? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: command)
         process.arguments = arguments
-        var env = ProcessInfo.processInfo.environment
+        var env = ProcessInfo.processInfo.environment.filter { key, _ in
+            Self.environmentAllowlist.contains(key)
+        }
         for (key, value) in environment {
             env[key] = value
         }

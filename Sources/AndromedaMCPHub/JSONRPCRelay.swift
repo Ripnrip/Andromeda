@@ -81,6 +81,17 @@ public enum JSONRPCRelay: Sendable {
         case broadcast(Data)
     }
 
+    /// A hub-issued connection key: nonempty, prefix + base-36 counter.
+    /// (Foreign dotted ids — e.g. server-initiated request ids — fail this
+    /// and broadcast instead of routing to a nonexistent connection.)
+    static func isHubIssuedKey(_ key: String) -> Bool {
+        guard key.hasPrefix(RelayConnectionKey.prefix.description), key.count > 1 else {
+            return false
+        }
+        let counter = key.dropFirst(RelayConnectionKey.prefix.description.count)
+        return counter.allSatisfy { $0.isNumber || ($0.isLetter && $0.isLowercase) }
+    }
+
     /// Route an upstream message: namespaced ids split back to their
     /// connection; anything else broadcasts.
     public static func routeUpstreamMessage(_ data: Data) -> (key: String, original: Data)? {
@@ -95,8 +106,11 @@ public enum JSONRPCRelay: Sendable {
         let inner = String(decoding: value[1 ..< (value.count - 1)], as: UTF8.self)
         guard let dot = inner.firstIndex(of: ".") else { return nil }
         let key = String(inner[..<dot])
-        // Only route keys with our connection prefix (foreign ids broadcast).
-        guard key.hasPrefix(RelayConnectionKey.prefix.description) || !key.isEmpty else { return nil }
+        // Strict routing (Codex P2): only keys this hub issued — the
+        // connection prefix followed by base-36 counter characters.
+        // Foreign dotted ids ("foo.bar" from server-initiated requests)
+        // broadcast instead of directing to a nonexistent connection.
+        guard Self.isHubIssuedKey(key) else { return nil }
 
         // Rebuild with the original id bytes (the remainder after "key.").
         // A purely numeric remainder restores BARE (the original id was a
