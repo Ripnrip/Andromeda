@@ -45,7 +45,16 @@ func appearance() {
 
 Record: `SNAPSHOT_TESTING_RECORD=1 swift test` (fleet convention; CI records via a `[record-snapshots]` tip commit and the baselines artifact).
 
-Commit `__Snapshots__/` — but only baselines recorded on the CI runner image; local macOS 26 PNGs do not pixel-match macos-15 runners. CI: compare mode only.
+Commit `__Snapshots__/` — but only baselines recorded on the CI runner image; studio-recorded PNGs do not pixel-match the runner. CI: compare mode only.
+
+**The snapshot environment is (image + Xcode pin + FONTS).** JetBrainsMono
+absent on runners while present on studio was the entire runner≠studio
+rendering-divergence root (PR #65/#67, Sep 2026): silent font substitution
+moves text metrics, and every text-heavy baseline drifts. Install font casks
+before the snapshot lanes and verify the font landed (`ls ~/Library/Fonts |
+grep` fails loud); baselines are only valid recorded in the whole
+environment — a re-record after any leg of that triple changes is a
+record-all, not a lane-scoped re-record.
 
 ## Determinism
 
@@ -85,9 +94,36 @@ passes forever. Guard it in-suite:
 - Record flow: `[record-snapshots]` tip → strict `swift build --build-tests`
   gate → tolerant record step → artifact upload. **Byte-diff the artifact
   against HEAD before landing it** — identical bytes mean the run produced
-  nothing (usually a swallowed compile failure).
+  nothing (usually a swallowed compile failure). Every record lane gets the
+  compile gate, not one: `continue-on-error` swallows compile failures and
+  the upload re-ships committed bytes as "fresh".
 - Baselines are runner-image-bound: studio-recorded PNGs fail CI verify.
   Land only artifact bytes from the same image that verifies.
+- **A `[record-snapshots]` tip is an image-change event**: it re-records
+  EVERY snapshot lane regardless of diff scope (a runner bump invalidates
+  all baseline trees, not the lanes the diff happens to touch), runs behind
+  compile gates, and lands only after the provenance byte-diff. Record-detect
+  must run before the scope early-exit so record tips never dead-end on
+  scope-empty diffs.
+- **The marker travels in merge subjects.** The record detection reads the
+  PR-head tip subject — and a squash-merge subject carries into main's push
+  runs. Strip `[record-snapshots]` from merge/PR titles or main records
+  instead of asserting after the merge.
+
+## Deterministic vs flaky — discriminate before fixing (Sep 2026)
+
+- **Identical match-percentages across runs** (down to the decimals) = a
+  deterministic render against stale bytes → land fresh baselines. Differing
+  magnitudes run-to-run = a genuine race → fix determinism at the view. The
+  fixes are disjoint; diagnosing one as the other burns record cycles.
+- **A single-job CI lane can "pass" by step-skip illusion**: a failure in an
+  earlier step (e.g. a flaky timeout test) skips later steps — the snapshot
+  lane's absence from the failure list is not a pass. Check step execution,
+  not just the failed-step list.
+- Byte-diff loops use **absolute paths on both sides** — a relative path in
+  a loop whose cwd differs from the path's origin compares a file against
+  itself and reports 100% identical (see agent anti-patterns; this produced
+  a false "515/515 byte-identical" once).
 
 ## Determinism from the environment
 

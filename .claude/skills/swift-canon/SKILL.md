@@ -110,6 +110,8 @@ This canon explicitly covers:
 - Never hand-roll JSON serialization — `JSONEncoder`/`JSONDecoder`, `.sortedKeys` for determinism
 - Drain child pipes before awaiting exit; never iterate `.bytes` per-byte for bulk reads
 - If a `try?` probe order is load-bearing, document it and test it
+- Settled snapshot state (reveals, text content alike) derives from the environment — never from a `.task` having fired (Exhibit 7, two scars)
+- Snapshot environments are image + Xcode + fonts — a change to any leg is a record-all, compile-gated, provenance byte-diffed
 
 ### Logging
 - Default to `os.Logger` for app/server logging
