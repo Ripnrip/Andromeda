@@ -105,6 +105,7 @@ public final class MCPHub: @unchecked Sendable {
 
             let path = configuration.socketPath(for: server.id)
             try? FileManager.default.removeItem(atPath: path) // stale socket
+            defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path) }
 
             let fd = try Self.bindAndListen(path: path)
             listeners.append(fd)
@@ -165,6 +166,9 @@ public final class MCPHub: @unchecked Sendable {
         }
 
         let upstreamStdin = pipes.stdin
+        // Codex P1: stream reads can split frames mid-line — each connection
+        // owns an assembler that buffers incomplete tails until the next read.
+        let assembler = LineAssembler()
 
         client.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
@@ -179,66 +183,62 @@ public final class MCPHub: @unchecked Sendable {
                 return
             }
 
-            // Line-framed shim → hub: split on newlines, relay each line.
-            var pending = data
-            while let newlineIndex = pending.firstIndex(of: 0x0A) {
-                let lineData = pending[..<newlineIndex]
-                let trimmed = lineData.filter { $0 != 0x0D }
-                if !trimmed.isEmpty {
-                    let namespaced = JSONRPCRelay.namespaceClientMessage(
-                        Data(trimmed), connection: key
-                    )
-                    var out = namespaced
-                    out.append(0x0A)
-                    try? upstreamStdin.write(contentsOf: out)
-                }
-                pending = pending[pending.index(after: newlineIndex)...]
+            for line in assembler.append(data) {
+                let namespaced = JSONRPCRelay.namespaceClientMessage(line, connection: key)
+                var out = namespaced
+                out.append(0x0A)
+                try? upstreamStdin.write(contentsOf: out)
             }
-            _ = self
         }
 
-        // Upstream stdout reader (one per server, started once).
-        startUpstreamReaderIfIdle(pipes: pipes, server: server)
+        // Upstream stdout reader — attached per live pipe instance so a
+        // respawned upstream gets fresh readers (Codex P1: the old set-based
+        // guard refused reattachment after a restart).
+        attachUpstreamReaders(pipes: pipes, server: server)
     }
 
-    private var upstreamReadersStarted = Set<String>()
-
-    private func startUpstreamReaderIfIdle(pipes: UpstreamPipes, server: HostedServer) {
-        let id = server.config.id
-        guard !upstreamReadersStarted.contains(id) else { return }
-        upstreamReadersStarted.insert(id)
+    /// One stdout+stderr reader pair per live upstream pipe instance.
+    /// The stdout handler signals exit, which clears the hosted server's
+    /// reader binding — the next `ensureRunning` respawns and reattaches.
+    private func attachUpstreamReaders(pipes: UpstreamPipes, server: HostedServer) {
+        let stdoutAssembler = LineAssembler()
 
         pipes.stdout.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
-                Task { await server.supervisor.upstreamExited() }
+                server.supervisor.upstreamExited()
                 return
             }
-            self?.relayUpstream(Data(data), server: server)
+            self?.relayUpstreamLines(stdoutAssembler.append(data), server: server)
+        }
+
+        // Codex P2: an undrained stderr pipe fills its buffer and the child
+        // blocks on its next diagnostic write — drain continuously.
+        let stderrTally = ByteTally()
+        pipes.stderr.readabilityHandler = { handle in
+            let data = handle.availableData
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+                return
+            }
+            stderrTally.add(data.count)
         }
     }
 
-    private func relayUpstream(_ data: Data, server: HostedServer) {
-        var pending = data
-        while let newlineIndex = pending.firstIndex(of: 0x0A) {
-            let lineData = pending[..<newlineIndex]
-            let trimmed = lineData.filter { $0 != 0x0D }
-            if !trimmed.isEmpty {
-                let payload = Data(trimmed)
-                if let routed = JSONRPCRelay.routeUpstreamMessage(payload) {
-                    server.deliver(routed.original, to: routed.key)
-                    telemetry.event(.upstreamResponseRouted(
-                        serverID: server.config.id, connection: routed.key
-                    ))
-                } else {
-                    server.broadcast(payload)
-                    telemetry.event(.upstreamNotificationBroadcast(
-                        serverID: server.config.id, receivers: server.connectionCount
-                    ))
-                }
+    private func relayUpstreamLines(_ lines: [Data], server: HostedServer) {
+        for payload in lines {
+            if let routed = JSONRPCRelay.routeUpstreamMessage(payload) {
+                server.deliver(routed.original, to: routed.key)
+                telemetry.event(.upstreamResponseRouted(
+                    serverID: server.config.id, connection: routed.key
+                ))
+            } else {
+                server.broadcast(payload)
+                telemetry.event(.upstreamNotificationBroadcast(
+                    serverID: server.config.id, receivers: server.connectionCount
+                ))
             }
-            pending = pending[pending.index(after: newlineIndex)...]
         }
     }
 

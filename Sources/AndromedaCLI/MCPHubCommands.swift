@@ -62,6 +62,7 @@ struct MCPHubCommand: AsyncParsableCommand {
 
         func run() async throws {
             let configuration = try MCPHubCommand.loadConfiguration(path: config)
+            var allHealthy = true
             for server in configuration.servers {
                 let executableExists = FileManager.default.isExecutableFile(
                     atPath: (server.command as NSString).expandingTildeInPath
@@ -71,8 +72,12 @@ struct MCPHubCommand: AsyncParsableCommand {
                     "\(marker) \(server.id) — \(server.packageName) [\(server.placement.rawValue)] → \(server.command) \(server.arguments.joined(separator: " "))"
                 )
                 if !executableExists {
+                    allHealthy = false
                     print("     ⚠️ executable not found/resolvable — hub spawn would fail")
                 }
+            }
+            if !allHealthy {
+                throw ValidationError("one or more executables unresolved — fix before install (Codex P2)")
             }
         }
     }
@@ -89,13 +94,37 @@ struct MCPHubCommand: AsyncParsableCommand {
             let configuration = try MCPHubCommand.loadConfiguration(path: config)
             for server in configuration.servers {
                 let socketPath = configuration.socketPath(for: server.id)
-                let expanded = (socketPath as NSString).expandingTildeInPath
-                let listening = FileManager.default.fileExists(atPath: expanded)
+                let listening = Self.probeListening(path: configuration.socketPath(for: server.id))
                 let marker = listening ? "🟢" : "⚪️"
                 print("\(marker) \(server.id) — \(socketPath)\(listening ? " (listening)" : " (no hub)")")
             }
             let telemetryPath = configuration.telemetryLogPath
             print("📊 telemetry: \(telemetryPath)")
+        }
+
+        /// A stale socket pathname survives crashes — existence is not
+        /// health (Codex P2). Probe by connecting: a live listener accepts;
+        /// a dead file refuses.
+        static func probeListening(path: String) -> Bool {
+            let expanded = (path as NSString).expandingTildeInPath
+            let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+            guard fd >= 0 else { return false }
+            defer { close(fd) }
+            var addr = sockaddr_un()
+            addr.sun_family = sa_family_t(AF_UNIX)
+            let pathBytes = Array(expanded.utf8)
+            guard pathBytes.count < MemoryLayout.size(ofValue: addr.sun_path) else { return false }
+            withUnsafeMutableBytes(of: &addr.sun_path) { dest in
+                _ = pathBytes.withUnsafeBufferPointer { src in
+                    memcpy(dest.baseAddress!, src.baseAddress!, pathBytes.count)
+                }
+            }
+            let result = withUnsafePointer(to: &addr) { pointer in
+                pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
+                    Darwin.connect(fd, sockaddrPointer, socklen_t(MemoryLayout<sockaddr_un>.size))
+                }
+            }
+            return result == 0
         }
     }
 }
