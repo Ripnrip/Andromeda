@@ -188,6 +188,15 @@ public final class MCPHub: @unchecked Sendable {
             }
 
             for line in assembler.append(data) {
+                // Duplicate-key frames are a routing-hijack vector (Cursor
+                // security review): reject with -32600, never forward.
+                if JSONRPCRelay.clientMessageIsMalformed(line) {
+                    let error = #"{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"mcp-hub: malformed frame (duplicate id members rejected)"}}"#
+                    var out = Data(error.utf8)
+                    out.append(0x0A)
+                    try? handle.write(contentsOf: out)
+                    continue
+                }
                 let namespaced = JSONRPCRelay.namespaceClientMessage(line, connection: key)
                 var out = namespaced
                 out.append(0x0A)

@@ -30,6 +30,15 @@ public enum JSONRPCRelay: Sendable {
     /// `"<connKey>.<original>"` (string id, original shape preserved inside).
     /// Notifications (id omitted) pass through byte-identical.
     /// `notifications/cancelled` gets its `params.requestId` namespaced too.
+    /// A client frame with duplicate top-level ids (or duplicate cancelled
+    /// requestIds) — RFC-8259-illegal and a cross-connection routing
+    /// hijack vector. Callers reject, never forward.
+    public static func clientMessageIsMalformed(_ data: Data) -> Bool {
+        let bytes = [UInt8](data)
+        return JSONIDRewriter.hasDuplicateTopLevelID(in: bytes)
+            || JSONIDRewriter.hasDuplicateCancelledRequestID(in: bytes)
+    }
+
     public static func namespaceClientMessage(_ data: Data, connection: RelayConnectionKey) -> Data {
         let bytes = [UInt8](data)
         var idReplacement: [UInt8]? = nil
@@ -137,6 +146,72 @@ enum JSONIDRewriter: Sendable {
     /// A key that is PRESENT with value `null` is reported (caller decides).
     static func topLevelIDSpan(in bytes: [UInt8]) -> Span? {
         findMemberValueSpan(in: bytes, key: "id", searchTopLevelOnly: true)
+    }
+
+    /// True when the top level carries MORE THAN ONE `"id"` member —
+    /// duplicate object keys are RFC-8259-illegal, and parsers disagree
+    /// on which one wins (node: last-key-wins). A second unnamespaced id
+    /// could survive our first-span rewrite and hijack cross-connection
+    /// routing (Cursor security review 3960584548) — such frames are
+    /// rejected, never forwarded.
+    static func hasDuplicateTopLevelID(in bytes: [UInt8]) -> Bool {
+        memberCount(in: bytes, key: "id", targetDepth: 1) > 1
+    }
+
+    /// Same check for `params."requestId"` (cancelled hijack variant).
+    static func hasDuplicateCancelledRequestID(in bytes: [UInt8]) -> Bool {
+        guard let paramsSpan = findMemberValueSpan(in: bytes, key: "params", searchTopLevelOnly: true),
+              paramsSpan.isObjectStart(in: bytes)
+        else { return false }
+        let offset = paramsSpan.start + 1
+        let sub = Array(bytes[offset ..< (paramsSpan.end - 1)])
+        return memberCount(in: sub, key: "requestId", targetDepth: 0) > 1
+    }
+
+    /// Counts occurrences of `"key":` members at the given depth.
+    static func memberCount(in bytes: [UInt8], key: String, targetDepth: Int) -> Int {
+        let keyBytes = Array(("\"" + key + "\"").utf8)
+        var i = 0
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var count = 0
+
+        while i < bytes.count {
+            let b = bytes[i]
+            if inString {
+                if escaped {
+                    escaped = false
+                } else if b == UInt8(ascii: "\\") {
+                    escaped = true
+                } else if b == UInt8(ascii: "\"") {
+                    inString = false
+                }
+                i += 1
+                continue
+            }
+            switch b {
+            case UInt8(ascii: "\""):
+                if depth == targetDepth, matchesKey(bytes, at: i, key: keyBytes) {
+                    var j = i + keyBytes.count
+                    skipWhitespace(bytes, from: &j)
+                    if j < bytes.count, bytes[j] == UInt8(ascii: ":") {
+                        count += 1
+                        i = j + 1
+                        continue
+                    }
+                }
+                inString = true
+            case UInt8(ascii: "{"), UInt8(ascii: "["):
+                depth += 1
+            case UInt8(ascii: "}"), UInt8(ascii: "]"):
+                depth -= 1
+            default:
+                break
+            }
+            i += 1
+        }
+        return count
     }
 
     /// Finds `params."requestId"` value span (for cancelled notifications).
