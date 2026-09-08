@@ -39,6 +39,11 @@ hosted server; the hub's runtime layout is deterministic and auditable.
    the taxonomy but are rejected until spike S3 classifies their servers).
 4. `duplicateGroup` matches `MCPServerEntity.duplicateGroup` — hub rows
    and registry rows describe the same citizen.
+5. `environment` keys must not be credential-shaped: keys containing
+   `secret`/`token`/`key`/`api`/`credential`/`password` (case-insensitive)
+   are **rejected at validation** — secrets-bearing servers join only via
+   the SecretsBroker lane (plan §2.3: no raw keys in client env). Benign
+   config keys (`MEMORY_FILE_PATH`-class) pass.
 
 ### Runtime layout
 
