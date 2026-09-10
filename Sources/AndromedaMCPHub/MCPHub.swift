@@ -161,9 +161,15 @@ public final class MCPHub: @unchecked Sendable {
 
         guard let pipes = server.supervisor.ensureRunning() else {
             // Hub without upstream: reply a JSON-RPC error so the agent
-            // host surfaces the gap instead of hanging.
-            let message = #"{"jsonrpc":"2.0","id":null,"error":{"code":-32603,"message":"mcp-hub: upstream unavailable (restart budget exhausted)"}}"#
-            server.deliver(Data(message.utf8), to: key.value)
+            // host surfaces the gap instead of hanging. Typed frame — the
+            // wire bytes are byte-equal to the hand-written literal this
+            // replaced (test-asserted).
+            server.deliver(
+                HubJSONRPCError.upstreamUnavailable.encoded(), to: key.value
+            )
+            telemetry.event(.upstreamUnavailableReply(
+                serverID: server.config.id, connection: key.value
+            ))
             server.removeConnection(key)
             try? client.close()
             return
@@ -191,14 +197,31 @@ public final class MCPHub: @unchecked Sendable {
                 // Duplicate-key frames are a routing-hijack vector (Cursor
                 // security review): reject with -32600, never forward.
                 if JSONRPCRelay.clientMessageIsMalformed(line) {
-                    let error = #"{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"mcp-hub: malformed frame (duplicate id members rejected)"}}"#
-                    var out = Data(error.utf8)
+                    var out = HubJSONRPCError
+                        .malformedFrame(duplicate: HubJSONRPCError.duplicateMemberID)
+                        .encoded()
                     out.append(0x0A)
                     try? handle.write(contentsOf: out)
+                    self?.telemetry.event(.malformedFrameRejected(
+                        serverID: server.config.id, connection: key.value
+                    ))
                     continue
                 }
-                let namespaced = JSONRPCRelay.namespaceClientMessage(line, connection: key)
-                var out = namespaced
+                let relayed = JSONRPCRelay.relayClientMessage(line, connection: key)
+                // One decision point per rewrite kind (canon: emoji at
+                // every logged decision) — id namespacing (🏷️) and the
+                // cancelled-notification rewrite (✂️) log separately.
+                if relayed.namespacedID {
+                    self?.telemetry.event(.idNamespaced(
+                        serverID: server.config.id, connection: key.value
+                    ))
+                }
+                if relayed.namespacedCancelledRequestID {
+                    self?.telemetry.event(.cancelledRequestIDRewritten(
+                        serverID: server.config.id, connection: key.value
+                    ))
+                }
+                var out = relayed.frame
                 out.append(0x0A)
                 try? upstreamStdin.write(contentsOf: out)
             }
@@ -229,13 +252,18 @@ public final class MCPHub: @unchecked Sendable {
         // Codex P2: an undrained stderr pipe fills its buffer and the child
         // blocks on its next diagnostic write — drain continuously.
         let stderrTally = ByteTally()
-        pipes.stderr.readabilityHandler = { handle in
+        pipes.stderr.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
                 return
             }
             stderrTally.add(data.count)
+            // 🧹 diagnostics drained — the decision point that keeps the
+            // child un-blocked; logged so a silent upstream is auditable.
+            self?.telemetry.event(.stderrDrained(
+                serverID: server.config.id, bytes: data.count
+            ))
         }
     }
 

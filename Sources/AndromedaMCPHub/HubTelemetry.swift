@@ -13,11 +13,25 @@ public enum HubEvent: Sendable {
     case upstreamSpawned(serverID: String, command: String, attempt: Int)
     case upstreamSpawnFailed(serverID: String, attempt: Int)
     case upstreamExited(serverID: String, restarts: Int)
+    case upstreamRestartScheduled(serverID: String, restarts: Int, backoffSeconds: Double)
     case upstreamExhausted(serverID: String, restarts: Int)
     case shimConnected(serverID: String, connection: String)
     case shimDisconnected(serverID: String, connection: String)
     case upstreamResponseRouted(serverID: String, connection: String)
     case upstreamNotificationBroadcast(serverID: String, receivers: Int)
+    /// A client frame was rejected before forwarding (duplicate id members
+    /// are a routing-hijack vector — Cursor security review).
+    case malformedFrameRejected(serverID: String, connection: String)
+    /// The hub answered a shim itself because no upstream is available
+    /// (spawn failed or the restart budget is exhausted).
+    case upstreamUnavailableReply(serverID: String, connection: String)
+    /// A client request id was rewritten into the connection-namespaced form.
+    case idNamespaced(serverID: String, connection: String)
+    /// A `notifications/cancelled` `params.requestId` was rewritten into
+    /// the connection-namespaced form.
+    case cancelledRequestIDRewritten(serverID: String, connection: String)
+    /// Upstream stderr diagnostics were drained (keeps the child un-blocked).
+    case stderrDrained(serverID: String, bytes: Int)
 
     /// Emoji glyph per decision point (canon logging law).
     var glyph: String {
@@ -26,11 +40,17 @@ public enum HubEvent: Sendable {
         case .upstreamSpawned: "🐣"
         case .upstreamSpawnFailed: "💥"
         case .upstreamExited: "👋"
+        case .upstreamRestartScheduled: "🔁"
         case .upstreamExhausted: "🛑"
         case .shimConnected: "🔌"
         case .shimDisconnected: "🔌"
         case .upstreamResponseRouted: "📬"
         case .upstreamNotificationBroadcast: "📡"
+        case .malformedFrameRejected: "🚫"
+        case .upstreamUnavailableReply: "⚠️"
+        case .idNamespaced: "🏷️"
+        case .cancelledRequestIDRewritten: "✂️"
+        case .stderrDrained: "🧹"
         }
     }
 
@@ -40,11 +60,17 @@ public enum HubEvent: Sendable {
         case .upstreamSpawned: "upstream.spawned"
         case .upstreamSpawnFailed: "upstream.spawn_failed"
         case .upstreamExited: "upstream.exited"
+        case .upstreamRestartScheduled: "upstream.restart_scheduled"
         case .upstreamExhausted: "upstream.exhausted"
         case .shimConnected: "shim.connected"
         case .shimDisconnected: "shim.disconnected"
         case .upstreamResponseRouted: "upstream.response_routed"
         case .upstreamNotificationBroadcast: "upstream.notification_broadcast"
+        case .malformedFrameRejected: "frame.malformed_rejected"
+        case .upstreamUnavailableReply: "hub.upstream_unavailable_reply"
+        case .idNamespaced: "frame.id_namespaced"
+        case .cancelledRequestIDRewritten: "frame.cancelled_request_id_rewritten"
+        case .stderrDrained: "upstream.stderr_drained"
         }
     }
 
@@ -58,6 +84,12 @@ public enum HubEvent: Sendable {
             ["server": serverID, "attempt": String(attempt)]
         case let .upstreamExited(serverID, restarts):
             ["server": serverID, "restarts": String(restarts)]
+        case let .upstreamRestartScheduled(serverID, restarts, backoffSeconds):
+            [
+                "server": serverID,
+                "restarts": String(restarts),
+                "backoff_seconds": String(format: "%.1f", backoffSeconds),
+            ]
         case let .upstreamExhausted(serverID, restarts):
             ["server": serverID, "restarts": String(restarts)]
         case let .shimConnected(serverID, connection):
@@ -68,6 +100,16 @@ public enum HubEvent: Sendable {
             ["server": serverID, "connection": connection]
         case let .upstreamNotificationBroadcast(serverID, receivers):
             ["server": serverID, "receivers": String(receivers)]
+        case let .malformedFrameRejected(serverID, connection):
+            ["server": serverID, "connection": connection]
+        case let .upstreamUnavailableReply(serverID, connection):
+            ["server": serverID, "connection": connection]
+        case let .idNamespaced(serverID, connection):
+            ["server": serverID, "connection": connection]
+        case let .cancelledRequestIDRewritten(serverID, connection):
+            ["server": serverID, "connection": connection]
+        case let .stderrDrained(serverID, bytes):
+            ["server": serverID, "bytes": String(bytes)]
         }
     }
 

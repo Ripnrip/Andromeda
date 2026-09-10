@@ -39,6 +39,30 @@ public enum JSONRPCRelay: Sendable {
             || JSONIDRewriter.hasDuplicateCancelledRequestID(in: bytes)
     }
 
+    /// Typed outcome of preparing one client frame for the upstream: the
+    /// bytes to forward plus WHICH rewrites were applied, so the hub can
+    /// log each decision point without re-scanning the frame.
+    public struct ClientRelayOutcome: Sendable, Equatable {
+        /// The frame to write upstream (id and/or cancelled requestId namespaced).
+        public let frame: Data
+        /// True when a top-level request id was rewritten into the composite form.
+        public let namespacedID: Bool
+        /// True when a `notifications/cancelled` `params.requestId` was rewritten.
+        public let namespacedCancelledRequestID: Bool
+    }
+
+    /// Prepare one client frame for the upstream (namespacing + outcome flags).
+    public static func relayClientMessage(
+        _ data: Data, connection: RelayConnectionKey
+    ) -> ClientRelayOutcome {
+        let bytes = [UInt8](data)
+        return ClientRelayOutcome(
+            frame: namespaceClientMessage(data, connection: connection),
+            namespacedID: JSONIDRewriter.topLevelIDSpan(in: bytes) != nil,
+            namespacedCancelledRequestID: JSONIDRewriter.cancelledRequestIDSpan(in: bytes) != nil
+        )
+    }
+
     public static func namespaceClientMessage(_ data: Data, connection: RelayConnectionKey) -> Data {
         let bytes = [UInt8](data)
         var idReplacement: [UInt8]? = nil
@@ -124,6 +148,245 @@ public enum JSONRPCRelay: Sendable {
             : Array(("\"" + remainderString + "\"").utf8)
         original.replaceSubrange(span.start ..< span.end, with: restored)
         return (key, Data(original))
+    }
+}
+
+// MARK: - Hub-issued error frames
+
+/// One hub-issued JSON-RPC 2.0 error response, as a typed value instead of
+/// a hand-written wire literal (canon: enums over strings, typed payloads).
+///
+/// The `id` member is REQUIRED on responses and MUST be `null` — not
+/// absent — when the request id could not be determined (the hub rejects
+/// frames before it has parsed an id out of them). Synthesized Codable
+/// conformance would `encodeIfPresent` and silently DROP the key, changing
+/// the wire format, so `encode(to:)` is hand-written and always writes id.
+/// Prior art: `@EncodeNull` in AndromedaMCP/RPC.swift (internal to that
+/// package — not visible here, reimplemented inline via `encodeNil`).
+public struct JSONRPCErrorFrame: Codable, Sendable, Equatable {
+    /// The JSON-RPC protocol member — always "2.0".
+    public let jsonrpc: String
+    /// The request id this error answers. `nil` means "unknown request id"
+    /// and encodes as a PRESENT `"id":null` member (see encode(to:)).
+    public let id: JSONRPCRequestID?
+    /// The error object (code + message).
+    public let error: ErrorObject
+
+    public init(id: JSONRPCRequestID?, code: Int, message: String) {
+        self.jsonrpc = "2.0"
+        self.id = id
+        self.error = ErrorObject(code: code, message: message)
+    }
+
+    public struct ErrorObject: Codable, Sendable, Equatable {
+        public let code: Int
+        public let message: String
+
+        public init(code: Int, message: String) {
+            self.code = code
+            self.message = message
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case jsonrpc, id, error
+    }
+
+    /// Canonical single-line encoding with members in `jsonrpc,id,error`
+    /// order and NO key reordering — byte-equal to the hand-written wire
+    /// literals this type replaced.
+    ///
+    /// Why not `JSONEncoder`: on this toolchain it emits object members in
+    /// a per-process randomized key order (a custom `encode(to:)` does NOT
+    /// pin it), and it escapes `/` as `\/`. Either alone would change the
+    /// wire bytes the hub's peers already parse. The writer below writes
+    /// the members in declaration order, strings JSON-escaped via the same
+    /// encoder (so escaping stays correct) but order fixed by construction.
+    public func canonicalData() throws -> Data {
+        try Self.encodeCanonical(self)
+    }
+
+    /// Byte-stable writer for hub-issued error frames.
+    ///
+    /// Encodes one frame as `{"jsonrpc":…,"id":…,"error":{"code":…,"message":…}}` —
+    /// members in that fixed order, `/` NOT escaped. A JSON-escaped, quoted
+    /// string (`"…"`) is delegated to JSONEncoder so the escape set stays
+    /// correct by construction.
+    static func encodeCanonical(_ frame: JSONRPCErrorFrame) throws -> Data {
+        var out = Data(#"{"jsonrpc":"# .utf8)
+        out.append(contentsOf: try escapedJSONString(frame.jsonrpc))
+        out.append(contentsOf: Data(#","id":"# .utf8))
+        switch frame.id {
+        case .none: out.append(contentsOf: Data("null".utf8)) // present, never absent
+        case .some(let id): out.append(contentsOf: try Self.encodedID(id))
+        }
+        out.append(contentsOf: Data(#","error":{"code":"# .utf8))
+        out.append(contentsOf: String(frame.error.code).data(using: .utf8) ?? Data())
+        out.append(contentsOf: Data(#","message":"# .utf8))
+        out.append(contentsOf: try escapedJSONString(frame.error.message))
+        out.append(contentsOf: Data("}}".utf8))
+        return out
+    }
+
+    /// A JSON-escaped, quoted string (`"…"`) — JSONEncoder handles the
+    /// escape set; escaping correctness is not hand-rolled. Slashes stay
+    /// unescaped, matching the hand-written literals this writer replaces.
+    private static func escapedJSONString(_ string: String) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.withoutEscapingSlashes]
+        return try encoder.encode(string)
+    }
+
+    private static func encodedID(_ id: JSONRPCRequestID) throws -> Data {
+        switch id {
+        case .number(let number):
+            return String(number).data(using: .utf8) ?? Data()
+        case .string(let string):
+            return try escapedJSONString(string)
+        }
+    }
+
+    /// Codable conformance, retained for decode/round-trip use.
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(jsonrpc, forKey: .jsonrpc)
+        // Always write id — a plain optional would omit the key when nil.
+        try container.encodeNilIfNilOrValue(id, forKey: .id)
+        try container.encode(error, forKey: .error)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        jsonrpc = try container.decode(String.self, forKey: .jsonrpc)
+        // `null` and "key absent" both decode to nil; the distinction is
+        // irrelevant for hub-issued frames (we always issue null ids today)
+        // but decoding accepts either so the type is a usable Codable
+        // citizen for round-trip tests.
+        id = try container.decodeIfPresent(JSONRPCRequestID.self, forKey: .id)
+        error = try container.decode(ErrorObject.self, forKey: .error)
+    }
+}
+
+extension KeyedEncodingContainerProtocol {
+    /// Encodes `value` when non-nil, otherwise writes a present `null` —
+    /// the `@EncodeNull` semantics without a property wrapper (the prior
+    /// art in AndromedaMCP is package-internal and not importable here).
+    mutating func encodeNilIfNilOrValue(
+        _ value: JSONRPCRequestID?, forKey key: Self.Key
+    ) throws {
+        if let value {
+            try encode(value, forKey: key)
+        } else {
+            try encodeNil(forKey: key)
+        }
+    }
+}
+
+/// A JSON-RPC request id in its two legal wire shapes (number or string).
+public enum JSONRPCRequestID: Codable, Sendable, Equatable, Hashable {
+    case number(Int)
+    case string(String)
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let number = try? container.decode(Int.self) {
+            self = .number(number)
+            return
+        }
+        if let string = try? container.decode(String.self) {
+            self = .string(string)
+            return
+        }
+        throw DecodingError.typeMismatch(
+            JSONRPCRequestID.self,
+            .init(
+                codingPath: decoder.codingPath,
+                debugDescription: "Expected number or string request id"
+            )
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .number(let number): try container.encode(number)
+        case .string(let string): try container.encode(string)
+        }
+    }
+}
+
+/// The errors the hub itself issues. Each case owns its JSON-RPC code —
+/// no magic numbers at the call sites (canon: codes belong to the cases).
+public enum HubJSONRPCError: Sendable, Equatable {
+    /// The upstream process could not be spawned or has exhausted its
+    /// restart budget — the reply tells the agent host instead of hanging.
+    case upstreamUnavailable
+    /// The client frame was rejected as malformed before forwarding.
+    /// `duplicate` names the RFC-8259-illegal duplicate member it carried.
+    case malformedFrame(duplicate: String)
+
+    /// Canonical member name the hub reports when it rejects a frame
+    /// without distinguishing WHICH member was duplicated (both today's
+    /// rejection paths are id-member attacks; see d72ddcf).
+    public static let duplicateMemberID = "id"
+
+    /// The hub-issued errors, for exhaustive (CaseIterable-style) testing.
+    /// Not a synthesized `CaseIterable` conformance: `malformedFrame`
+    /// carries a payload, so the canonical instance below pins the exact
+    /// representative the wire depends on.
+    public static var allCases: [HubJSONRPCError] {
+        [.upstreamUnavailable, .malformedFrame(duplicate: duplicateMemberID)]
+    }
+
+    /// The representative instance per constructor (payload cases use the
+    /// canonical payload) — lets tests iterate constructors, not payloads.
+    public var canonical: HubJSONRPCError {
+        switch self {
+        case .upstreamUnavailable: .upstreamUnavailable
+        case .malformedFrame: .malformedFrame(duplicate: Self.duplicateMemberID)
+        }
+    }
+
+    /// JSON-RPC 2.0 reserved error codes (the standard's -32600..-32699 band).
+    public var code: Int {
+        switch self {
+        case .upstreamUnavailable: -32603 // internal error: hub cannot reach upstream
+        case .malformedFrame: -32600 // invalid request: malformed frame
+        }
+    }
+
+    /// Human-readable message, stable wire content (byte-equality tested).
+    public var message: String {
+        switch self {
+        case .upstreamUnavailable:
+            "mcp-hub: upstream unavailable (restart budget exhausted)"
+        case .malformedFrame(let duplicate):
+            "mcp-hub: malformed frame (duplicate \(duplicate) members rejected)"
+        }
+    }
+
+    /// The error frame for this hub-issued error.
+    ///
+    /// - Parameter explicitNullID: hub-issued errors answer an UNKNOWN
+    ///   request id (the hub rejects or fails the frame before it has a
+    ///   trustworthy id to echo), and JSON-RPC 2.0 requires the `id`
+    ///   member on responses be a PRESENT `"id":null` — never omitted.
+    ///   The frame encoder always writes it; the flag states that law at
+    ///   the call site, and `false` is a programming error (an omitted id
+    ///   would silently change the wire format).
+    public func frame(explicitNullID: Bool = true) -> JSONRPCErrorFrame {
+        assert(explicitNullID, "hub-issued error frames must carry an explicit null id")
+        return JSONRPCErrorFrame(id: nil, code: code, message: message)
+    }
+
+    /// The error frame encoded as wire bytes — byte-identical to the raw
+    /// string literals this type replaced (asserted by tests). Uses the
+    /// frame's canonical writer, NOT JSONEncoder, whose key order is
+    /// per-process randomized and which escapes `/` — either would change
+    /// the wire format the hub's peers already parse.
+    public func encoded() -> Data {
+        // swiftlint:disable:next force_try
+        try! frame(explicitNullID: true).canonicalData()
     }
 }
 

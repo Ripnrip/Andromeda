@@ -34,18 +34,33 @@ public struct UpstreamPipes: Sendable {
     }
 }
 
+/// Environment keys every hosted server needs. An enum — not a Set<String>
+/// of magic strings — so the allowlist is exhaustive by construction, its
+/// membership is CaseIterable-testable, and a typo cannot silently admit a
+/// key that was never reviewed (Codex P1: copying the ambient environment
+/// hands every hosted process all credentials in scope of whoever launched
+/// the hub, bypassing the per-server env entirely). Secrets-bearing
+/// servers get their keys via the hub config's `environment` (broker lane
+/// later) — never ambient.
+public enum EnvironmentAllowKey: String, CaseIterable, Sendable {
+    case path = "PATH"
+    case home = "HOME"
+    case lang = "LANG"
+    case lcAll = "LC_ALL"
+    case tmpdir = "TMPDIR"
+    case xdgCacheHome = "XDG_CACHE_HOME"
+}
+
 /// Real process host — Foundation `Process`.
 public struct ProcessUpstreamHost: UpstreamProcessHosting {
     public init() {}
 
-    /// Environment keys every hosted server needs (allowlist — Codex P1:
-    /// copying the ambient environment hands every hosted process all
-    /// credentials in scope of whoever launched the hub, bypassing the
-    /// per-server env entirely). Secrets-bearing servers get their keys via
-    /// the hub config's `environment` (broker lane later) — never ambient.
-    static let environmentAllowlist: Set<String> = [
-        "PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "XDG_CACHE_HOME",
-    ]
+    /// The ambient keys that survive into a hosted process. Derived from
+    /// the enum, never hand-maintained (drift between the two was the
+    /// failure mode of the raw-string Set).
+    static var environmentAllowlist: Set<String> {
+        Set(EnvironmentAllowKey.allCases.map(\.rawValue))
+    }
 
     public func launch(
         command: String, arguments: [String], environment: [String: String]
@@ -151,6 +166,13 @@ public final class UpstreamSupervisor: @unchecked Sendable {
         restartCount += 1
         backoff = min(backoff * 2, 30)
         telemetry.event(.upstreamExited(serverID: config.id, restarts: restartCount))
+        // 🔁 a restart is now scheduled — the decision point the agent host
+        // cannot otherwise see (the exit alone reads as terminal).
+        if restartCount <= maxRestarts {
+            telemetry.event(.upstreamRestartScheduled(
+                serverID: config.id, restarts: restartCount, backoffSeconds: backoff
+            ))
+        }
     }
 
     /// Test/teardown hook.
