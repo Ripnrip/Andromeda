@@ -597,3 +597,47 @@ in 0.001s.
 appended to the `~/.agents` sync copy as Exhibit 8 — **clobbered by the PR #63 canon
 sync**, restored here as Exhibit 11. Meta-lesson now law: canon edits land in the
 git-tracked source (this file), never the synced copy.
+
+## Exhibit 13 — Trusting JSONEncoder for stable wire bytes (macOS 26 randomizes key order)
+
+**Symptom**: a Codable rewrite of a JSON literal "passes tests" — sometimes. The
+byte-equality test flakes per-process: same code, same input, different bytes.
+
+**What happened** (Andromeda PR #75, 2026-09-10): replacing raw-string JSON-RPC error
+frames with `Codable` types looked green on first probe. Running the suite across
+processes showed the probe had passed 2/8 times by luck: on Swift 6.2/macOS 26,
+`JSONEncoder` **randomizes object key order per-process** (a custom `encode(to:)`
+does not pin it — the randomization happens below user code) and escapes `/` as `\/`.
+Any consumer that compares bytes, signs payloads, or pins a format silently breaks.
+
+**Rules**:
+1. Codable is for decode/round-trip. **Stable wire bytes need a canonical writer** —
+   fixed member order, explicit escaping policy, string-escaping delegated to
+   JSONEncoder per-fragment.
+2. Wire-format rewrites carry a **byte-equality regression oracle**: the legacy
+   literal kept verbatim in a test, asserted equal to the typed encoder's output,
+   across multiple runs.
+3. A test that passes once means nothing for output stability — run format-sensitive
+   suites ≥5× before claiming green.
+
+## Exhibit 14 — xcodegen owns the file: hand edits to generated artifacts don't survive regen
+
+**Symptom**: entitlements (or any generated config) you wrote are `<dict/>` empty at
+review time, though you definitely wrote them. The app works in the simulator and is
+silently dead on device.
+
+**What happened** (multibrain PR #27, 2026-09-10, Codex review catch): the widget's
+app-group entitlement was hand-written into `Entitlements/*.entitlements`; the next
+`bootstrap-xcode.sh` run executed `xcodegen generate`, which **regenerates declared
+entitlements files when project.yml declares them without a `properties:` block** —
+wiping the content to empty dicts before the commit. On device, `containerURL(forSecurityApplicationGroupIdentifier:)`
+returns nil, snapshot saves no-op, the widget shows empty forever. The simulator
+can't catch this class: no vault exists there, so the empty state is legitimately correct.
+
+**Rules**:
+1. Content for xcodegen-owned files is authored **in project.yml**
+   (`entitlements.properties.…`), never by hand — regen then *writes* the content.
+2. After any `xcodegen generate`, diff generated artifacts before committing; an
+   emptied file you just filled is this exhibit.
+3. Simulator green ≠ device green for entitlement/capability classes — device build
+   is the only real verification of app-group/keychain/push surfaces.
