@@ -77,6 +77,7 @@ struct OverviewScreen: View {
                 Spacer()
                 Button(model.isStreaming ? "PAUSE" : "RESUME") { model.isStreaming.toggle() }
                     .buttonStyle(ConsoleButtonStyle(kind: .quiet))
+                    .accessibilityIdentifier("console.overview.stream-toggle")
             }
             .padding(.horizontal, 13)
             .padding(.vertical, 11)
@@ -253,6 +254,7 @@ struct RegistryScreen: View {
                 reclaimedCard
                 Button("＋  ADD AN MCP SERVER") { model.open(.addMCPServer) }
                     .buttonStyle(ConsoleButtonStyle(kind: .primary))
+                    .accessibilityIdentifier("console.registry.add-mcp-server")
             }
         }
     }
@@ -367,6 +369,7 @@ struct ProvidersScreen: View {
                 Spacer()
                 Button("＋  ADD A MODEL") { model.open(.addModel) }
                     .buttonStyle(ConsoleButtonStyle(kind: .primary))
+                    .accessibilityIdentifier("console.providers.add-model")
             }
             .padding(.horizontal, 13)
             .padding(.vertical, 11)

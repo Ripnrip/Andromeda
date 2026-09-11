@@ -196,6 +196,7 @@ public struct AndromedaRuntimeServer: Sendable {
                 serverVersion: configuration.version
             ).register(on: router)
         }
+        registerControlPlane(on: router)
         let app = Application(
             router: router,
             configuration: .init(
@@ -205,6 +206,33 @@ public struct AndromedaRuntimeServer: Sendable {
             logger: logger
         )
         return app
+    }
+
+    /// Registers `/control/*` on the runtime router when the control plane is
+    /// armed. Off by default; requires `ANDROMEDA_CONTROL_PLANE=1` at serve
+    /// time plus the MCP bearer per request (the runtime binds 0.0.0.0 on the
+    /// tailnet — a bare env gate would expose mutation to every peer).
+    private func registerControlPlane(on router: Router<BasicRequestContext>) {
+        guard ControlPlaneRoute.isEnabled() else {
+            logger.info("control plane off (set ANDROMEDA_CONTROL_PLANE=1 to arm)")
+            return
+        }
+        guard let bearerToken = configuration.mcp?.bearerToken, !bearerToken.isEmpty else {
+            logger.warning("control plane requested but no MCP bearer configured — refusing to register")
+            return
+        }
+        ControlPlaneRoute(
+            state: ControlPlaneRuntimeState(
+                configuration: configuration,
+                memoryRuntime: memoryRuntime,
+                projectionRuntime: projectionRuntime,
+                logger: logger
+            ),
+            actions: ControlPlaneRuntimeActions(projectionRuntime: projectionRuntime, logger: logger),
+            bearerToken: bearerToken,
+            logger: logger
+        ).register(on: router)
+        logger.info("🎛️ control plane armed", metadata: ["routes": .string("/control/state /control/action /control/actions")])
     }
 
     public func run() async throws {

@@ -139,11 +139,13 @@ public struct OrchestratorConsole: View {
                 addRow("Add a model")
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("console.sidebar.add-model")
 
             Button { model.open(.addMCPServer) } label: {
                 addRow("Add an MCP server")
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("console.sidebar.add-mcp-server")
 
             Spacer()
 

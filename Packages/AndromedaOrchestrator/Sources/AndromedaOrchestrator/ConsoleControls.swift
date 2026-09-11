@@ -84,6 +84,8 @@ public struct NavRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        // Pillar 1 — every control addressable: `console.sidebar.<screen>`.
+        .accessibilityIdentifier("console.sidebar.\(screen.rawValue)")
     }
 }
 

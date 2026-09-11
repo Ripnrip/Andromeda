@@ -58,6 +58,7 @@ public struct AddResourceSheet: View {
             Spacer()
             Button("esc") { model.closeWizard(); dismiss() }
                 .buttonStyle(ConsoleButtonStyle(kind: .quiet))
+                .accessibilityIdentifier("console.sheet.close")
         }
         .padding(16)
         .background(palette.panel)
@@ -104,6 +105,7 @@ public struct AddResourceSheet: View {
                 }
             }
             .buttonStyle(ConsoleButtonStyle(kind: .quiet))
+            .accessibilityIdentifier("console.sheet.back")
             Button(commitLabel) {
                 if model.wizardStep == 2 {
                     model.closeWizard(); dismiss()
@@ -112,6 +114,7 @@ public struct AddResourceSheet: View {
                 }
             }
             .buttonStyle(ConsoleButtonStyle(kind: .primary))
+            .accessibilityIdentifier("console.sheet.commit")
         }
         .padding(.horizontal, 18)
         .padding(.top, 18)
@@ -222,6 +225,7 @@ public struct AddResourceSheet: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("\(chip), \(withheld ? "withheld" : "granted")")
+                        .accessibilityIdentifier("console.sheet.scope.\(chip.lowercased().replacingOccurrences(of: " ", with: "-"))")
                     }
                 }
                 Text(spec.chipsHint)
