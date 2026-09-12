@@ -1,14 +1,3 @@
-// Test-target JSON-RPC frame builders — typed payloads via Codable instead
-// of hand-written JSON literals (BofA ask 4: "can all the tests use codable
-// as well?").
-//
-// Builders construct VALID frames only. Frames that are deliberately
-// invalid — duplicate id members, Unicode-escaped keys, exotic id shapes —
-// stay as raw literals in the tests that need them: an invalid frame cannot
-// be built from Codable (JSONEncoder forbids duplicate keys, and decoding
-// would normalize the very byte layout under test). See the comments at
-// each literal that stays.
-
 @testable import AndromedaMCPHub
 import Foundation
 
@@ -28,7 +17,7 @@ struct ClientRequestFixture: Encodable {
         id: JSONRPCRequestID, method: String, params: JSONValue? = nil,
         extras: [String: JSONValue] = [:]
     ) {
-        self.jsonrpc = "2.0"
+        jsonrpc = "2.0"
         self.id = id
         self.method = method
         self.params = params
@@ -62,9 +51,17 @@ struct ClientRequestFixture: Encodable {
     private struct ExtraKey: CodingKey {
         let stringValue: String
         let intValue: Int?
-        init(_ string: String) { stringValue = string; intValue = nil }
-        init?(intValue: Int) { nil }
-        init?(stringValue: String) { self.init(stringValue) }
+        init(_ string: String) {
+            stringValue = string; intValue = nil
+        }
+
+        init?(intValue: Int) {
+            nil
+        }
+
+        init?(stringValue: String) {
+            self.init(stringValue)
+        }
     }
 }
 
@@ -75,7 +72,7 @@ struct ClientNotificationFixture: Encodable {
     let params: JSONValue?
 
     init(method: String, params: JSONValue? = nil) {
-        self.jsonrpc = "2.0"
+        jsonrpc = "2.0"
         self.method = method
         self.params = params
     }
@@ -99,7 +96,7 @@ struct UpstreamResponseFixture: Encodable {
     let result: JSONValue
 
     init(id: JSONRPCRequestID, result: JSONValue) {
-        self.jsonrpc = "2.0"
+        jsonrpc = "2.0"
         self.id = id
         self.result = result
     }
@@ -123,24 +120,24 @@ enum JSONValue: Encodable {
 
     func encode(to encoder: Encoder) throws {
         switch self {
-        case .object(let object):
+        case let .object(object):
             var container = encoder.container(keyedBy: JSONKey.self)
             // Sorted keys → deterministic builder output.
             for (key, value) in object.sorted(by: { $0.key < $1.key }) {
                 try container.encode(value, forKey: JSONKey(key))
             }
-        case .array(let items):
+        case let .array(items):
             var container = encoder.unkeyedContainer()
             for item in items {
                 try container.encode(item)
             }
-        case .string(let string):
+        case let .string(string):
             var container = encoder.singleValueContainer()
             try container.encode(string)
-        case .number(let number):
+        case let .number(number):
             var container = encoder.singleValueContainer()
             try container.encode(number)
-        case .bool(let bool):
+        case let .bool(bool):
             var container = encoder.singleValueContainer()
             try container.encode(bool)
         case .null:
@@ -152,9 +149,17 @@ enum JSONValue: Encodable {
     private struct JSONKey: CodingKey {
         let stringValue: String
         let intValue: Int?
-        init(_ string: String) { stringValue = string; intValue = nil }
-        init?(intValue: Int) { return nil }
-        init?(stringValue: String) { self.init(stringValue) }
+        init(_ string: String) {
+            stringValue = string; intValue = nil
+        }
+
+        init?(intValue: Int) {
+            nil
+        }
+
+        init?(stringValue: String) {
+            self.init(stringValue)
+        }
     }
 }
 
@@ -212,8 +217,8 @@ enum JSONRPCFixtures {
 
     private static func idValue(_ id: JSONRPCRequestID) -> JSONValue {
         switch id {
-        case .number(let n): .number(Double(n))
-        case .string(let s): .string(s)
+        case let .number(n): .number(Double(n))
+        case let .string(s): .string(s)
         }
     }
 

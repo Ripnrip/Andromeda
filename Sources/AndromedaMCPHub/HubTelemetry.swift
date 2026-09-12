@@ -22,6 +22,15 @@ public enum HubEvent: Sendable {
     /// A client frame was rejected before forwarding (duplicate id members
     /// are a routing-hijack vector — Cursor security review).
     case malformedFrameRejected(serverID: String, connection: String)
+    /// A client frame was rejected — typed reason names the policy branch
+    /// (duplicate id members, or a JSON-RPC batch array).
+    case frameRejected(serverID: String, connection: String, reason: String)
+    /// A client `notifications/roots/list_changed` was dropped — the hub,
+    /// not any client, owns the sandbox allowlist (Cursor security review).
+    case rootsNotificationDropped(serverID: String, connection: String)
+    /// A server-initiated `roots/*` request was answered by the hub with
+    /// empty roots instead of being broadcast to shims.
+    case rootsRequestAnsweredByHub(serverID: String)
     /// The hub answered a shim itself because no upstream is available
     /// (spawn failed or the restart budget is exhausted).
     case upstreamUnavailableReply(serverID: String, connection: String)
@@ -47,6 +56,9 @@ public enum HubEvent: Sendable {
         case .upstreamResponseRouted: "📬"
         case .upstreamNotificationBroadcast: "📡"
         case .malformedFrameRejected: "🚫"
+        case .frameRejected: "🚫"
+        case .rootsNotificationDropped: "🛡️"
+        case .rootsRequestAnsweredByHub: "🛡️"
         case .upstreamUnavailableReply: "⚠️"
         case .idNamespaced: "🏷️"
         case .cancelledRequestIDRewritten: "✂️"
@@ -67,6 +79,9 @@ public enum HubEvent: Sendable {
         case .upstreamResponseRouted: "upstream.response_routed"
         case .upstreamNotificationBroadcast: "upstream.notification_broadcast"
         case .malformedFrameRejected: "frame.malformed_rejected"
+        case .frameRejected: "frame.rejected"
+        case .rootsNotificationDropped: "roots.notification_dropped"
+        case .rootsRequestAnsweredByHub: "roots.request_answered_by_hub"
         case .upstreamUnavailableReply: "hub.upstream_unavailable_reply"
         case .idNamespaced: "frame.id_namespaced"
         case .cancelledRequestIDRewritten: "frame.cancelled_request_id_rewritten"
@@ -102,6 +117,12 @@ public enum HubEvent: Sendable {
             ["server": serverID, "receivers": String(receivers)]
         case let .malformedFrameRejected(serverID, connection):
             ["server": serverID, "connection": connection]
+        case let .frameRejected(serverID, connection, reason):
+            ["server": serverID, "connection": connection, "reason": reason]
+        case let .rootsNotificationDropped(serverID, connection):
+            ["server": serverID, "connection": connection]
+        case let .rootsRequestAnsweredByHub(serverID):
+            ["server": serverID]
         case let .upstreamUnavailableReply(serverID, connection):
             ["server": serverID, "connection": connection]
         case let .idNamespaced(serverID, connection):

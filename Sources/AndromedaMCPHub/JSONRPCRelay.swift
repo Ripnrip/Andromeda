@@ -26,6 +26,89 @@ public struct RelayConnectionKey: Hashable, Sendable, CustomStringConvertible {
 public enum JSONRPCRelay: Sendable {
     // MARK: Client → upstream
 
+    /// The hub's verdict on one client frame — every branch is a typed case
+    /// so the hub logs each decision without re-inspecting bytes.
+    public enum ClientFrameDisposition: Sendable, Equatable {
+        /// Forward (rewritten or byte-identical).
+        case forward
+        /// Drop silently (client roots notifications — see below).
+        case dropRootsNotification
+        /// Reject with `-32600` (malformed / hijack vector / batch).
+        case reject(reason: RejectionReason)
+
+        public enum RejectionReason: String, Sendable, Equatable {
+            /// RFC-8259-illegal duplicate id members (hijack vector).
+            case duplicateMemberID
+            /// Top-level JSON array — JSON-RPC 2.0 batch. MCP (2025-06-18)
+            /// dropped batching; a batch has no depth-1 id so it would pass
+            /// the namespacer byte-identical and its response ids would
+            /// fail hub-key routing and broadcast (Cursor security review).
+            case topLevelArray
+        }
+    }
+
+    /// Policy verdict for a client frame BEFORE any rewriting (Cursor HIGH +
+    /// MEDIUM security review): duplicate-id frames are rejected (existing),
+    /// top-level arrays (batches) are rejected (new), and
+    /// `notifications/roots/list_changed` is dropped (new) — official
+    /// `@modelcontextprotocol/server-filesystem` REPLACES its process-global
+    /// `allowedDirectories` allowlist from client roots; forwarding that
+    /// notification lets any connected session widen/replace the sandbox
+    /// every other session shares (last-writer-wins). The hub — not any
+    /// client — owns the sandbox: it is pinned at spawn time via CLI args.
+    public static func dispositionForClientFrame(_ data: Data) -> ClientFrameDisposition {
+        let bytes = [UInt8](data)
+        guard let first = bytes.first(where: { $0 != UInt8(ascii: " ") && $0 != UInt8(ascii: "\t") }) else {
+            return .reject(reason: .topLevelArray)
+        }
+        if first == UInt8(ascii: "[") {
+            return .reject(reason: .topLevelArray)
+        }
+        if JSONIDRewriter.hasDuplicateTopLevelID(in: bytes)
+            || JSONIDRewriter.hasDuplicateCancelledRequestID(in: bytes)
+        {
+            return .reject(reason: .duplicateMemberID)
+        }
+        if isRootsListChangedNotification(bytes) {
+            return .dropRootsNotification
+        }
+        return .forward
+    }
+
+    /// True when the frame is a `notifications/roots/list_changed`
+    /// notification (no id, that method) — the client-driven roots push the
+    /// hub never forwards.
+    static func isRootsListChangedNotification(_ bytes: [UInt8]) -> Bool {
+        guard JSONIDRewriter.topLevelIDSpan(in: bytes) == nil,
+              let methodSpan = JSONIDRewriter.findMemberValueSpan(
+                  in: bytes, key: "method", searchTopLevelOnly: true
+              )
+        else { return false }
+        let raw = Array(bytes[methodSpan.start ..< methodSpan.end])
+        // The member value is a JSON string; compare content against the
+        // exact method name (quotes included — no allocation in the happy
+        // path of other methods).
+        let expected = Array(#""notifications/roots/list_changed""#.utf8)
+        return raw == expected
+    }
+
+    /// True when an UPSTREAM frame is a server-initiated `roots/*` request
+    /// (id present, method `roots/list` or `roots/list_changed` subscription
+    /// shape). Official server-filesystem harvests client roots into its
+    /// global allowlist; the hub answers these itself with EMPTY roots so
+    /// the spawn-time sandbox stays the only authority, and never
+    /// broadcasts the request to connected shims.
+    public static func isUpstreamRootsRequest(_ data: Data) -> Bool {
+        let bytes = [UInt8](data)
+        guard JSONIDRewriter.topLevelIDSpan(in: bytes) != nil,
+              let methodSpan = JSONIDRewriter.findMemberValueSpan(
+                  in: bytes, key: "method", searchTopLevelOnly: true
+              )
+        else { return false }
+        let raw = String(decoding: bytes[methodSpan.start ..< methodSpan.end], as: UTF8.self)
+        return raw == #""roots/list""# || raw == #""roots/list_changed""#
+    }
+
     /// Rewrite a client message's request id into the namespaced form
     /// `"<connKey>.<original>"` (string id, original shape preserved inside).
     /// Notifications (id omitted) pass through byte-identical.
@@ -34,9 +117,10 @@ public enum JSONRPCRelay: Sendable {
     /// requestIds) — RFC-8259-illegal and a cross-connection routing
     /// hijack vector. Callers reject, never forward.
     public static func clientMessageIsMalformed(_ data: Data) -> Bool {
-        let bytes = [UInt8](data)
-        return JSONIDRewriter.hasDuplicateTopLevelID(in: bytes)
-            || JSONIDRewriter.hasDuplicateCancelledRequestID(in: bytes)
+        if case .reject = dispositionForClientFrame(data) {
+            return true
+        }
+        return false
     }
 
     /// Typed outcome of preparing one client frame for the upstream: the
@@ -173,9 +257,9 @@ public struct JSONRPCErrorFrame: Codable, Sendable, Equatable {
     public let error: ErrorObject
 
     public init(id: JSONRPCRequestID?, code: Int, message: String) {
-        self.jsonrpc = "2.0"
+        jsonrpc = "2.0"
         self.id = id
-        self.error = ErrorObject(code: code, message: message)
+        error = ErrorObject(code: code, message: message)
     }
 
     public struct ErrorObject: Codable, Sendable, Equatable {
@@ -213,17 +297,17 @@ public struct JSONRPCErrorFrame: Codable, Sendable, Equatable {
     /// string (`"…"`) is delegated to JSONEncoder so the escape set stays
     /// correct by construction.
     static func encodeCanonical(_ frame: JSONRPCErrorFrame) throws -> Data {
-        var out = Data(#"{"jsonrpc":"# .utf8)
-        out.append(contentsOf: try escapedJSONString(frame.jsonrpc))
-        out.append(contentsOf: Data(#","id":"# .utf8))
+        var out = Data(#"{"jsonrpc":"#.utf8)
+        try out.append(contentsOf: escapedJSONString(frame.jsonrpc))
+        out.append(contentsOf: Data(#","id":"#.utf8))
         switch frame.id {
         case .none: out.append(contentsOf: Data("null".utf8)) // present, never absent
-        case .some(let id): out.append(contentsOf: try Self.encodedID(id))
+        case let .some(id): try out.append(contentsOf: Self.encodedID(id))
         }
-        out.append(contentsOf: Data(#","error":{"code":"# .utf8))
+        out.append(contentsOf: Data(#","error":{"code":"#.utf8))
         out.append(contentsOf: String(frame.error.code).data(using: .utf8) ?? Data())
-        out.append(contentsOf: Data(#","message":"# .utf8))
-        out.append(contentsOf: try escapedJSONString(frame.error.message))
+        out.append(contentsOf: Data(#","message":"#.utf8))
+        try out.append(contentsOf: escapedJSONString(frame.error.message))
         out.append(contentsOf: Data("}}".utf8))
         return out
     }
@@ -239,10 +323,10 @@ public struct JSONRPCErrorFrame: Codable, Sendable, Equatable {
 
     private static func encodedID(_ id: JSONRPCRequestID) throws -> Data {
         switch id {
-        case .number(let number):
-            return String(number).data(using: .utf8) ?? Data()
-        case .string(let string):
-            return try escapedJSONString(string)
+        case let .number(number):
+            String(number).data(using: .utf8) ?? Data()
+        case let .string(string):
+            try escapedJSONString(string)
         }
     }
 
@@ -309,8 +393,8 @@ public enum JSONRPCRequestID: Codable, Sendable, Equatable, Hashable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
-        case .number(let number): try container.encode(number)
-        case .string(let string): try container.encode(string)
+        case let .number(number): try container.encode(number)
+        case let .string(string): try container.encode(string)
         }
     }
 }
@@ -324,6 +408,15 @@ public enum HubJSONRPCError: Sendable, Equatable {
     /// The client frame was rejected as malformed before forwarding.
     /// `duplicate` names the RFC-8259-illegal duplicate member it carried.
     case malformedFrame(duplicate: String)
+    /// The client frame was a JSON-RPC 2.0 batch (top-level array) — MCP
+    /// (2025-06-18) dropped batching, and a batch bypasses depth-1 id
+    /// namespacing (Cursor security review). Rejected, never forwarded.
+    case batchFrameRejected
+    /// The hub answered a server-initiated `roots/*` request itself with
+    /// empty roots — the hub, not any client, owns the sandbox allowlist
+    /// (Cursor security review: client roots are last-writer-wins on
+    /// server-filesystem's process-global allowedDirectories).
+    case rootsOwnedByHub
 
     /// Canonical member name the hub reports when it rejects a frame
     /// without distinguishing WHICH member was duplicated (both today's
@@ -335,7 +428,12 @@ public enum HubJSONRPCError: Sendable, Equatable {
     /// carries a payload, so the canonical instance below pins the exact
     /// representative the wire depends on.
     public static var allCases: [HubJSONRPCError] {
-        [.upstreamUnavailable, .malformedFrame(duplicate: duplicateMemberID)]
+        [
+            .upstreamUnavailable,
+            .malformedFrame(duplicate: duplicateMemberID),
+            .batchFrameRejected,
+            .rootsOwnedByHub,
+        ]
     }
 
     /// The representative instance per constructor (payload cases use the
@@ -344,6 +442,8 @@ public enum HubJSONRPCError: Sendable, Equatable {
         switch self {
         case .upstreamUnavailable: .upstreamUnavailable
         case .malformedFrame: .malformedFrame(duplicate: Self.duplicateMemberID)
+        case .batchFrameRejected: .batchFrameRejected
+        case .rootsOwnedByHub: .rootsOwnedByHub
         }
     }
 
@@ -352,6 +452,8 @@ public enum HubJSONRPCError: Sendable, Equatable {
         switch self {
         case .upstreamUnavailable: -32603 // internal error: hub cannot reach upstream
         case .malformedFrame: -32600 // invalid request: malformed frame
+        case .batchFrameRejected: -32600 // invalid request: batch frames unsupported
+        case .rootsOwnedByHub: -32603 // internal error: hub policy reply
         }
     }
 
@@ -360,8 +462,12 @@ public enum HubJSONRPCError: Sendable, Equatable {
         switch self {
         case .upstreamUnavailable:
             "mcp-hub: upstream unavailable (restart budget exhausted)"
-        case .malformedFrame(let duplicate):
+        case let .malformedFrame(duplicate):
             "mcp-hub: malformed frame (duplicate \(duplicate) members rejected)"
+        case .batchFrameRejected:
+            "mcp-hub: batch frames rejected (MCP 2025-06-18 dropped batching)"
+        case .rootsOwnedByHub:
+            "mcp-hub: roots are hub-owned (spawn-time sandbox)"
         }
     }
 
@@ -377,6 +483,23 @@ public enum HubJSONRPCError: Sendable, Equatable {
     public func frame(explicitNullID: Bool = true) -> JSONRPCErrorFrame {
         assert(explicitNullID, "hub-issued error frames must carry an explicit null id")
         return JSONRPCErrorFrame(id: nil, code: code, message: message)
+    }
+
+    /// A SUCCESS reply the hub issues itself — `roots/list` is answered
+    /// with EMPTY roots (the sandbox is spawn-time, hub-owned), so the
+    /// frame echoes the upstream's request id and carries `{"roots":[]}`.
+    /// Canonical writer, fixed member order, byte-stable.
+    public static func emptyRootsResult(id: JSONRPCRequestID) throws -> Data {
+        var out = Data(#"{"jsonrpc":"2.0","id":"#.utf8)
+        switch id {
+        case let .number(number): out.append(contentsOf: String(number).data(using: .utf8) ?? Data())
+        case let .string(string):
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.withoutEscapingSlashes]
+            try out.append(contentsOf: encoder.encode(string))
+        }
+        out.append(contentsOf: Data(#","result":{"roots":[]}}"#.utf8))
+        return out
     }
 
     /// The error frame encoded as wire bytes — byte-identical to the raw

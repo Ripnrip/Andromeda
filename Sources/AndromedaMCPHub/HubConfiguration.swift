@@ -101,11 +101,29 @@ public struct MCPHubConfiguration: Sendable, Equatable, Codable {
         case emptyCommand(String)
         case placementNotSharedInWave1(String)
         case secretLookingEnvironmentKey(serverID: String, key: String)
+        /// A filesystem-class server (server-filesystem) declared no
+        /// allowed-directory arguments — its sandbox would fall back to
+        /// client-supplied roots, which the hub never forwards (Cursor
+        /// security review: last-writer-wins on the process-global
+        /// allowlist). The sandbox MUST be pinned at spawn time.
+        case filesystemSandboxUnpinned(serverID: String)
+    }
+
+    /// Server packages whose sandbox is a process-global filesystem
+    /// allowlist pinned by CLI arguments at spawn (official
+    /// `@modelcontextprotocol/server-filesystem` semantics).
+    private static let filesystemSandboxPackages = ["server-filesystem"]
+
+    /// True when this server's sandbox is filesystem-allowlist based and
+    /// therefore must carry at least one allowed-directory argument.
+    private func requiresPinnedSandbox(_ server: HubServerConfig) -> Bool {
+        Self.filesystemSandboxPackages.contains { server.packageName.contains($0) }
     }
 
     /// ADR invariants: ids are unique, short, `[a-z0-9-]` only (they name
     /// sockets and shim binaries); commands resolve to real executables;
-    /// wave-1 roster is `shared` placement only.
+    /// wave-1 roster is `shared` placement only; filesystem-class servers
+    /// pin their sandbox directories as spawn-time arguments.
     public func validated() throws -> MCPHubConfiguration {
         var seen = Set<String>()
         for server in servers {
@@ -128,6 +146,15 @@ public struct MCPHubConfiguration: Sendable, Equatable, Codable {
             // real). Benign config keys (paths, flags) pass.
             for key in server.environment.keys where Self.looksLikeSecretKey(key) {
                 throw ConfigurationError.secretLookingEnvironmentKey(serverID: server.id, key: key)
+            }
+            // Cursor security review (HIGH): the hub — not any client —
+            // owns the filesystem sandbox. Client roots are never
+            // forwarded (see JSONRPCRelay), so a filesystem server with no
+            // allowed-directory argument would run UNSANDBOXED (its CLI
+            // default is cwd-only, and the hub's cwd is not a sandbox).
+            // Pinning at config time makes the sandbox auditable.
+            if requiresPinnedSandbox(server), server.arguments.isEmpty {
+                throw ConfigurationError.filesystemSandboxUnpinned(serverID: server.id)
             }
         }
         return self
@@ -152,13 +179,17 @@ public struct MCPHubConfiguration: Sendable, Equatable, Codable {
         try encoder.encode(self).write(to: url)
     }
 
-    /// Credential-shaped env keys (case-insensitive substrings) — the
-    /// wave-1 gate until the broker lands.
-    static let secretKeyMarkers = ["secret", "token", "key", "api", "credential", "password", "passwd"]
+    /// Credential-shaped env-key markers (case-insensitive substrings) —
+    /// the wave-1 gate until the broker lands. An ENUM, not a bare string
+    /// array: membership is exhaustive by construction, CaseIterable drives
+    /// the tests, and a marker cannot drift in as an unreviewed string.
+    public enum SecretKeyMarker: String, CaseIterable, Sendable {
+        case secret, token, key, api, credential, password, passwd
+    }
 
-    static func looksLikeSecretKey(_ key: String) -> Bool {
+    public static func looksLikeSecretKey(_ key: String) -> Bool {
         let lowered = key.lowercased()
-        return secretKeyMarkers.contains { lowered.contains($0) }
+        return SecretKeyMarker.allCases.contains { lowered.contains($0.rawValue) }
     }
 
     /// Default config path (ADR-locked location).

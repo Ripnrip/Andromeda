@@ -218,7 +218,7 @@ struct JSONRPCRelayTests {
     }
 
     @Test("relayClientMessage reports which rewrites were applied")
-    func relayOutcomeFlags() throws {
+    func relayOutcomeFlags() {
         let request = JSONRPCFixtures.makeClientRequest(id: 1, method: "tools/list")
         let requestOutcome = JSONRPCRelay.relayClientMessage(request, connection: connA)
         #expect(requestOutcome.namespacedID == true)
@@ -235,6 +235,83 @@ struct JSONRPCRelayTests {
         #expect(initializedOutcome.namespacedID == false)
         #expect(initializedOutcome.namespacedCancelledRequestID == false)
         #expect(initializedOutcome.frame == initialized) // byte-identical passthrough
+    }
+
+    // MARK: Security policy (Cursor HIGH + MEDIUM review)
+
+    @Test("client roots notifications are dropped, never forwarded (sandbox hijack vector)")
+    func rootsNotificationDropped() {
+        // official server-filesystem REPLACES its process-global allowlist
+        // from client roots — forwarding this notification lets any session
+        // widen/replace the sandbox every other session shares.
+        let attack = JSONRPCFixtures.makeNotification(method: "notifications/roots/list_changed")
+        #expect(
+            JSONRPCRelay.dispositionForClientFrame(attack) == .dropRootsNotification
+        )
+
+        // Requests (id present) and other notifications still forward.
+        let request = JSONRPCFixtures.makeClientRequest(id: 1, method: "tools/list")
+        #expect(JSONRPCRelay.dispositionForClientFrame(request) == .forward)
+        let initialized = JSONRPCFixtures.makeNotification(method: "notifications/initialized")
+        #expect(JSONRPCRelay.dispositionForClientFrame(initialized) == .forward)
+
+        // A roots/list REQUEST (id present) is not the notification — it
+        // forwards (the namespacer handles it; upstreams that ask for roots
+        // get the hub's empty answer on the server-initiated path instead).
+        let rootsRequest = JSONRPCFixtures.makeClientRequest(id: 2, method: "roots/list")
+        #expect(JSONRPCRelay.dispositionForClientFrame(rootsRequest) == .forward)
+    }
+
+    @Test("JSON-RPC batch arrays are rejected — they bypass depth-1 id namespacing")
+    func batchArraysRejected() {
+        // RAW LITERAL: a batch is a top-level array; no depth-1 id exists,
+        // so the old namespacer passed it through byte-identical and its
+        // unnamespaced response ids broadcast to every shim (Cursor
+        // security review). Rejected with -32600 now.
+        let batch = #"[{"jsonrpc":"2.0","id":1,"method":"tools/list"},{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"x"}}]"#
+        if case let .reject(reason) = JSONRPCRelay.dispositionForClientFrame(Data(batch.utf8)) {
+            #expect(reason == .topLevelArray)
+        } else {
+            Issue.record("batch frame must be rejected, not forwarded")
+        }
+        // Whitespace-led arrays are caught too.
+        let spaced = #" [{"jsonrpc":"2.0","id":1,"method":"tools/list"}]"#
+        #expect(JSONRPCRelay.clientMessageIsMalformed(Data(spaced.utf8)) == true)
+
+        // The rejection is observable on the wire: -32600 + the batch message.
+        let encoded = HubJSONRPCError.batchFrameRejected.encoded()
+        let wireText = String(decoding: encoded, as: UTF8.self)
+        #expect(wireText.contains(#""code":-32600"#))
+        #expect(wireText.contains("batch frames rejected"))
+    }
+
+    @Test("server-initiated roots requests are recognized for hub answering")
+    func upstreamRootsRequestDetected() {
+        // RAW LITERALS: exact wire shapes the upstream emits — the hub must
+        // answer these itself (empty roots) and never broadcast them.
+        let rootsList = #"{"jsonrpc":"2.0","id":1,"method":"roots/list"}"#
+        #expect(JSONRPCRelay.isUpstreamRootsRequest(Data(rootsList.utf8)) == true)
+
+        let rootsListChanged = #"{"jsonrpc":"2.0","id":"srv-1","method":"roots/list_changed"}"#
+        #expect(JSONRPCRelay.isUpstreamRootsRequest(Data(rootsListChanged.utf8)) == true)
+
+        // Responses (no method) and notifications (no id) don't match.
+        let response = #"{"jsonrpc":"2.0","id":1,"result":{}}"#
+        #expect(JSONRPCRelay.isUpstreamRootsRequest(Data(response.utf8)) == false)
+        let notification = JSONRPCFixtures.makeNotification(method: "notifications/message")
+        #expect(JSONRPCRelay.isUpstreamRootsRequest(notification) == false)
+    }
+
+    @Test("hub roots reply carries empty roots and echoes the request id")
+    func emptyRootsReplyShape() throws {
+        let numeric = #"{"jsonrpc":"2.0","id":1,"method":"roots/list"}"#
+        let reply = try HubJSONRPCError.emptyRootsResult(id: .number(1))
+        let text = String(decoding: reply, as: UTF8.self)
+        #expect(text == #"{"jsonrpc":"2.0","id":1,"result":{"roots":[]}}"#)
+
+        let string = try HubJSONRPCError.emptyRootsResult(id: .string("srv-1"))
+        #expect(String(decoding: string, as: UTF8.self) == #"{"jsonrpc":"2.0","id":"srv-1","result":{"roots":[]}}"#)
+        _ = numeric
     }
 }
 
@@ -295,13 +372,58 @@ struct HubConfigurationTests {
         }
     }
 
-    @Test("socket path derivation")
-    func socketPath() {
+    @Test("every SecretKeyMarker case rejects a key carrying it — enum exhaustivity")
+    func secretMarkerEnumExhaustive() {
+        // CaseIterable drives the check: a marker added to the enum without
+        // this gate catching its shape is a compile-time gap, not a runtime
+        // surprise (Q1: enums over magic strings).
+        for marker in MCPHubConfiguration.SecretKeyMarker.allCases {
+            let key = "MY_\(marker.rawValue.uppercased())_THING"
+            #expect(MCPHubConfiguration.looksLikeSecretKey(key), "marker \(marker.rawValue) must match")
+        }
+        // And a genuinely clean key stays clean.
+        #expect(!MCPHubConfiguration.looksLikeSecretKey("MEMORY_FILE_PATH"))
+        #expect(!MCPHubConfiguration.looksLikeSecretKey("LOG_LEVEL"))
+    }
+
+    @Test("socket path derivation") func socketPath() {
         let config = MCPHubConfiguration(servers: [server(id: "filesystem")])
         #expect(
             config.socketPath(for: "filesystem")
                 == NSHomeDirectory() + "/.andromeda/mcp-hub/sockets/filesystem.sock"
         )
+    }
+
+    @Test("filesystem servers must pin sandbox directories (Cursor HIGH)")
+    func filesystemSandboxPinned() {
+        // A filesystem-class server with NO allowed-directory arguments
+        // would run unsandboxed once client roots stop being forwarded —
+        // rejected at validation time.
+        let unpinned = HubServerConfig(
+            id: "filesystem", packageName: "@modelcontextprotocol/server-filesystem",
+            command: "/usr/bin/node",
+            arguments: [], // ← the bug shape: no allowed dirs
+            duplicateGroup: "server-filesystem"
+        )
+        #expect(throws: MCPHubConfiguration.ConfigurationError.filesystemSandboxUnpinned(serverID: "filesystem")) {
+            try MCPHubConfiguration(servers: [unpinned]).validated()
+        }
+
+        // Pinned at spawn time: allowed dirs as arguments — passes.
+        let pinned = HubServerConfig(
+            id: "filesystem", packageName: "@modelcontextprotocol/server-filesystem",
+            command: "/usr/bin/node",
+            arguments: ["/Users/admin/Developer/sandbox"],
+            duplicateGroup: "server-filesystem"
+        )
+        #expect(throws: Never.self) {
+            try MCPHubConfiguration(servers: [pinned]).validated()
+        }
+
+        // Non-filesystem servers are unaffected.
+        #expect(throws: Never.self) {
+            try MCPHubConfiguration(servers: [server(id: "memory")]).validated()
+        }
     }
 
     @Test("round-trips through JSON")

@@ -194,18 +194,41 @@ public final class MCPHub: @unchecked Sendable {
             }
 
             for line in assembler.append(data) {
-                // Duplicate-key frames are a routing-hijack vector (Cursor
-                // security review): reject with -32600, never forward.
-                if JSONRPCRelay.clientMessageIsMalformed(line) {
-                    var out = HubJSONRPCError
-                        .malformedFrame(duplicate: HubJSONRPCError.duplicateMemberID)
-                        .encoded()
+                // One typed policy verdict per frame (Cursor security
+                // review): malformed hijack vectors and JSON-RPC batch
+                // arrays are rejected with -32600; client roots
+                // notifications are dropped — the hub, not any client,
+                // owns the sandbox allowlist.
+                switch JSONRPCRelay.dispositionForClientFrame(line) {
+                case let .reject(reason):
+                    let error: HubJSONRPCError
+                    var out: Data
+                    switch reason {
+                    case .duplicateMemberID:
+                        error = .malformedFrame(duplicate: HubJSONRPCError.duplicateMemberID)
+                        out = error.encoded()
+                    case .topLevelArray:
+                        error = .batchFrameRejected
+                        out = error.encoded()
+                    }
                     out.append(0x0A)
                     try? handle.write(contentsOf: out)
-                    self?.telemetry.event(.malformedFrameRejected(
+                    self?.telemetry.event(.frameRejected(
+                        serverID: server.config.id, connection: key.value, reason: reason.rawValue
+                    ))
+                    continue
+
+                case .dropRootsNotification:
+                    // Silently dropped on purpose: the client believes it
+                    // notified; the upstream never sees it, so its
+                    // spawn-time sandbox stays authoritative.
+                    self?.telemetry.event(.rootsNotificationDropped(
                         serverID: server.config.id, connection: key.value
                     ))
                     continue
+
+                case .forward:
+                    break
                 }
                 let relayed = JSONRPCRelay.relayClientMessage(line, connection: key)
                 // One decision point per rewrite kind (canon: emoji at
@@ -269,6 +292,21 @@ public final class MCPHub: @unchecked Sendable {
 
     private func relayUpstreamLines(_ lines: [Data], server: HostedServer) {
         for payload in lines {
+            // Server-initiated `roots/*` requests are answered by the hub
+            // itself — EMPTY roots, echoing the upstream's request id — and
+            // never broadcast to shims (Cursor security review: official
+            // server-filesystem replaces its process-global allowlist from
+            // whatever roots a client answers with; the hub's spawn-time
+            // sandbox is the only authority).
+            if JSONRPCRelay.isUpstreamRootsRequest(payload) {
+                if let reply = Self.hubOwnedRootsReply(to: payload) {
+                    server.supervisor.writeUpstream(reply)
+                }
+                telemetry.event(.rootsRequestAnsweredByHub(
+                    serverID: server.config.id
+                ))
+                continue
+            }
             if let routed = JSONRPCRelay.routeUpstreamMessage(payload) {
                 server.deliver(routed.original, to: routed.key)
                 telemetry.event(.upstreamResponseRouted(
@@ -281,6 +319,26 @@ public final class MCPHub: @unchecked Sendable {
                 ))
             }
         }
+    }
+
+    /// The hub's reply to an upstream `roots/list` request: an EMPTY-roots
+    /// success result echoing the request id (canonical writer, byte-stable).
+    private static func hubOwnedRootsReply(to payload: Data) -> Data? {
+        let bytes = [UInt8](payload)
+        guard let span = JSONIDRewriter.topLevelIDSpan(in: bytes) else { return nil }
+        let raw = Array(bytes[span.start ..< span.end])
+        let id: JSONRPCRequestID
+        if raw.first == UInt8(ascii: "\"") {
+            let inner = String(decoding: raw[1 ..< (raw.count - 1)], as: UTF8.self)
+            id = .string(inner)
+        } else if let number = Int(String(decoding: raw, as: UTF8.self)) {
+            id = .number(number)
+        } else {
+            return nil
+        }
+        var out = (try? HubJSONRPCError.emptyRootsResult(id: id)) ?? nil
+        out?.append(0x0A)
+        return out
     }
 
     // MARK: Socket plumbing (Darwin)
