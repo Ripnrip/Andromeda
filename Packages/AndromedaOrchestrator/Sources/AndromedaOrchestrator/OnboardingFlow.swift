@@ -258,10 +258,12 @@ public struct OnboardingFlow: View {
             Spacer()
             Button("SKIP SETUP") { model.skipOnboarding() }
                 .buttonStyle(ConsoleButtonStyle(kind: .quiet))
+                .accessibilityIdentifier("console.onboarding.skip")
             Button(step >= OrchestratorModel.onboardingTitles.count - 1 ? "ENTER CONSOLE" : "CONTINUE") {
                 model.advanceOnboarding()
             }
             .buttonStyle(ConsoleButtonStyle(kind: .primary))
+            .accessibilityIdentifier("console.onboarding.continue")
         }
         .padding(.horizontal, 28)
         .padding(.top, 24)

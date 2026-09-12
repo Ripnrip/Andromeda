@@ -250,6 +250,7 @@ dependency or required pillar.
 | [MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md) | One write / one recall + WriteKind + retrieval ladder (design pivot) |
 | [MEMORY-ONEPAGER.md](./MEMORY-ONEPAGER.md) | Memory / Anima detail |
 | [ANDROMEDA-SURFACE-AREA.md](./ANDROMEDA-SURFACE-AREA.md) | Entity inventory (MCP, skills, LaunchAgents) |
+| [CONTROL-PLANE-ROUTES.md](./CONTROL-PLANE-ROUTES.md) | `/control/*` loopback routes — state/actions/actions catalogue (pillar 3 + console identifiers) |
 | [ANDROMEDA-WORKSPACE-READINESS.md](./ANDROMEDA-WORKSPACE-READINESS.md) | Flip gate (pillars ≠ flip) |
 | [MCP-SPRAWL-PROBLEM.md](./MCP-SPRAWL-PROBLEM.md) | Why MCP home exists |
 | [ANIMA-PROJECT-LINKS.md](./ANIMA-PROJECT-LINKS.md) | Operator Linear∪Multica∪Slack |

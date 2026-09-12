@@ -115,6 +115,18 @@ public actor SQLiteMemoryOperationalStore: MemoryOperationalStore {
         }
     }
 
+    /// Read-only row count — no record hydration, no mutation. The count
+    /// source for curated state snapshots (`/control/state`); deliberately
+    /// never triggers a journal rebuild.
+    public func recordCount() async throws -> Int {
+        let statement = try prepare("SELECT COUNT(*) FROM memories;")
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_ROW else {
+            throw sqliteError("Failed to count memory records.")
+        }
+        return Int(sqlite3_column_int64(statement, 0))
+    }
+
     public func fetchAll() async throws -> [MemoryRecord] {
         let statement = try prepare(
             """

@@ -296,6 +296,8 @@ public protocol MemoryOperationalStore: Sendable {
     func fetchAll() async throws -> [MemoryRecord]
     func record(for memoryID: MemoryID) async throws -> MemoryRecord?
     func reset() async throws
+    /// Read-only row count for state snapshots — must never mutate the store.
+    func recordCount() async throws -> Int
 }
 
 public struct DefaultMemoryClassifier: Sendable {
