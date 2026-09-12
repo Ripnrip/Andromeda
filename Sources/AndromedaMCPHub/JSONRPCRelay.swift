@@ -87,18 +87,20 @@ public enum JSONRPCRelay: Sendable {
     /// True when the frame is a `notifications/roots/list_changed`
     /// notification (no id, that method) — the client-driven roots push the
     /// hub never forwards.
+    ///
+    /// The method value is DECODED before comparison (Cursor security
+    /// re-review): raw-byte equality misses RFC-8259-equivalent escaped
+    /// forms (`"notifications/\u0072oots/list_changed"`, `\u002f` for `/`),
+    /// which Node's JSON.parse collapses on the upstream side — letting a
+    /// shim mutate the shared sandbox past the drop filter.
     static func isRootsListChangedNotification(_ bytes: [UInt8]) -> Bool {
         guard JSONIDRewriter.topLevelIDSpan(in: bytes) == nil,
               let methodSpan = JSONIDRewriter.findMemberValueSpan(
                   in: bytes, key: "method", searchTopLevelOnly: true
-              )
+              ),
+              let parsed = JSONIDRewriter.parseString(bytes, at: methodSpan.start)
         else { return false }
-        let raw = Array(bytes[methodSpan.start ..< methodSpan.end])
-        // The member value is a JSON string; compare content against the
-        // exact method name (quotes included — no allocation in the happy
-        // path of other methods).
-        let expected = Array(#""notifications/roots/list_changed""#.utf8)
-        return raw == expected
+        return parsed.decoded == "notifications/roots/list_changed"
     }
 
     /// True when an UPSTREAM frame is a server-initiated `roots/*` request
@@ -106,16 +108,17 @@ public enum JSONRPCRelay: Sendable {
     /// shape). Official server-filesystem harvests client roots into its
     /// global allowlist; the hub answers these itself with EMPTY roots so
     /// the spawn-time sandbox stays the only authority, and never
-    /// broadcasts the request to connected shims.
+    /// broadcasts the request to connected shims. Method decoded — the
+    /// same escaped-form bypass that hits the drop filter would hit this.
     public static func isUpstreamRootsRequest(_ data: Data) -> Bool {
         let bytes = [UInt8](data)
         guard JSONIDRewriter.topLevelIDSpan(in: bytes) != nil,
               let methodSpan = JSONIDRewriter.findMemberValueSpan(
                   in: bytes, key: "method", searchTopLevelOnly: true
-              )
+              ),
+              let parsed = JSONIDRewriter.parseString(bytes, at: methodSpan.start)
         else { return false }
-        let raw = String(decoding: bytes[methodSpan.start ..< methodSpan.end], as: UTF8.self)
-        return raw == #""roots/list""# || raw == #""roots/list_changed""#
+        return parsed.decoded == "roots/list" || parsed.decoded == "roots/list_changed"
     }
 
     /// Rewrite a client message's request id into the namespaced form
@@ -714,14 +717,18 @@ enum JSONIDRewriter: Sendable {
         return nil
     }
 
-    /// Parses the JSON string starting at the opening quote `i` and returns
-    /// its decoded key plus the index just past the closing quote. Handles
-    /// the full escape set (`\uXXXX` incl. surrogate pairs). Literal-byte
-    /// key matching missed Unicode-escaped members (`"\u0069d"`) — RFC 8259
-    /// decodes those to the same key, so a duplicate could bypass the
-    /// duplicate-id guard and hijack cross-connection routing (Cursor
-    /// security follow-up to 3960584548).
+    /// Parses a full JSON string at the opening quote `i` and returns its
+    /// decoded content plus the index past the closing quote. Escape-aware
+    /// (`\uXXXX` incl. surrogate pairs) — used for KEYS and, via
+    /// `parseString`, for VALUES that must be compared by decoded content
+    /// (method names), so RFC-8259-equivalent escaped forms can't bypass
+    /// content filters.
     static func parseKeyString(_ bytes: [UInt8], at i: Int) -> (decoded: String, end: Int)? {
+        parseString(bytes, at: i)
+    }
+
+    /// Same escape-aware decode as `parseKeyString` — named for VALUE use.
+    static func parseString(_ bytes: [UInt8], at i: Int) -> (decoded: String, end: Int)? {
         guard i < bytes.count, bytes[i] == UInt8(ascii: "\"") else { return nil }
         var units: [UInt16] = []
         var j = i + 1
