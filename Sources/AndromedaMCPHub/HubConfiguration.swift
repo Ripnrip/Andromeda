@@ -123,6 +123,14 @@ public struct MCPHubConfiguration: Sendable, Equatable, Codable {
     /// `@modelcontextprotocol/server-filesystem` semantics).
     private static let filesystemSandboxPackages = ["server-filesystem"]
 
+    /// Arguments that carry no sandbox authority — the launcher script
+    /// itself is argv[0] of the node invocation, not an allowed directory
+    /// (Codex round 3: `arguments = [launcher.js]` alone passed the
+    /// nonempty check while pinning nothing).
+    private static func isLauncherArgument(_ argument: String) -> Bool {
+        argument.hasSuffix(".js")
+    }
+
     /// True when this server's sandbox is filesystem-allowlist based and
     /// therefore must carry at least one allowed-directory argument.
     private func requiresPinnedSandbox(_ server: HubServerConfig) -> Bool {
@@ -162,17 +170,14 @@ public struct MCPHubConfiguration: Sendable, Equatable, Codable {
             // allowed-directory argument would run UNSANDBOXED (its CLI
             // default is cwd-only, and the hub's cwd is not a sandbox).
             // Pinning at config time makes the sandbox auditable.
-            // Codex P2: argument[0] is the LAUNCHER script — a config of
-            // just ["…/andromeda-mcpd-filesystem.js"] is nonempty but pins
-            // nothing. Require an absolute DIRECTORY path after it.
+            // Codex P2: a launcher-only config (nonempty args, no dir) pins
+            // nothing; a typo'd nonexistent path pins nothing either —
+            // require an argument that exists ON THIS HOST as a directory.
             if requiresPinnedSandbox(server) {
-                // The launcher script may or may not be argument[0] — the
-                // pin is the first argument that is an ABSOLUTE DIRECTORY
-                // on this host (launcher scripts are .js files, never dirs).
                 let pinnedDirectory = server.arguments.first {
-                    $0.hasPrefix("/") && Self.isDirectoryPath($0)
+                    !$0.hasSuffix(".js") && Self.isDirectoryPath($0)
                 }
-                guard let directory = pinnedDirectory else {
+                guard pinnedDirectory != nil else {
                     throw ConfigurationError.filesystemSandboxUnpinned(serverID: server.id)
                 }
             }
