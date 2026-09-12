@@ -50,3 +50,23 @@ sequenceDiagram
 ## Blast radius & rollback
 
 <!-- What could this break outside its own module? How do we roll it back (revert commit / feature flag / migration down)? -->
+
+## Self-evaluation
+
+<!-- Complete every item. Write "n/a — <reason>" beside anything that does not apply. -->
+
+- [ ] The title and What changed describe the user-visible or operational behavior accurately.
+- [ ] Why explains the problem, decision, and intended outcome.
+- [ ] The tracking issue or decision record is linked, or marked n/a.
+- [ ] The change is scoped to the smallest practical surface.
+- [ ] The sequence/flow diagram has committed Mermaid source, or is marked n/a.
+- [ ] Diagram evidence is readable in both GitHub light and dark mode.
+- [ ] UI-affecting changes include screenshots, previews, or visual-diff evidence.
+- [ ] Happy paths and relevant failure/authorization paths were tested.
+- [ ] Exact local validation commands and results are recorded above.
+- [ ] CI results have been reviewed; failures, flakes, and pre-existing failures are distinguished.
+- [ ] Tests cover regressions introduced or fixed by this change.
+- [ ] Documentation, examples, and API/CLI help are updated where behavior changed.
+- [ ] Compatibility, migrations, configuration defaults, and feature flags are addressed.
+- [ ] Secrets, privacy, permissions, and externally exposed surfaces were reviewed.
+- [ ] Logs, metrics, traces, and operator-facing evidence are present—or the observability gap is explicitly called out.
