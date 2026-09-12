@@ -247,17 +247,23 @@ public struct ControlPlaneRoute: Sendable {
 
     // MARK: - Responses
 
+    /// Error envelope built with `JSONEncoder` — never string interpolation,
+    /// which corrupts JSON when the message carries quotes, newlines, or
+    /// backslash sequences.
+    private static func errorResponse(_ message: String, status: HTTPResponse.Status) -> Response {
+        encodeRaw(jsonData(["error": message]), status: status)
+    }
+
     private static func unauthorized() -> Response {
-        encodeJSONString(#"{"error":"unauthorized: bearer token required"}"#, status: .unauthorized)
+        errorResponse("unauthorized: bearer token required", status: .unauthorized)
     }
 
     private static func badRequest(_ message: String) -> Response {
-        let escaped = message.replacingOccurrences(of: "\"", with: "\\\"")
-        return encodeJSONString(#"{"error":"\#(escaped)"}"#, status: .badRequest)
+        errorResponse(message, status: .badRequest)
     }
 
     private static func internalError() -> Response {
-        encodeJSONString(#"{"error":"internal error"}"#, status: .internalServerError)
+        errorResponse("internal error", status: .internalServerError)
     }
 
     private static func jsonData(_ value: some Encodable) -> Data {
@@ -272,9 +278,5 @@ public struct ControlPlaneRoute: Sendable {
         var headers = HTTPFields()
         headers[.contentType] = "application/json"
         return Response(status: status, headers: headers, body: .init(byteBuffer: .init(data: data)))
-    }
-
-    private static func encodeJSONString(_ json: String, status: HTTPResponse.Status) -> Response {
-        encodeRaw(Data(json.utf8), status: status)
     }
 }

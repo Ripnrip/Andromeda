@@ -27,14 +27,13 @@ public struct ControlPlaneRuntimeState: ControlPlaneStateSourcing {
     }
 
     public func snapshot() async throws -> ControlPlaneSnapshot {
-        // Curated, honest fields only — counts the surfaces already expose
-        // through /health, /power and the dashboard. No secrets, no provider
-        // brands (capability curtain).
-        async let memories = memoryRuntime.rebuildOperationalStoreFromJournal()
-        async let backlog = backlogCount()
-
-        let memoryCount = await (try? memories) ?? 0
-        let pending = await (try? backlog) ?? 0
+        // Read-only and honest: a plain count from the operational store —
+        // never a journal rebuild (a rebuild wipes the hot store mid-flight;
+        // a count must not mutate) — with errors propagated so an unreadable
+        // store surfaces as a 500, not a falsely-empty 200. No secrets, no
+        // provider brands (capability curtain).
+        let memoryCount = try await memoryRuntime.operationalRecordCount()
+        let pending = try await backlogCount()
 
         var surfaces = ["http", "mcp"]
         if ControlPlaneRoute.isEnabled() {

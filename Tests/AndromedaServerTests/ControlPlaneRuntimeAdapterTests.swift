@@ -134,6 +134,45 @@ struct ControlPlaneRuntimeAdapterTests {
         #expect(snapshot.counts.memories == 1)
     }
 
+    @Test("snapshot never mutates the operational store (read-only count proof)")
+    func snapshotIsReadOnly() async throws {
+        // Codex P1 + Cursor MEDIUM regression: the first implementation
+        // counted via rebuildOperationalStoreFromJournal(), which DELETEs
+        // every row before replay — a read route mutating the hot store and
+        // racing concurrent recalls. The fix counts via recordCount(); this
+        // test proves a second runtime sharing the same journal+store sees
+        // its records intact after a snapshot.
+        let rig = try makeRig()
+        let runtime = try Self.emptyMemoryRuntime(directory: rig.directory)
+        _ = try await runtime.remember(
+            RememberIntent(
+                scope: EventScope(
+                    projectID: ProjectID(rawValue: #require(UUID(uuidString: "11111111-1111-1111-1111-111111111111"))),
+                    sessionID: SessionID(rawValue: #require(UUID(uuidString: "22222222-2222-2222-2222-222222222222")))
+                ),
+                source: MemorySource(subsystem: "tests", actor: "server", label: "control"),
+                content: "Read-only snapshot proof.",
+                kind: .workflow,
+                privacyLevel: .project,
+                tags: ["control-plane"],
+                metadata: [:],
+                idempotencyKey: "control-readonly-1"
+            )
+        )
+
+        let state = ControlPlaneRuntimeState(
+            configuration: AndromedaRuntimeConfiguration(),
+            memoryRuntime: runtime,
+            projectionRuntime: rig.projections
+        )
+        let before = try await runtime.operationalRecordCount()
+        _ = try await state.snapshot()
+        let after = try await runtime.operationalRecordCount()
+
+        #expect(before == 1)
+        #expect(after == 1, "snapshot must not mutate the operational store")
+    }
+
     // MARK: - Fixtures
 
     private static func makeRecord() -> MemoryRecord {

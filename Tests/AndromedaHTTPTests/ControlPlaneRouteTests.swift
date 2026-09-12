@@ -126,6 +126,31 @@ struct ControlPlaneRouteTests {
         }
     }
 
+    @Test("error envelope stays valid JSON for hostile action names (encoder, not string escape)")
+    func hostileActionNameProducesValidJSON() async throws {
+        // Codex P2 regression: the first implementation interpolated the
+        // action name into a JSON string literal, so quotes/newlines/
+        // backslashes corrupted the 400 body. The envelope is now built by
+        // JSONEncoder — this test feeds the nastiest name and decodes it.
+        try await makeApp().test(.router) { client in
+            let hostile = "bad\\q \"quote\"\nnewline"
+            let body = ByteBuffer(data: try JSONEncoder().encode(ControlActionRequest(action: hostile)))
+            let response = try await client.execute(
+                uri: "/control/action",
+                method: .post,
+                headers: [
+                    .authorization: "Bearer \(Self.bearer)",
+                    .contentType: "application/json",
+                ],
+                body: body
+            )
+            #expect(response.status == .badRequest)
+            // Must decode as real JSON — that's the whole point.
+            let decoded = try JSONDecoder().decode([String: String].self, from: Data(response.body.readableBytesView))
+            #expect(decoded["error"]?.contains(hostile) == true)
+        }
+    }
+
     @Test("action without bearer is 401")
     func actionBearerGate() async throws {
         try await makeApp().test(.router) { client in
