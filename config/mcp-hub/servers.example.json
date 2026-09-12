@@ -7,7 +7,8 @@
       "packageName": "@modelcontextprotocol/server-filesystem",
       "command": "/opt/homebrew/bin/node",
       "arguments": [
-        "/Users/admin/.andromeda/mcp-hub/launchers/andromeda-mcpd-filesystem.js"
+        "/Users/admin/.andromeda/mcp-hub/launchers/andromeda-mcpd-filesystem.js",
+        "/Users/admin/Developer"
       ],
       "environment": {},
       "placement": "shared",
