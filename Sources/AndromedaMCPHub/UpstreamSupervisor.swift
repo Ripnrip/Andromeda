@@ -117,6 +117,9 @@ public final class UpstreamSupervisor: @unchecked Sendable {
     private var restartCount = 0
     private let maxRestarts = 5
     private var backoff: TimeInterval = 1
+    /// Earliest instant a respawn may be attempted after an exit (the
+    /// enforced backoff window — Codex round 3).
+    private var nextEligibleLaunchAt: Date?
 
     public init(config: HubServerConfig, host: UpstreamProcessHosting = ProcessUpstreamHost(),
                 telemetry: HubTelemetry = HubTelemetry.shared)
@@ -133,6 +136,9 @@ public final class UpstreamSupervisor: @unchecked Sendable {
     // MARK: Lifecycle
 
     /// Spawn (first call) or respawn the upstream. Returns the live pipes.
+    /// Respawns inside the backoff window return nil (the caller's
+    /// unavailable-path answers the client) — the window is real, not
+    /// telemetry-only (Codex round 3).
     public func ensureRunning() -> UpstreamPipes? {
         lock.lock(); defer { lock.unlock() }
         if let pipes = _pipes {
@@ -140,6 +146,9 @@ public final class UpstreamSupervisor: @unchecked Sendable {
         }
         guard restartCount < maxRestarts else {
             telemetry.event(.upstreamExhausted(serverID: config.id, restarts: restartCount))
+            return nil
+        }
+        if let eligible = nextEligibleLaunchAt, Date() < eligible {
             return nil
         }
         guard let pipes = host.launch(
@@ -158,13 +167,24 @@ public final class UpstreamSupervisor: @unchecked Sendable {
         return pipes
     }
 
+    /// The live pipes, if an upstream is currently running (Codex round 3:
+    /// callers resolving stdin per write must see respawns immediately).
+    public func livePipes() -> UpstreamPipes? {
+        lock.lock(); defer { lock.unlock() }
+        return _pipes
+    }
+
     /// Called when the stdout pipe closes (upstream died): clears state so
-    /// the next `ensureRunning` respawns under the budget.
+    /// the next `ensureRunning` respawns under the budget. The backoff
+    /// window is ENFORCED here (Codex round 3): `ensureRunning` refuses to
+    /// launch again until `nextEligibleLaunchAt` has passed, so a crashing
+    /// upstream cannot burn the whole budget in a tight reconnect loop.
     public func upstreamExited() {
         lock.lock(); defer { lock.unlock() }
         _pipes = nil
         restartCount += 1
         backoff = min(backoff * 2, 30)
+        nextEligibleLaunchAt = Date().addingTimeInterval(backoff)
         telemetry.event(.upstreamExited(serverID: config.id, restarts: restartCount))
         // 🔁 a restart is now scheduled — the decision point the agent host
         // cannot otherwise see (the exit alone reads as terminal).
@@ -188,5 +208,6 @@ public final class UpstreamSupervisor: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         _pipes = nil
         restartCount = 0
+        nextEligibleLaunchAt = nil
     }
 }

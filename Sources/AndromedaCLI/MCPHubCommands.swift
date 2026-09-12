@@ -61,7 +61,13 @@ struct MCPHubCommand: AsyncParsableCommand {
             }
             // Keep alive; readability handlers do the work.
             print("mcp-hub: hosting \(configuration.servers.count) server(s) — sockets in \(configuration.socketDirectory)")
-            try await Task.sleep(for: .seconds(Double.greatestFiniteMagnitude))
+            // Cancellation-aware forever-sleep (Codex round 3): sleeping on
+            // .seconds(Double.greatestFiniteMagnitude) traps converting to
+            // Duration (_Int128 out of range) — a nan-value loop suspends
+            // without any conversion and still never spins.
+            while !Task.isCancelled {
+                try await Task.sleep(nanoseconds: UInt64.max)
+            }
         }
     }
 

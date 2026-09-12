@@ -175,7 +175,23 @@ public final class MCPHub: @unchecked Sendable {
             return
         }
 
-        let upstreamStdin = pipes.stdin
+        // Codex round 3: `upstreamStdin` was captured once from the pipes
+        // alive at CONNECT time — after a respawn, pre-existing sessions
+        // kept writing into the dead process's stdin. Resolve the CURRENT
+        // live pipe through the supervisor per write so respawned upstreams
+        // serve existing clients too (the reader side already rebinds via
+        // attachUpstreamReaders).
+        let writeUpstream: @Sendable (Data) -> Void = { data in
+            if let live = server.supervisor.livePipes() {
+                var out = data
+                out.append(0x0A)
+                try? live.stdin.write(contentsOf: out)
+            } else {
+                server.deliver(
+                    HubJSONRPCError.upstreamUnavailable.encoded(), to: key.value
+                )
+            }
+        }
         // Codex P1: stream reads can split frames mid-line — each connection
         // owns an assembler that buffers incomplete tails until the next read.
         let assembler = LineAssembler()
@@ -246,7 +262,7 @@ public final class MCPHub: @unchecked Sendable {
                 }
                 var out = relayed.frame
                 out.append(0x0A)
-                try? upstreamStdin.write(contentsOf: out)
+                writeUpstream(out)
             }
         }
 
