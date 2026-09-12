@@ -409,15 +409,40 @@ struct HubConfigurationTests {
             try MCPHubConfiguration(servers: [unpinned]).validated()
         }
 
-        // Pinned at spawn time: allowed dirs as arguments — passes.
+        // Pinned at spawn time: launcher + existing absolute directory.
+        // (Uses a directory guaranteed to exist on the test host.)
+        let home = NSHomeDirectory()
         let pinned = HubServerConfig(
             id: "filesystem", packageName: "@modelcontextprotocol/server-filesystem",
             command: "/usr/bin/node",
-            arguments: ["/Users/admin/Developer/sandbox"],
+            arguments: ["\(home)/.andromeda/mcp-hub/launchers/andromeda-mcpd-filesystem.js", home],
             duplicateGroup: "server-filesystem"
         )
         #expect(throws: Never.self) {
             try MCPHubConfiguration(servers: [pinned]).validated()
+        }
+
+        // Codex P2: launcher-only arguments (no directory after it) still
+        // count as unpinned — nonempty ≠ pinned.
+        let launcherOnly = HubServerConfig(
+            id: "filesystem", packageName: "@modelcontextprotocol/server-filesystem",
+            command: "/usr/bin/node",
+            arguments: ["\(home)/.andromeda/mcp-hub/launchers/andromeda-mcpd-filesystem.js"],
+            duplicateGroup: "server-filesystem"
+        )
+        #expect(throws: MCPHubConfiguration.ConfigurationError.filesystemSandboxUnpinned(serverID: "filesystem")) {
+            try MCPHubConfiguration(servers: [launcherOnly]).validated()
+        }
+
+        // A nonexistent directory path is also unpinned (typo guard).
+        let ghost = HubServerConfig(
+            id: "filesystem", packageName: "@modelcontextprotocol/server-filesystem",
+            command: "/usr/bin/node",
+            arguments: ["/nonexistent/sandbox/dir/that/does/not/exist"],
+            duplicateGroup: "server-filesystem"
+        )
+        #expect(throws: MCPHubConfiguration.ConfigurationError.filesystemSandboxUnpinned(serverID: "filesystem")) {
+            try MCPHubConfiguration(servers: [ghost]).validated()
         }
 
         // Non-filesystem servers are unaffected.

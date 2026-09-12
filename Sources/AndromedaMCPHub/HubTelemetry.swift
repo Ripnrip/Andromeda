@@ -41,6 +41,9 @@ public enum HubEvent: Sendable {
     case cancelledRequestIDRewritten(serverID: String, connection: String)
     /// Upstream stderr diagnostics were drained (keeps the child un-blocked).
     case stderrDrained(serverID: String, bytes: Int)
+    /// A respawn attempt arrived inside the restart backoff window and was
+    /// held (Codex P2: the delay is enforced, not just reported).
+    case upstreamRestartDelayed(serverID: String, secondsRemaining: Double)
 
     /// Emoji glyph per decision point (canon logging law).
     var glyph: String {
@@ -63,6 +66,7 @@ public enum HubEvent: Sendable {
         case .idNamespaced: "🏷️"
         case .cancelledRequestIDRewritten: "✂️"
         case .stderrDrained: "🧹"
+        case .upstreamRestartDelayed: "⏳"
         }
     }
 
@@ -86,6 +90,7 @@ public enum HubEvent: Sendable {
         case .idNamespaced: "frame.id_namespaced"
         case .cancelledRequestIDRewritten: "frame.cancelled_request_id_rewritten"
         case .stderrDrained: "upstream.stderr_drained"
+        case .upstreamRestartDelayed: "upstream.restart_delayed"
         }
     }
 
@@ -131,6 +136,8 @@ public enum HubEvent: Sendable {
             ["server": serverID, "connection": connection]
         case let .stderrDrained(serverID, bytes):
             ["server": serverID, "bytes": String(bytes)]
+        case let .upstreamRestartDelayed(serverID, secondsRemaining):
+            ["server": serverID, "seconds_remaining": String(format: "%.1f", secondsRemaining)]
         }
     }
 

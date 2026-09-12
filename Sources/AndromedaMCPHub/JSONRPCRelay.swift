@@ -58,7 +58,11 @@ public enum JSONRPCRelay: Sendable {
     /// client — owns the sandbox: it is pinned at spawn time via CLI args.
     public static func dispositionForClientFrame(_ data: Data) -> ClientFrameDisposition {
         let bytes = [UInt8](data)
-        guard let first = bytes.first(where: { $0 != UInt8(ascii: " ") && $0 != UInt8(ascii: "\t") }) else {
+        // ALL four RFC-8259 whitespace bytes (space, tab, LF, CR) — a
+        // batch preceded by `\r` is still a batch (Codex P1: the first
+        // scan skipped CR and let `\r[{...}]` bypass rejection).
+        let whitespace: Set<UInt8> = [UInt8(ascii: " "), UInt8(ascii: "\t"), 0x0A, 0x0D]
+        guard let first = bytes.first(where: { !whitespace.contains($0) }) else {
             return .reject(reason: .topLevelArray)
         }
         if first == UInt8(ascii: "[") {

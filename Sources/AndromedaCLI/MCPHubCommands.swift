@@ -59,9 +59,14 @@ struct MCPHubCommand: AsyncParsableCommand {
             } catch let error as MCPHub.MCPHubError {
                 throw ValidationError("hub failed to start: \(error)")
             }
-            // Keep alive; readability handlers do the work.
+            // Keep alive; readability handlers do the work. A disciplined
+            // forever-sleep loop, NOT `.seconds(Double.greatestFiniteMagnitude)`
+            // — that Duration conversion traps out-of-range on Swift 6.2
+            // before the task ever suspends (Codex P0: every run crashed).
             print("mcp-hub: hosting \(configuration.servers.count) server(s) — sockets in \(configuration.socketDirectory)")
-            try await Task.sleep(for: .seconds(Double.greatestFiniteMagnitude))
+            while !Task.isCancelled {
+                try await Task.sleep(for: .seconds(3600))
+            }
         }
     }
 

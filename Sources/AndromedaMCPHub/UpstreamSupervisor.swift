@@ -132,7 +132,14 @@ public final class UpstreamSupervisor: @unchecked Sendable {
 
     // MARK: Lifecycle
 
+    /// Earliest wall-clock time a respawn may be attempted after an exit.
+    /// Codex P2: the backoff was doubled and reported but never ENFORCED —
+    /// a crashing upstream respawned instantly on the next shim connect.
+    private var nextEligibleLaunch: Date?
+
     /// Spawn (first call) or respawn the upstream. Returns the live pipes.
+    /// Honors the restart backoff: callers arriving inside the delay get
+    /// nil (and a telemetry line), not an immediate relaunch.
     public func ensureRunning() -> UpstreamPipes? {
         lock.lock(); defer { lock.unlock() }
         if let pipes = _pipes {
@@ -140,6 +147,13 @@ public final class UpstreamSupervisor: @unchecked Sendable {
         }
         guard restartCount < maxRestarts else {
             telemetry.event(.upstreamExhausted(serverID: config.id, restarts: restartCount))
+            return nil
+        }
+        if let eligible = nextEligibleLaunch, Date() < eligible {
+            telemetry.event(.upstreamRestartDelayed(
+                serverID: config.id,
+                secondsRemaining: eligible.timeIntervalSinceNow
+            ))
             return nil
         }
         guard let pipes = host.launch(
@@ -165,6 +179,7 @@ public final class UpstreamSupervisor: @unchecked Sendable {
         _pipes = nil
         restartCount += 1
         backoff = min(backoff * 2, 30)
+        nextEligibleLaunch = Date().addingTimeInterval(backoff)
         telemetry.event(.upstreamExited(serverID: config.id, restarts: restartCount))
         // 🔁 a restart is now scheduled — the decision point the agent host
         // cannot otherwise see (the exit alone reads as terminal).
@@ -188,5 +203,6 @@ public final class UpstreamSupervisor: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         _pipes = nil
         restartCount = 0
+        nextEligibleLaunch = nil
     }
 }
