@@ -114,6 +114,14 @@ public struct MCPHubConfiguration: Sendable, Equatable, Codable {
     /// `@modelcontextprotocol/server-filesystem` semantics).
     private static let filesystemSandboxPackages = ["server-filesystem"]
 
+    /// Arguments that carry no sandbox authority — the launcher script
+    /// itself is argv[0] of the node invocation, not an allowed directory
+    /// (Codex round 3: `arguments = [launcher.js]` alone passed the
+    /// nonempty check while pinning nothing).
+    private static func isLauncherArgument(_ argument: String) -> Bool {
+        argument.hasSuffix(".js")
+    }
+
     /// True when this server's sandbox is filesystem-allowlist based and
     /// therefore must carry at least one allowed-directory argument.
     private func requiresPinnedSandbox(_ server: HubServerConfig) -> Bool {
@@ -153,7 +161,9 @@ public struct MCPHubConfiguration: Sendable, Equatable, Codable {
             // allowed-directory argument would run UNSANDBOXED (its CLI
             // default is cwd-only, and the hub's cwd is not a sandbox).
             // Pinning at config time makes the sandbox auditable.
-            if requiresPinnedSandbox(server), server.arguments.isEmpty {
+            if requiresPinnedSandbox(server),
+               !server.arguments.contains(where: { !Self.isLauncherArgument($0) })
+            {
                 throw ConfigurationError.filesystemSandboxUnpinned(serverID: server.id)
             }
         }

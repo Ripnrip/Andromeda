@@ -58,7 +58,10 @@ public enum JSONRPCRelay: Sendable {
     /// client — owns the sandbox: it is pinned at spawn time via CLI args.
     public static func dispositionForClientFrame(_ data: Data) -> ClientFrameDisposition {
         let bytes = [UInt8](data)
-        guard let first = bytes.first(where: { $0 != UInt8(ascii: " ") && $0 != UInt8(ascii: "\t") }) else {
+        // All four RFC-8259 whitespace bytes are skipped (Codex round 3):
+        // LineAssembler strips CR only at line ENDS, so a leading \r could
+        // otherwise hide a batch array from the first-byte scan.
+        guard let first = bytes.first(where: { !Self.isJSONWhitespace($0) }) else {
             return .reject(reason: .topLevelArray)
         }
         if first == UInt8(ascii: "[") {
@@ -73,6 +76,12 @@ public enum JSONRPCRelay: Sendable {
             return .dropRootsNotification
         }
         return .forward
+    }
+
+    /// RFC 8259 whitespace: space, tab, LF, CR.
+    static func isJSONWhitespace(_ byte: UInt8) -> Bool {
+        byte == UInt8(ascii: " ") || byte == UInt8(ascii: "\t")
+            || byte == UInt8(ascii: "\n") || byte == UInt8(ascii: "\r")
     }
 
     /// True when the frame is a `notifications/roots/list_changed`
