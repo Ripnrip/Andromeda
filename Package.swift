@@ -19,11 +19,13 @@ let package = Package(
         .library(name: "AndromedaProjections", targets: ["AndromedaProjections"]),
         .library(name: "AndromedaSecrets", targets: ["AndromedaSecrets"]),
         .library(name: "AndromedaHostOps", targets: ["AndromedaHostOps"]),
+        .library(name: "AndromedaMCPHub", targets: ["AndromedaMCPHub"]),
         .library(name: "AndromedaTools", targets: ["AndromedaTools"]),
         .library(name: "AndromedaHTTP", targets: ["AndromedaHTTP"]),
         .library(name: "AndromedaClient", targets: ["AndromedaClient"]),
         .library(name: "AndromedaServer", targets: ["AndromedaServer"]),
         .executable(name: "andromeda", targets: ["AndromedaCLI"]),
+        .executable(name: "andromeda-mcp-shim", targets: ["AndromedaMCPShim"]),
         .executable(name: "andromeda-runtime", targets: ["AndromedaRuntimeCLI"]),
         .executable(name: "AndromedaHome", targets: ["AndromedaHome"]),
         .executable(name: "AndromedaHUD", targets: ["AndromedaHUD"]),
@@ -100,6 +102,18 @@ let package = Package(
             dependencies: [
                 "AndromedaDomain",
             ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .target(
+            name: "AndromedaMCPHub",
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .executableTarget(
+            name: "AndromedaMCPShim",
             swiftSettings: [
                 .swiftLanguageMode(.v6)
             ]
@@ -188,6 +202,7 @@ let package = Package(
         .executableTarget(
             name: "AndromedaCLI",
             dependencies: [
+                "AndromedaMCPHub",
                 "AndromedaBrand",
                 "AndromedaCore",
                 "AndromedaGateway",
@@ -247,6 +262,13 @@ let package = Package(
                 "AndromedaHUDCore",
             ],
             path: "Sources/AndromedaHUD",
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .testTarget(
+            name: "AndromedaMCPHubTests",
+            dependencies: ["AndromedaMCPHub"],
             swiftSettings: [
                 .swiftLanguageMode(.v6)
             ]
