@@ -131,6 +131,7 @@ let package = Package(
                 "AndromedaMemory",
                 "AndromedaTools",
                 .product(name: "Hummingbird", package: "hummingbird"),
+                .product(name: "Logging", package: "swift-log"),
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6)
@@ -344,6 +345,20 @@ let package = Package(
                 "AndromedaSecrets",
                 "AndromedaTools",
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .testTarget(
+            name: "AndromedaServerTests",
+            dependencies: [
+                "AndromedaDomain",
+                "AndromedaHTTP",
+                "AndromedaJournal",
+                "AndromedaMemory",
+                "AndromedaProjections",
+                "AndromedaServer",
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6)

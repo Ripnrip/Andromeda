@@ -40,6 +40,13 @@ public actor MemoryRuntime {
         try await journal.replay(after: nil).count
     }
 
+    /// Read-only count of records in the operational store. Snapshot source
+    /// for `/control/state` — never rebuilds from the journal (a rebuild
+    /// wipes the hot store mid-flight; a plain count must not mutate).
+    public func operationalRecordCount() async throws -> Int {
+        try await operationalStore.recordCount()
+    }
+
     public func remember(_ intent: RememberIntent) async throws -> MemoryRememberResponse {
         if let existing = try await recordForIdempotencyKey(intent.idempotencyKey) {
             try Self.validateIdempotentReplay(intent: intent, existing: existing)

@@ -1,0 +1,12 @@
+flowchart LR
+    CLI["andromeda-runtime control CLI"] --> ACTION
+    CURL["curl"] --> STATE
+    ACTION["POST /control/action<br/>typed dispatch"] --> DISPATCH
+    DISPATCH["dispatcher · drain-projections"] --> RT["retryPending()<br/>same path serve runs"]
+    STATE["GET /control/state<br/>read-only snapshot"] --> SNAP["COUNT queries<br/>journal + backlog"]
+    CATALOGUE["GET /control/actions"] -. generates from .-> DISPATCH
+    GATE["env ANDROMEDA_CONTROL_PLANE=1<br/>+ bearer (MCP credential)"] -. arms + guards .-> ACTION
+    classDef gate fill:#1A1208,stroke:#F59E0B,stroke-width:2px,color:#FCD34D
+    classDef dispatch fill:#0D1520,stroke:#4A9EFF,stroke-width:2px,color:#BFDBFE
+    class GATE gate
+    class DISPATCH dispatch

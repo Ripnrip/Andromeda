@@ -12,7 +12,7 @@ struct AndromedaRuntimeCLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "andromeda-runtime",
         abstract: "Runnable Andromeda Runtime v2 server.",
-        subcommands: [Serve.self, Setup.self, Doctor.self, TestFlight.self],
+        subcommands: [Serve.self, Setup.self, Doctor.self, TestFlight.self, Control.self],
         defaultSubcommand: Serve.self
     )
 }
@@ -208,7 +208,7 @@ struct Setup: AsyncParsableCommand {
         let journal = journalPath
             ?? HostDefaults.env("ANDROMEDA_JOURNAL_PATH")
             ?? FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Developer/AndromedaData/journal.jsonl").path
+            .appendingPathComponent("Developer/AndromedaData/journal.jsonl").path
         let vault = vaultDir
             ?? HostDefaults.env("ANDROMEDA_VAULT_DIR")
             ?? URL(fileURLWithPath: journal).deletingLastPathComponent().appendingPathComponent("vault").path
@@ -233,9 +233,9 @@ struct Setup: AsyncParsableCommand {
             ?? "http://127.0.0.1:\(HostDefaults.defaultPort)"
 
         #if os(macOS)
-        let menubarAvailable = true
+            let menubarAvailable = true
         #else
-        let menubarAvailable = false
+            let menubarAvailable = false
         #endif
 
         let plan = HostDiagnostics.setupPlan(
@@ -380,7 +380,7 @@ struct Doctor: AsyncParsableCommand {
         let journal = journalPath
             ?? HostDefaults.env("ANDROMEDA_JOURNAL_PATH")
             ?? FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("Developer/AndromedaData/journal.jsonl").path
+            .appendingPathComponent("Developer/AndromedaData/journal.jsonl").path
         let vault = vaultDir
             ?? HostDefaults.env("ANDROMEDA_VAULT_DIR")
             ?? URL(fileURLWithPath: journal).deletingLastPathComponent().appendingPathComponent("vault").path
@@ -409,11 +409,10 @@ struct Doctor: AsyncParsableCommand {
             ?? HostDefaults.env("ANDROMEDA_TEST_QDRANT_URL")
             ?? HostDefaults.env("ANDROMEDA_QDRANT_URL")
             ?? "http://localhost:6333"
-        let qdrantReachable: Bool?
-        if let qdrant = URL(string: qdrantString) {
-            qdrantReachable = await probes.isQdrantReachable(baseURL: qdrant)
+        let qdrantReachable: Bool? = if let qdrant = URL(string: qdrantString) {
+            await probes.isQdrantReachable(baseURL: qdrant)
         } else {
-            qdrantReachable = false
+            false
         }
 
         let bearer = HostDefaults.env("ANDROMEDA_MCP_BEARER_TOKEN") ?? ""
@@ -436,9 +435,9 @@ struct Doctor: AsyncParsableCommand {
         }
 
         #if os(macOS)
-        let menubarAvailable = true
+            let menubarAvailable = true
         #else
-        let menubarAvailable = false
+            let menubarAvailable = false
         #endif
 
         let report = HostDiagnostics.doctor(
