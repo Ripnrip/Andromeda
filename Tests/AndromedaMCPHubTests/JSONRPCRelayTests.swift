@@ -290,6 +290,35 @@ struct JSONRPCRelayTests {
         #expect(JSONRPCRelay.dispositionForClientFrame(Data(benignEscaped.utf8)) == .forward)
     }
 
+    @Test("duplicate method members are rejected — first-span vs last-key-wins split (Cursor HIGH on #79)")
+    func duplicateMethodRejection() {
+        // RAW LITERAL: RFC-8259-illegal duplicate method keys. The hub's
+        // filters read the FIRST span; Node's JSON.parse applies the LAST —
+        // benign-first/roots-last slips the drop filter upstream-side.
+        let attack = #"{"jsonrpc":"2.0","method":"notifications/initialized","method":"notifications/roots/list_changed"}"#
+        if case let .reject(reason) = JSONRPCRelay.dispositionForClientFrame(Data(attack.utf8)) {
+            #expect(reason == .duplicateMemberID)
+        } else {
+            Issue.record("duplicate-method frame must be rejected, never forwarded")
+        }
+
+        // Single method — even the roots one (id-less) — still hits the
+        // DROP path, not rejection; the guard only fires on duplicates.
+        let single = #"{"jsonrpc":"2.0","method":"notifications/roots/list_changed"}"#
+        #expect(
+            JSONRPCRelay.dispositionForClientFrame(Data(single.utf8)) == .dropRootsNotification
+        )
+
+        // Escaped duplicate keys (both decode to "method") count too —
+        // memberCount decodes keys escape-aware.
+        let escapedDup = #"{"jsonrpc":"2.0","method":"a","\u006dethod":"notifications/roots/list_changed"}"#
+        if case let .reject(reason) = JSONRPCRelay.dispositionForClientFrame(Data(escapedDup.utf8)) {
+            #expect(reason == .duplicateMemberID)
+        } else {
+            Issue.record("escaped duplicate-method frame must be rejected")
+        }
+    }
+
     @Test("JSON-RPC batch arrays are rejected — they bypass depth-1 id namespacing")
     func batchArraysRejected() {
         // RAW LITERAL: a batch is a top-level array; no depth-1 id exists,

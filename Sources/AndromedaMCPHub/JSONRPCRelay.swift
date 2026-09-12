@@ -69,6 +69,7 @@ public enum JSONRPCRelay: Sendable {
         }
         if JSONIDRewriter.hasDuplicateTopLevelID(in: bytes)
             || JSONIDRewriter.hasDuplicateCancelledRequestID(in: bytes)
+            || JSONIDRewriter.hasDuplicateTopLevelMethod(in: bytes)
         {
             return .reject(reason: .duplicateMemberID)
         }
@@ -554,6 +555,16 @@ enum JSONIDRewriter: Sendable {
     /// rejected, never forwarded.
     static func hasDuplicateTopLevelID(in bytes: [UInt8]) -> Bool {
         memberCount(in: bytes, key: "id", targetDepth: 1) > 1
+    }
+
+    /// True when the top level carries MORE THAN ONE `"method"` member.
+    /// RFC-8259-illegal; parsers disagree on the winner (node:
+    /// last-key-wins) while this hub's filters read the FIRST span — a
+    /// benign-first/roots-last duplicate slips the drop filter and Node
+    /// collapses it to the malicious method upstream-side (Cursor HIGH on
+    /// #79). Rejected with the same -32600 as duplicate ids.
+    static func hasDuplicateTopLevelMethod(in bytes: [UInt8]) -> Bool {
+        memberCount(in: bytes, key: "method", targetDepth: 1) > 1
     }
 
     /// Same check for `params."requestId"` (cancelled hijack variant).
