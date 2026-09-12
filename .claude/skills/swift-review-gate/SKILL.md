@@ -5,7 +5,7 @@ description: The fleet's 15-question Swift + UI review gate (from the 2026-09-09
 
 # Swift Review Gate — the fleet's 15 questions
 
-Born in the #andromeda vault-widget thread (2026-09-09/10): BofA's design questions × fleet answers (Berserker, Linear, Manus, Cursor) distilled into one contract. Use it **as you work through items** (self-check at commit) and **at review level** (reviewer walks the list on the PR).
+Some Swift best practices/opinions distilled into one contract. Use it **as you work through items** (self-check at commit) and **at review level** (reviewer walks the list on the PR).
 
 ## How to apply
 
