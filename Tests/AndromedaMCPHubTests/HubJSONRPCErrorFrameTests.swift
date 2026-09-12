@@ -1,9 +1,3 @@
-// Exhaustive enum-driven tests (BofA ask 5: "can enums run through the
-// cases for tests?") + the byte-equality proof for the typed error frames
-// (ask 1). These tests iterate the CONSTRUCTORS of each enum so adding a
-// case breaks the build here until it is covered — the compiler-enforced
-// exhaustiveness the fleet canon asks for.
-
 @testable import AndromedaMCPHub
 import Foundation
 import Testing
@@ -48,7 +42,7 @@ struct HubJSONRPCErrorTests {
             #expect(errorObject["message"] as? String == error.message)
 
             // The id member is PRESENT and literal null — not absent
-            /// (JSON-RPC 2.0 requires the member on responses).
+            // (JSON-RPC 2.0 requires the member on responses).
             #expect(text.contains(#""id":null"#))
             #expect(object.keys.contains("id"))
 
@@ -56,13 +50,19 @@ struct HubJSONRPCErrorTests {
         }
     }
 
-    @Test("codes are distinct and in the JSON-RPC reserved band")
+    @Test("codes are in the JSON-RPC reserved band and distinct per constructor")
     func distinctCodes() {
         let codes = HubJSONRPCError.allCases.map(\.code)
-        #expect(Set(codes).count == codes.count) // all distinct
         for code in codes {
             #expect(code <= -32000 && code >= -32999)
         }
+        // Distinct PER CONSTRUCTOR: -32600 is shared by the two
+        // invalid-request shapes (malformed frame, batch frame) — the
+        // standard assigns that code to the class, not the instance; the
+        // MESSAGES distinguish them. Constructors themselves are distinct.
+        #expect(Set(codes).count >= 2)
+        let messages = HubJSONRPCError.allCases.map(\.message)
+        #expect(Set(messages).count == messages.count)
     }
 
     @Test("messages are non-empty and carry the hub prefix")

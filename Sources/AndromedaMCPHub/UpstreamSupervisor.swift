@@ -175,6 +175,14 @@ public final class UpstreamSupervisor: @unchecked Sendable {
         }
     }
 
+    /// Write one line to the live upstream's stdin (used by the hub to
+    /// answer server-initiated requests itself). Nil-returning no-op when
+    /// no upstream is live.
+    public func writeUpstream(_ data: Data) {
+        lock.lock(); defer { lock.unlock() }
+        _ = try? _pipes?.stdin.write(contentsOf: data)
+    }
+
     /// Test/teardown hook.
     public func forgetForTeardown() {
         lock.lock(); defer { lock.unlock() }
