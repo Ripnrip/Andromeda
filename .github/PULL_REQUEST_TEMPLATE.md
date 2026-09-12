@@ -42,6 +42,19 @@ sequenceDiagram
 
 - [ ] Tests / build green locally — paste the command you ran
 
+## Review gate — merge blockers (swift-review-gate skill / review-canon §8)
+
+<!-- The 6 blocking questions from the fleet's 15-question gate.
+     Unchecked = not mergeable. The other 9 are judgment-tier:
+     reviewer walks them; N/A needs a one-line rationale. -->
+
+- [ ] **Q1 Enums over magic** — closed sets are `enum` + exhaustive switch (+ `CaseIterable` where tests iterate)
+- [ ] **Q2 Codable on the wire** — no hand-built JSON literals in production code; byte-equality where wire shape matters (canonical writer for stable bytes — canon Exhibit 13)
+- [ ] **Q6 Actors/Sendable** — shared mutable state actor-isolated; `@unchecked Sendable` justified in writing
+- [ ] **Q8 Emoji telemetry at decision points** — typed events + glyphs for every meaningful branch
+- [ ] **Q9 Secrets & data posture** — enum env allowlists; auth before privileged side effects; no PII in logs/mirrors
+- [ ] **Q14 Exhaustive proof** — CaseIterable-driven tests, Codable fixture builders, e2e paths run with receipts
+
 ## Secrets / data posture
 
 <!-- Any secrets, credentials, tokens, PII, or user data touched, added, or

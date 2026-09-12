@@ -1,0 +1,16 @@
+sequenceDiagram
+    autonumber
+    participant CC as Claude Code
+    participant CX as Codex
+    participant SA as shims
+    participant HUB as andromeda-mcp-hub
+    participant UP as andromeda-mcpd servers
+
+    CC->>SA: MCP stdio
+    CX->>SA: MCP stdio
+    SA->>HUB: unix socket per server
+    HUB->>UP: shared stdin direct spawn
+    UP->>HUB: namespaced responses
+    HUB->>SA: routed back id restored
+    SA->>CC: response
+    note over HUB,UP: notifications broadcast cancelled rewritten telemetry jsonl
