@@ -92,6 +92,15 @@ public struct MCPHubConfiguration: Sendable, Equatable, Codable {
         (path as NSString).expandingTildeInPath
     }
 
+    /// True when the path exists on this host and is a directory (the
+    /// shape a pinned sandbox root must have).
+    private static func isDirectoryPath(_ path: String) -> Bool {
+        let expanded = (path as NSString).expandingTildeInPath
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: expanded, isDirectory: &isDirectory)
+            && isDirectory.boolValue
+    }
+
     // MARK: Validation (ADR invariants)
 
     public enum ConfigurationError: Error, Equatable, Sendable {
@@ -153,8 +162,19 @@ public struct MCPHubConfiguration: Sendable, Equatable, Codable {
             // allowed-directory argument would run UNSANDBOXED (its CLI
             // default is cwd-only, and the hub's cwd is not a sandbox).
             // Pinning at config time makes the sandbox auditable.
-            if requiresPinnedSandbox(server), server.arguments.isEmpty {
-                throw ConfigurationError.filesystemSandboxUnpinned(serverID: server.id)
+            // Codex P2: argument[0] is the LAUNCHER script — a config of
+            // just ["…/andromeda-mcpd-filesystem.js"] is nonempty but pins
+            // nothing. Require an absolute DIRECTORY path after it.
+            if requiresPinnedSandbox(server) {
+                // The launcher script may or may not be argument[0] — the
+                // pin is the first argument that is an ABSOLUTE DIRECTORY
+                // on this host (launcher scripts are .js files, never dirs).
+                let pinnedDirectory = server.arguments.first {
+                    $0.hasPrefix("/") && Self.isDirectoryPath($0)
+                }
+                guard let directory = pinnedDirectory else {
+                    throw ConfigurationError.filesystemSandboxUnpinned(serverID: server.id)
+                }
             }
         }
         return self

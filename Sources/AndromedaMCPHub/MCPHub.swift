@@ -175,7 +175,6 @@ public final class MCPHub: @unchecked Sendable {
             return
         }
 
-        let upstreamStdin = pipes.stdin
         // Codex P1: stream reads can split frames mid-line — each connection
         // owns an assembler that buffers incomplete tails until the next read.
         let assembler = LineAssembler()
@@ -246,7 +245,10 @@ public final class MCPHub: @unchecked Sendable {
                 }
                 var out = relayed.frame
                 out.append(0x0A)
-                try? upstreamStdin.write(contentsOf: out)
+                // Codex P1 (respawn staleness): write through the LIVE
+                // pipes, never a captured stdin — an upstream that died
+                // and respawned leaves old handles writing into the void.
+                server.supervisor.writeUpstream(out)
             }
         }
 
