@@ -262,6 +262,34 @@ struct JSONRPCRelayTests {
         #expect(JSONRPCRelay.dispositionForClientFrame(rootsRequest) == .forward)
     }
 
+    @Test("Unicode-escaped method names are caught — raw-byte filters can't be bypassed (Cursor HIGH re-review)")
+    func escapedMethodBypass() {
+        // RAW LITERALS: RFC-8259-equivalent escaped forms of the roots
+        // method. JSONEncoder normalizes escapes away, so these cannot be
+        // builder-built — the illegality IS the test. Node's JSON.parse
+        // collapses them upstream-side; the drop filter must decode too.
+        let escapedR = #"{"jsonrpc":"2.0","method":"notifications/\u0072oots/list_changed"}"#
+        #expect(
+            JSONRPCRelay.dispositionForClientFrame(Data(escapedR.utf8)) == .dropRootsNotification,
+            "\\u0072-escaped 'r' must still be dropped"
+        )
+
+        let escapedSlash = #"{"jsonrpc":"2.0","method":"notifications\u002froots\u002flist_changed"}"#
+        #expect(
+            JSONRPCRelay.dispositionForClientFrame(Data(escapedSlash.utf8)) == .dropRootsNotification,
+            "\\u002f-escaped '/' must still be dropped"
+        )
+
+        // Same class on the upstream side: escaped roots/* requests still
+        // recognized for hub answering.
+        let upstreamEscaped = #"{"jsonrpc":"2.0","id":1,"method":"roots\u002flist"}"#
+        #expect(JSONRPCRelay.isUpstreamRootsRequest(Data(upstreamEscaped.utf8)) == true)
+
+        // And a benign escaped method still forwards (no over-blocking).
+        let benignEscaped = #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#
+        #expect(JSONRPCRelay.dispositionForClientFrame(Data(benignEscaped.utf8)) == .forward)
+    }
+
     @Test("JSON-RPC batch arrays are rejected — they bypass depth-1 id namespacing")
     func batchArraysRejected() {
         // RAW LITERAL: a batch is a top-level array; no depth-1 id exists,
