@@ -3,6 +3,7 @@ import { Wordmark } from "./wordmark"
 import { ThemeToggle } from "./theme-toggle"
 
 const LINKS = [
+  { href: "/lessons", label: "Lessons" },
   { href: "#pillars", label: "Six pillars" },
   { href: "#curtain", label: "Curtain" },
   { href: "#status", label: "Status" },
