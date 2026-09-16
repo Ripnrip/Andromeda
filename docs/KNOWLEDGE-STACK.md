@@ -27,7 +27,7 @@ Canonical note format: [DATA-CONTRACTS.md](DATA-CONTRACTS.md) §6. Skills live u
 | Destination | Path / surface | Status | Action |
 |-------------|----------------|--------|--------|
 | **memory.md** | `~/.claude/projects/-Users-admin/memory/` | live | write fact file + `MEMORY.md` pointer |
-| **claude-mem** | `~/.claude-mem/` | live | verify observer capture; Kimi via `bin/kimi-to-claudemem.py` |
+| **claude-mem-for-all** | `~/.claude-mem/` | live | Public fork: [Ripnrip/claude-mem-for-all](https://github.com/Ripnrip/claude-mem-for-all). Verify observer capture; Kimi via `bin/kimi-to-claudemem.py` |
 | **graphify / MCP memory** | MCP `user-memory` | live | `create_entities` / `create_relations` (merge, don’t duplicate) |
 | **multibrain stage** | `~/Developer/multibrain/07-Sessions/` | live stage | checkpoint already here; nightly `ingest_staged.py` → SecondBrain |
 | **qdrant** | `127.0.0.1:6333` collection `secondbrain_learnings` | live | `bin/qdrant-upsert.py` / MCP record — **384-dim local embeddings** |

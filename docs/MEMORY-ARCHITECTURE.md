@@ -68,7 +68,7 @@ question. **One job per store** — never merge them.
 | Service | Style | Role today | Recall question it answers |
 |---------|-------|-----------|----------------------------|
 | **memory.md** | document / key-value | Fast-recall layer: one fact per markdown file, indexed by a single `MEMORY.md` pointer loaded into every session | "What do I already know about X, right now, in plain text?" |
-| **claude-mem** (Chroma + SQLite) | auto-ingested vector + relational | The capture river; an observer ingests the live session automatically — no manual write API | "What actually happened, in order, across sessions?" |
+| **claude-mem-for-all** (public fork of [thedotmack/claude-mem](https://github.com/thedotmack/claude-mem); Chroma + SQLite) | auto-ingested vector + relational | The capture river; an observer ingests the live session automatically — no manual write API. Public home: [Ripnrip/claude-mem-for-all](https://github.com/Ripnrip/claude-mem-for-all). Operator-internal brand; clients still only see `memory.*` | "What actually happened, in order, across sessions?" |
 | **graphify** (MCP `memory` server) | graph | Entities + relations between concepts | "What is *connected to* what?" |
 | **qdrant** (`:6333`, `secondbrain_learnings`) | vector (384-dim, local embeddings) | Semantic fact vectors written by `/knowledge-sync` | "Find the note about X *by meaning*, not keywords" |
 | **Obsidian SecondBrain** | document vault (PARA/Zettelkasten) | The human-readable substrate; ~132 curated notes; the nightly deposits here | "Let me read and browse my knowledge like a notebook" |

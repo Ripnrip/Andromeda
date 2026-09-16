@@ -100,7 +100,18 @@ export function GraphVector() {
             {STORES.map((s) => (
               <div key={s.name} className="rounded-xl border border-border/60 bg-background/40 p-3">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <code className="font-mono text-[12px] text-primary">{s.name}</code>
+                  {s.href ? (
+                    <a
+                      href={s.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-mono text-[12px] text-primary underline-offset-2 hover:underline"
+                    >
+                      {s.name}
+                    </a>
+                  ) : (
+                    <code className="font-mono text-[12px] text-primary">{s.name}</code>
+                  )}
                   <span className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">{s.style}</span>
                   {s.isHot && (
                     <span className="rounded bg-primary/10 px-1 py-0.5 font-mono text-[9px] uppercase tracking-wide text-primary">

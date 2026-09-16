@@ -34,7 +34,7 @@ or audited, it isn't durable — it's a cache pretending to be memory.
 | Changelog.md (journal of record — twinkie law) | release notes, summaries |
 | PR threads + review bodies | review decisions, approvals |
 | Telemetry journals (typed emoji events) | HUD walls, dashboards |
-| claude-mem observations / Ladybug index | graph views, recall surfaces |
+| [claude-mem-for-all](https://github.com/Ripnrip/claude-mem-for-all) observations / Ladybug index | graph views, recall surfaces |
 | Event-sourced Andromeda runtime state | Qdrant projections, HUD |
 | CI run logs + committed baselines (byte-diff proven) | PR green checkmarks |
 | Slack threads themselves | anything we quote from them |

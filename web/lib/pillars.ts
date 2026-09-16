@@ -56,7 +56,7 @@ export const PILLARS: Pillar[] = [
     status: "partial",
     tagline: "One host, not 50 subprocesses",
     description:
-      "A single supervised MCP host replacing per-terminal npm sprawl. Registry, health monitor, and subprocess containment bend the tool surface back into view.",
+      "Shared MCP hub Phase 0+1 MVP is merged (registry, health, containment). Live Studio host cutover is still pending — clients must not see provider brands.",
     capabilities: ["mcp.registry", "mcp.scan", "mcp.health"],
   },
   {
@@ -68,7 +68,7 @@ export const PILLARS: Pillar[] = [
     status: "spec",
     tagline: "A home for agent skills",
     description:
-      "One registry surface for skill discovery and invocation — no more tribal hunting through scattered skill directories across machines.",
+      "Canon lessons and the swift-review-gate skill pack are public on /lessons. The SkillRegistry product surface (skill.list / skill.invoke) is still specified, not built.",
     capabilities: ["skill.list", "skill.invoke"],
   },
   {
