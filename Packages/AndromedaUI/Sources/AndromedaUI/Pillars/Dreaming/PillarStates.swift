@@ -5,7 +5,16 @@ import SwiftUI
 public enum MemoryState: String, PillarState {
     case forming, consolidating, recalled, decaying, conflicted
 
-    public var label: String { "memory." + rawValue }
+    /// Client-facing label — exhaustive so renaming a case cannot silently drift the contract.
+    public var label: String {
+        switch self {
+        case .forming:       "memory.forming"
+        case .consolidating: "memory.consolidating"
+        case .recalled:      "memory.recalled"
+        case .decaying:      "memory.decaying"
+        case .conflicted:    "memory.conflicted"
+        }
+    }
 
     public var accent: Color {
         switch self {
@@ -412,7 +421,15 @@ public enum FabricState: String, PillarState {
     case web, graph, vector, procedural
 
     /// The label clients see — namespaced, never a bare store category.
-    public var label: String { "memory." + (self == .procedural ? "steps" : rawValue) }
+    /// Exhaustive switch keeps capability IDs compiler-checked (not rawValue concat).
+    public var label: String {
+        switch self {
+        case .web:        "memory.web"
+        case .graph:      "memory.graph"
+        case .vector:     "memory.vector"
+        case .procedural: "memory.steps"
+        }
+    }
 
     public var accent: Color {
         switch self {
@@ -422,8 +439,8 @@ public enum FabricState: String, PillarState {
     }
     public var badge: String {
         switch self {
-        case .web: "memory.web · fresh facts"; case .graph: "memory.graph · temporal"
-        case .vector: "memory.vector · neighbours"; case .procedural: "memory.steps · 3/6"
+        case .web: "\(label) · fresh facts"; case .graph: "\(label) · temporal"
+        case .vector: "\(label) · neighbours"; case .procedural: "\(label) · 3/6"
         }
     }
     public var log: String {
@@ -503,5 +520,10 @@ public enum FleetState: String, PillarState {
     ]
     /// Capability IDs under the memory.* namespace, not engine brands
     /// (curtain law) — FleetScene shows these directly as node labels.
-    public static let backends = ["memory.vector", "memory.graph", "memory.episodic", "memory.web"]
+    public static let backends = [
+        FabricState.vector.label,
+        FabricState.graph.label,
+        "memory.episodic",
+        FabricState.web.label,
+    ]
 }
