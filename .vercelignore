@@ -1,0 +1,11 @@
+# .vercelignore — keep the CLI upload under the 10MB body limit.
+# The Swift repo root carries 2.5GB of .build artifacts and packages the web
+# app never needs; vercel's uploader ignores .gitignore for manual deploys.
+.build
+node_modules
+web/node_modules
+web/.next
+Packages/*/Tests/__Snapshots__
+docs/lessons-site
+*.png
+!web/public/**/*.png
