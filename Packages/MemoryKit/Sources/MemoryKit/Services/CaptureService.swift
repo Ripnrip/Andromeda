@@ -58,7 +58,7 @@ public actor CaptureService {
     /// Format: `sha256:<hex>` — the join key across hot store, vault, and indexes.
     public nonisolated static func contentHash(for narrative: String) -> String {
         let digest = SHA256.hash(data: Data(narrative.utf8))
-        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        let hex = digest.hexLowercase
         return "sha256:\(hex)"
     }
 

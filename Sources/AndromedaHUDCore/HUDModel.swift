@@ -25,6 +25,16 @@ public enum HUDCapabilityID: String, Sendable {
     case sessionDump = "memory.session_dump"
     case inferWrite = "infer.write"
     case project = "project.state"
+
+    /// Exact match or `rawValue` followed by a space (command-line verb form).
+    func matchesExactOrSpaced(_ lower: String) -> Bool {
+        lower == rawValue || lower.hasPrefix(rawValue + " ")
+    }
+
+    /// Argument text after this capability verb on a trimmed command line.
+    func argument(from trimmed: String) -> String {
+        String(trimmed.dropFirst(rawValue.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 /// 🌟 Parsed HUD submit verbs (retain/recall/forget/health + legacy shims).
@@ -51,50 +61,52 @@ public enum HUDCommand: Equatable, Sendable {
         let lower = trimmed.lowercased()
 
         // Canonical Andromida verbs (BIN-247) — prefer before dotted shims.
-        if lower.hasPrefix("memory_retain ") || lower == "memory_retain"
+        if HUDCapabilityID.memoryRetain.matchesExactOrSpaced(lower)
             || lower.hasPrefix("retain ") || lower == "retain"
         {
-            let prefix: String
-            if lower.hasPrefix("memory_retain") {
-                prefix = "memory_retain"
-            } else {
-                prefix = "retain"
-            }
+            let prefix = lower.hasPrefix(HUDCapabilityID.memoryRetain.rawValue)
+                ? HUDCapabilityID.memoryRetain.rawValue
+                : "retain"
             let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
             return .retain(narrative: rest)
         }
-        if lower.hasPrefix("memory_forget ") || lower == "memory_forget"
+        if HUDCapabilityID.memoryForget.matchesExactOrSpaced(lower)
             || lower.hasPrefix("forget ") || lower == "forget"
         {
-            let prefix = lower.hasPrefix("memory_forget") ? "memory_forget" : "forget"
+            let prefix = lower.hasPrefix(HUDCapabilityID.memoryForget.rawValue)
+                ? HUDCapabilityID.memoryForget.rawValue
+                : "forget"
             let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
             return .forget(target: rest)
         }
-        if lower == "memory_health" || lower == "health" {
+        if lower == HUDCapabilityID.memoryHealth.rawValue || lower == "health" {
             return .health
         }
-        if lower.hasPrefix("memory_recall ") || lower == "memory_recall" {
-            let rest = String(trimmed.dropFirst("memory_recall".count)).trimmingCharacters(in: .whitespacesAndNewlines)
-            return .recall(query: rest)
+        if HUDCapabilityID.memoryRecall.matchesExactOrSpaced(lower) {
+            return .recall(query: HUDCapabilityID.memoryRecall.argument(from: trimmed))
         }
 
         if lower.hasPrefix("store ") || lower == "store" {
             let rest = String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
             return .store(narrative: rest)
         }
-        if lower.hasPrefix("memory.journal ") || lower == "memory.journal"
-            || lower.hasPrefix("journal ") || lower == "journal" {
-            let prefix = lower.hasPrefix("memory.journal") ? "memory.journal" : "journal"
+        if HUDCapabilityID.journal.matchesExactOrSpaced(lower)
+            || lower.hasPrefix("journal ") || lower == "journal"
+        {
+            let prefix = lower.hasPrefix(HUDCapabilityID.journal.rawValue)
+                ? HUDCapabilityID.journal.rawValue
+                : "journal"
             let rest = String(trimmed.dropFirst(prefix.count))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             return .journal(body: rest)
         }
-        if lower.hasPrefix("memory.session_dump ") || lower == "memory.session_dump"
+        if HUDCapabilityID.sessionDump.matchesExactOrSpaced(lower)
             || lower.hasPrefix("session dump ") || lower == "session dump"
-            || lower.hasPrefix("sessiondump ") || lower == "sessiondump" {
+            || lower.hasPrefix("sessiondump ") || lower == "sessiondump"
+        {
             let prefix: String
-            if lower.hasPrefix("memory.session_dump") {
-                prefix = "memory.session_dump"
+            if lower.hasPrefix(HUDCapabilityID.sessionDump.rawValue) {
+                prefix = HUDCapabilityID.sessionDump.rawValue
             } else if lower.hasPrefix("session dump") {
                 prefix = "session dump"
             } else {
@@ -105,10 +117,8 @@ public enum HUDCommand: Equatable, Sendable {
             return .sessionDump(body: rest)
         }
         // Prefer `infer.write` over bare `infer` so the capability ID wins.
-        if lower.hasPrefix("infer.write") {
-            let rest = String(trimmed.dropFirst("infer.write".count))
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return .inferWrite(thought: rest)
+        if lower.hasPrefix(HUDCapabilityID.inferWrite.rawValue) {
+            return .inferWrite(thought: HUDCapabilityID.inferWrite.argument(from: trimmed))
         }
         if lower.hasPrefix("infer ") || lower == "infer" {
             let rest = String(trimmed.dropFirst("infer".count))
@@ -117,15 +127,17 @@ public enum HUDCommand: Equatable, Sendable {
         }
 
         // project.state create <title>  |  project create <title>
-        if lower.hasPrefix("project.state create") || lower.hasPrefix("project create") {
-            let prefix = lower.hasPrefix("project.state create") ? "project.state create" : "project create"
+        let projectCreate = HUDCapabilityID.project.rawValue + " create"
+        if lower.hasPrefix(projectCreate) || lower.hasPrefix("project create") {
+            let prefix = lower.hasPrefix(projectCreate) ? projectCreate : "project create"
             let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
             return .projectCreate(title: rest)
         }
 
         // project.state update <id> <title>  |  project update <id> <title>
-        if lower.hasPrefix("project.state update") || lower.hasPrefix("project update") {
-            let prefix = lower.hasPrefix("project.state update") ? "project.state update" : "project update"
+        let projectUpdate = HUDCapabilityID.project.rawValue + " update"
+        if lower.hasPrefix(projectUpdate) || lower.hasPrefix("project update") {
+            let prefix = lower.hasPrefix(projectUpdate) ? projectUpdate : "project update"
             let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
             let parts = rest.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
             let id = parts.first.map(String.init) ?? ""
@@ -133,8 +145,10 @@ public enum HUDCommand: Equatable, Sendable {
             return .projectUpdate(id: id, title: title)
         }
 
-        if lower.hasPrefix("project.state") || lower.hasPrefix("project ") || lower == "project" {
-            let prefixLen = lower.hasPrefix("project.state") ? "project.state".count : "project".count
+        if lower.hasPrefix(HUDCapabilityID.project.rawValue) || lower.hasPrefix("project ") || lower == "project" {
+            let prefixLen = lower.hasPrefix(HUDCapabilityID.project.rawValue)
+                ? HUDCapabilityID.project.rawValue.count
+                : "project".count
             let rest = String(trimmed.dropFirst(prefixLen)).trimmingCharacters(in: .whitespacesAndNewlines)
             let restLower = rest.lowercased()
             // Bare verbs with no args still route to mutate (empty → hint).
@@ -446,25 +460,32 @@ public final class HUDModel {
                 narrative: narrative,
                 capture: capture,
                 provenance: HUDCapabilityID.memoryRetain.rawValue,
-                tags: ["memory_retain"],
-                emptyHint: "memory_retain",
+                tags: [HUDCapabilityID.memoryRetain.rawValue],
+                emptyHint: HUDCapabilityID.memoryRetain.rawValue,
                 isJournal: false,
                 token: token
             )
         case .forget(let target):
             let trimmed = target.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else {
-                applyOutcome(.empty(message: "Usage: memory_forget <memory-id>"), token: token)
+                applyOutcome(
+                    .empty(message: "Usage: \(HUDCapabilityID.memoryForget.rawValue) <memory-id>"),
+                    token: token
+                )
                 return
             }
             // Tombstone path lands fully when HUD is wired to MemoryComplexityCurtain.
             applyOutcome(
-                .empty(message: "memory_forget accepted for \(trimmed) — curtain tombstone path 🚧"),
+                .empty(
+                    message: "\(HUDCapabilityID.memoryForget.rawValue) accepted for \(trimmed) — curtain tombstone path 🚧"
+                ),
                 token: token
             )
         case .health:
             applyOutcome(
-                .empty(message: "memory_health — use Andromida Companion for outbox/drift detail"),
+                .empty(
+                    message: "\(HUDCapabilityID.memoryHealth.rawValue) — use Andromida Companion for outbox/drift detail"
+                ),
                 token: token
             )
         case .journal(let body):
@@ -505,7 +526,7 @@ public final class HUDModel {
                 capture: capture,
                 provenance: HUDCapabilityID.inferWrite.rawValue,
                 tags: ["infer-write"],
-                emptyHint: "infer.write",
+                emptyHint: HUDCapabilityID.inferWrite.rawValue,
                 isJournal: false,
                 token: token
             )

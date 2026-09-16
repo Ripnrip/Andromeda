@@ -68,7 +68,7 @@ public struct SignalBars: View {
 public struct TypingCaret: View {
     public var text: String
     @State private var visible = true
-    public init(_ text: String = "infer.write") { self.text = text }
+    public init(_ text: String = ClientCapabilityID.inferWrite.rawValue) { self.text = text }
     public var body: some View {
         HStack(spacing: 2) {
             Text(text)

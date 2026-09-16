@@ -390,7 +390,7 @@ public actor OperatorProjectStateBridge: ProjectStateSurface {
     private static func opaqueItemID(salt: String, trackerID: String) -> ProjectStateItemID {
         let material = Data("\(salt):\(trackerID)".utf8)
         let digest = SHA256.hash(data: material)
-        let hex = digest.prefix(8).map { String(format: "%02x", $0) }.joined()
+        let hex = digest.prefix(8).hexLowercase
         return ProjectStateItemID(rawValue: "ps-\(hex)")
     }
 

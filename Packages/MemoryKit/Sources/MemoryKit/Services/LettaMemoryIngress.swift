@@ -261,7 +261,7 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
 
     static func contentHash(of text: String) -> String {
         let digest = SHA256.hash(data: Data(text.utf8))
-        return "sha256:" + digest.map { String(format: "%02x", $0) }.joined()
+        return "sha256:" + digest.hexLowercase
     }
 
     // MARK: - Input hardening (Cursor security review 2026-09-05: HIGH + MEDIUM)

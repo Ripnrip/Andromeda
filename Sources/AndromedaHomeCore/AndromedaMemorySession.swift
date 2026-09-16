@@ -37,6 +37,16 @@ public enum AndromedaMemoryCapability: String, Sendable, CaseIterable {
         case .journal, .sessionDump: return "journal"
         }
     }
+
+    /// Exact match or `rawValue` followed by a space (command-line verb form).
+    func matchesExactOrSpaced(_ lower: String) -> Bool {
+        lower == rawValue || lower.hasPrefix(rawValue + " ")
+    }
+
+    /// Argument text after this capability verb on a trimmed command line.
+    func argument(from trimmed: String) -> String {
+        String(trimmed.dropFirst(rawValue.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 /// 🌟 Parsed home console command.
@@ -53,26 +63,29 @@ public enum AndromedaMemoryCommand: Equatable, Sendable {
         guard !trimmed.isEmpty else { return nil }
         let lower = trimmed.lowercased()
 
-        if lower.hasPrefix("memory_retain ") || lower == "memory_retain"
+        if AndromedaMemoryCapability.memoryRetain.matchesExactOrSpaced(lower)
             || lower.hasPrefix("retain ") || lower == "retain"
         {
-            let prefix = lower.hasPrefix("memory_retain") ? "memory_retain" : "retain"
+            let prefix = lower.hasPrefix(AndromedaMemoryCapability.memoryRetain.rawValue)
+                ? AndromedaMemoryCapability.memoryRetain.rawValue
+                : "retain"
             let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
             return .retain(narrative: rest)
         }
-        if lower.hasPrefix("memory_forget ") || lower == "memory_forget"
+        if AndromedaMemoryCapability.memoryForget.matchesExactOrSpaced(lower)
             || lower.hasPrefix("forget ") || lower == "forget"
         {
-            let prefix = lower.hasPrefix("memory_forget") ? "memory_forget" : "forget"
+            let prefix = lower.hasPrefix(AndromedaMemoryCapability.memoryForget.rawValue)
+                ? AndromedaMemoryCapability.memoryForget.rawValue
+                : "forget"
             let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
             return .forget(target: rest)
         }
-        if lower == "memory_health" || lower == "health" {
+        if lower == AndromedaMemoryCapability.memoryHealth.rawValue || lower == "health" {
             return .health
         }
-        if lower.hasPrefix("memory_recall ") || lower == "memory_recall" {
-            let rest = String(trimmed.dropFirst("memory_recall".count)).trimmingCharacters(in: .whitespacesAndNewlines)
-            return .recall(query: rest)
+        if AndromedaMemoryCapability.memoryRecall.matchesExactOrSpaced(lower) {
+            return .recall(query: AndromedaMemoryCapability.memoryRecall.argument(from: trimmed))
         }
         if lower.hasPrefix("recall ") || lower == "recall" {
             return .recall(query: String(trimmed.dropFirst(6)).trimmingCharacters(in: .whitespacesAndNewlines))
