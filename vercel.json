@@ -1,5 +1,6 @@
 {
-  "github": {
-    "enabled": false
-  }
+  "git": {
+    "deploymentEnabled": true
+  },
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- ./web ./package.json ./package-lock.json ./vercel.json"
 }

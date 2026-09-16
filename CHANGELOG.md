@@ -2,6 +2,16 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-09-16 — Website honest-status refresh + public claude-mem-for-all
+
+**Tone hat:** Archivist with a lantern 🏮
+**Commit message of the day:** `docs(web): refresh honest status, publish lessons deploy path, reference claude-mem-for-all`
+
+### Changed
+- Honest status board refreshed for post-merge reality (#73/#75/#76/#77/#80): Letta ingress Phase 1, MCP hub MVP, control plane, `/lessons` pack — without claiming Phase 2 or hub cutover.
+- Backing-store copy now points at public [Ripnrip/claude-mem-for-all](https://github.com/Ripnrip/claude-mem-for-all) (clients still only see `memory.*`).
+- `vercel.json`: re-enable GitHub deploys with a web-only `ignoreCommand` so Swift-only PRs skip the site build (replaces the blanket `github.enabled: false` that left `/lessons` stale after #76).
+
 ## 2026-08-26 — Plans vault: memory bridge + herd-gather roadmaps (HAB-365 / HAB-362)
 
 **Tone hat:** Archivist with a lantern 🏮

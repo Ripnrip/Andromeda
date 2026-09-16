@@ -30,6 +30,7 @@ export type Store = {
   isHot?: boolean   // live on-device today
   isSoT?: boolean  // source of truth
   isIndex?: boolean // rebuildable; never SoT
+  href?: string     // optional public reference (never a client capability)
 }
 
 export const STORES: Store[] = [
@@ -57,9 +58,11 @@ export const STORES: Store[] = [
     answers: "Fast-recall fact files + pointer index for session context. Sometimes plain text in the prompt beats a vector hunt.",
   },
   {
-    name: "claude-mem",
+    name: "claude-mem-for-all",
     style: "capture river",
-    answers: "Auto-ingest of what happened, in order. Feeds Observe \u2014 not a client pick, not a second SoT.",
+    answers:
+      "Public fork of claude-mem (thedotmack). Auto-ingest of what happened, in order. Feeds Observe \u2014 not a client pick, not a second SoT.",
+    href: "https://github.com/Ripnrip/claude-mem-for-all",
   },
   {
     name: "qdrant",
@@ -171,6 +174,7 @@ export const SEQUENCES: SeqDiagram[] = [
 ]
 
 // §10 \u2014 honest status. No greenwashing.
+// Refresh date lives in HonestStatus eyebrow; keep claims code-backed only.
 export const STATUS_BOARD: { status: Status; heading: string; items: string[] }[] = [
   {
     status: "shipped",
@@ -179,6 +183,10 @@ export const STATUS_BOARD: { status: Status; heading: string; items: string[] }[
       "memory.recall / memory.store \u2014 SwiftData hot store + vault fallback",
       "memory.journal / session_dump",
       "project.state.* CRUD",
+      "Letta memory ingress Phase 1 \u2014 git-backed MemFS writer (MemoryKit)",
+      "Loopback control plane \u2014 /control/* routes + typed dispatcher",
+      "Shared MCP hub Phase 0 + Phase 1 MVP (code merged)",
+      "/lessons canon site + swift-review-gate skill pack",
       "/checkpoint \u2192 /knowledge-sync \u2192 /close ritual",
       "The multibrain nightly conductor",
       "Autocache Anthropic LLM-proxy surface",
@@ -189,9 +197,11 @@ export const STATUS_BOARD: { status: Status; heading: string; items: string[] }[
     status: "partial",
     heading: "Partial",
     items: [
-      "MCP sprawl bent 55 \u2192 37 (shared dedupe host not shipped)",
-      "HUD journal + visibility on a promotion branch",
+      "Memory Phase 2 \u2014 operationalize Letta ingress (Studio-Agent model endpoint, daemon home, telemetry/HUD)",
+      "MCP hub live cutover on Studio (code ready; hosts not fully cut over)",
+      "HUD journal + visibility still promotion-branch incomplete",
       "Letta / Ladybug / Qdrant live on the Studio hub only",
+      "Issue #57 polish leftovers (HTTP/MIME + SF Symbol constants)",
     ],
   },
   {
@@ -199,8 +209,7 @@ export const STATUS_BOARD: { status: Status; heading: string; items: string[] }[
     heading: "Specified, not built",
     items: [
       "Secrets broker runtime (slack_proxy / github_proxy)",
-      "MCP consolidate \u2014 one shared host",
-      "SkillRegistry product surface",
+      "SkillRegistry product surface (lessons are public; registry API is not)",
       "Full multi-provider LLM router",
       "Fleet plist single-source-of-truth + typed mutate",
       "CloudKit end-to-end replication",
