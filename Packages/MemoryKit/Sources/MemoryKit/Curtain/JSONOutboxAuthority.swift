@@ -120,7 +120,7 @@ public actor JSONOutboxAuthority {
     /// SHA-256 content hash used as the cross-projection join key.
     public nonisolated static func contentHash(for narrative: String) -> String {
         let digest = SHA256.hash(data: Data(narrative.utf8))
-        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        let hex = digest.hexLowercase
         return "sha256:\(hex)"
     }
 
@@ -168,7 +168,7 @@ public actor JSONOutboxAuthority {
             narrative: narrative,
             project: project,
             agent: agent,
-            provenance: "memory_forget",
+            provenance: MemoryVerb.forget.rawValue,
             visibility: "internal",
             tags: ["tombstone"],
             writeKind: .forgetTombstone,

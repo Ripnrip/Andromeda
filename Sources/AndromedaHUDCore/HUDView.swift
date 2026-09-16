@@ -844,7 +844,7 @@ public extension Notification.Name {
     ]
     let model = HUDModel()
     model.lastOutcome = .projects(states: states)
-    return HUDView(isExpanded: true, searchQuery: "project.state", model: model)
+    return HUDView(isExpanded: true, searchQuery: HUDCapabilityID.project.rawValue, model: model)
         .padding()
         .background(Color.gray)
 }
@@ -921,7 +921,7 @@ public extension Notification.Name {
 #Preview("HUD Recent queries") {
     let model = HUDModel()
     model.recordRecentQuery("recall fleet observe")
-    model.recordRecentQuery("project.state")
+    model.recordRecentQuery(HUDCapabilityID.project.rawValue)
     model.recordRecentQuery("infer.write dogfood note")
     return HUDView(isExpanded: true, searchQuery: "", model: model)
         .padding()
@@ -974,7 +974,7 @@ public extension Notification.Name {
 
 #Preview("RecentQueriesView") {
     HUDRecentQueriesView(
-        queries: ["project.state", "recall fleet observe", "store hello"],
+        queries: [HUDCapabilityID.project.rawValue, "recall fleet observe", "store hello"],
         selectedIndex: 1,
         onSelect: { _ in }
     )

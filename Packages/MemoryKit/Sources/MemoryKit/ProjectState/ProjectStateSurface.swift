@@ -9,6 +9,15 @@
 
 import Foundation
 
+/// Stable `project.state.*` capability IDs — clients see these, never tracker brands.
+public enum ProjectStateCapabilityID: String, Sendable, CaseIterable {
+    case root = "project.state"
+    case list = "project.state.list"
+    case get = "project.state.get"
+    case create = "project.state.create"
+    case update = "project.state.update"
+}
+
 /**
  * 🌟 ProjectStateSurface — Andromeda client-facing `project.state` CRUD.
  *

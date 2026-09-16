@@ -146,7 +146,7 @@ public struct MemoryRecallControl: View {
                     .shadow(color: .andromedaTeal.opacity(pulse ? 0.8 : 0.3), radius: pulse ? 7 : 3)
             }
             .frame(width: 26, height: 26)
-            Text("memory.recall")
+            Text(ClientCapabilityID.memoryRecall.rawValue)
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .foregroundStyle(Color.andromedaTeal)
             Spacer()

@@ -26,6 +26,58 @@ public enum MemoryVerb: String, Sendable, Codable, CaseIterable, Equatable {
     }
 }
 
+/// Dotted / short compatibility shims that resolve onto `MemoryVerb`.
+///
+/// Underscored forms are canonical (`MemoryVerb`); dotted / short forms live
+/// here so both naming schemes stay greppable and call sites never re-type
+/// the literals (issue #57 / swift-canon enum-design).
+public enum MemoryCompatibilityAlias: String, Sendable, CaseIterable, Equatable {
+    case memoryRecallDotted = "memory.recall"
+    case recallShort = "recall"
+    case memoryStoreDotted = "memory.store"
+    case memoryStoreUnderscore = "memory_store"
+    case storeShort = "store"
+    case retainShort = "retain"
+    case memoryForgetDotted = "memory.forget"
+    case forgetShort = "forget"
+    case memoryHealthDotted = "memory.health"
+    case healthShort = "health"
+    case memoryJournalDotted = "memory.journal"
+    case journalShort = "journal"
+    case memorySessionDumpDotted = "memory.session_dump"
+    case sessionDumpUnderscore = "session_dump"
+    case sessionDumpSpaced = "session dump"
+    case inferWrite = "infer.write"
+    case inferShort = "infer"
+
+    /// Verb this alias routes to behind the curtain.
+    public var verb: MemoryVerb {
+        switch self {
+        case .memoryRecallDotted, .recallShort:
+            return .recall
+        case .memoryStoreDotted, .memoryStoreUnderscore, .storeShort, .retainShort,
+            .memoryJournalDotted, .journalShort, .memorySessionDumpDotted,
+            .sessionDumpUnderscore, .sessionDumpSpaced, .inferWrite, .inferShort:
+            return .retain
+        case .memoryForgetDotted, .forgetShort:
+            return .forget
+        case .memoryHealthDotted, .healthShort:
+            return .health
+        }
+    }
+
+    /// Whether this alias stays on the agent hot path.
+    public var isHotPath: Bool {
+        switch self {
+        case .memoryJournalDotted, .journalShort, .memorySessionDumpDotted,
+            .sessionDumpUnderscore, .sessionDumpSpaced:
+            return false
+        default:
+            return true
+        }
+    }
+}
+
 /// How a parsed capability maps onto the locked verb surface.
 public enum MemoryVerbResolution: Sendable, Equatable {
     /// Canonical verb used on the agent hot path.
@@ -39,35 +91,18 @@ public enum MemoryVerbSurface: Sendable {
     /// Canonical capability IDs agents should prefer.
     public static let canonicalIDs: [String] = MemoryVerb.allCases.map(\.rawValue)
 
-    /// Legacy / convenience aliases accepted as shims.
-    public static let compatibilityAliases: [String: MemoryVerb] = [
-        "memory.recall": .recall,
-        "recall": .recall,
-        "memory.store": .retain,
-        "memory_store": .retain,
-        "store": .retain,
-        "retain": .retain,
-        "memory.forget": .forget,
-        "forget": .forget,
-        "memory.health": .health,
-        "health": .health,
-        // Off hot-path convenience aliases → retain with WriteKind elsewhere.
-        "memory.journal": .retain,
-        "journal": .retain,
-        "memory.session_dump": .retain,
-        "session_dump": .retain,
-        "session dump": .retain,
-        "infer.write": .retain,
-        "infer": .retain,
-    ]
+    /// Legacy / convenience aliases accepted as shims — derived from the enum.
+    public static let compatibilityAliases: [String: MemoryVerb] = {
+        Dictionary(uniqueKeysWithValues: MemoryCompatibilityAlias.allCases.map { ($0.rawValue, $0.verb) })
+    }()
 
     /// Aliases that must not be treated as the agent hot path (session dumps / journals).
     public static let offHotPathAliases: Set<String> = [
-        "memory.journal",
-        "journal",
-        "memory.session_dump",
-        "session_dump",
-        "session dump",
+        MemoryCompatibilityAlias.memoryJournalDotted.rawValue,
+        MemoryCompatibilityAlias.journalShort.rawValue,
+        MemoryCompatibilityAlias.memorySessionDumpDotted.rawValue,
+        MemoryCompatibilityAlias.sessionDumpUnderscore.rawValue,
+        MemoryCompatibilityAlias.sessionDumpSpaced.rawValue,
     ]
 
     /// Resolve a raw capability or short verb string.
@@ -110,7 +145,9 @@ public enum CurtainWriteKindResolver: Sendable {
             if alias.contains("session") { return .sessionDump }
             return .journal
         }
-        if alias == "infer.write" || alias == "infer" {
+        if alias == MemoryCompatibilityAlias.inferWrite.rawValue
+            || alias == MemoryCompatibilityAlias.inferShort.rawValue
+        {
             return .inferAliasDeprecated
         }
         return .episodic

@@ -141,7 +141,7 @@ public struct AndromidaCompanionView: View {
             TextField("Durable narrative…", text: $model.retainNarrative, axis: .vertical)
                 .lineLimit(3...6)
                 .textFieldStyle(.roundedBorder)
-            Button("memory_retain") {
+            Button(MemoryVerb.retain.rawValue) {
                 Task { await model.retain() }
             }
             .buttonStyle(.borderedProminent)
@@ -154,7 +154,7 @@ public struct AndromidaCompanionView: View {
                 .font(.headline)
             TextField("Query…", text: $model.recallQuery)
                 .textFieldStyle(.roundedBorder)
-            Button("memory_recall") {
+            Button(MemoryVerb.recall.rawValue) {
                 Task { await model.recall() }
             }
             .buttonStyle(.bordered)
@@ -184,7 +184,7 @@ public struct AndromidaCompanionView: View {
 
     private var actions: some View {
         HStack {
-            Button("memory_health") {
+            Button(MemoryVerb.health.rawValue) {
                 Task { await model.refresh() }
             }
             Button("Rebuild projection") {
