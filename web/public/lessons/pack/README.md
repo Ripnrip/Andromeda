@@ -27,7 +27,8 @@ https://github.com/Ripnrip/Andromeda/tree/main/.claude/skills/swift-canon
 | Artifact | Status |
 |----------|--------|
 | Swift canon + anti-patterns | In Andromeda main |
-| Review gate skill | PR #76 |
+| Review gate skill | In Andromeda main (merged via PR #76) |
+| claude-mem-for-all | Shipped — public repo: https://github.com/Ripnrip/claude-mem-for-all |
 | PR template merge-blocker boxes | Intended latest (this pack); sequence-diagram law already on main |
 | App Control | Specified — not implemented |
 
