@@ -3,11 +3,12 @@ import { Wordmark } from "./wordmark"
 import { ThemeToggle } from "./theme-toggle"
 
 const LINKS = [
-  { href: "#pillars", label: "Six pillars" },
-  { href: "#curtain", label: "Curtain" },
-  { href: "#status", label: "Status" },
-  { href: "#story", label: "Our story" },
-  { href: "#roadmap", label: "Roadmap" },
+  { href: "/lessons", label: "Lessons" },
+  { href: "/#pillars", label: "Six pillars" },
+  { href: "/#curtain", label: "Curtain" },
+  { href: "/#status", label: "Status" },
+  { href: "/#story", label: "Our story" },
+  { href: "/#roadmap", label: "Roadmap" },
 ]
 
 export function SiteNav() {
@@ -34,7 +35,7 @@ export function SiteNav() {
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <Link
-            href="#waitlist"
+            href="/#waitlist"
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform hover:scale-[1.02]"
           >
             Request access
