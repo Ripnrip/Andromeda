@@ -15,13 +15,16 @@ export function SiteFooter() {
           </div>
         </div>
         <div className="flex items-center gap-5 text-sm text-muted-foreground">
-          <Link href="#pillars" className="transition-colors hover:text-foreground">
+          <Link href="/lessons" className="transition-colors hover:text-foreground">
+            Lessons
+          </Link>
+          <Link href="/#pillars" className="transition-colors hover:text-foreground">
             Six pillars
           </Link>
-          <Link href="#curtain" className="transition-colors hover:text-foreground">
+          <Link href="/#curtain" className="transition-colors hover:text-foreground">
             Capability curtain
           </Link>
-          <Link href="#waitlist" className="transition-colors hover:text-foreground">
+          <Link href="/#waitlist" className="transition-colors hover:text-foreground">
             Request access
           </Link>
         </div>
