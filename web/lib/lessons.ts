@@ -1,6 +1,6 @@
 import type { Status } from "./pillars"
 
-export type LessonKind = "canon" | "gate" | "template" | "ui" | "diagram"
+export type LessonKind = "canon" | "gate" | "template" | "ui" | "diagram" | "case-study"
 
 export type LessonDownload = {
   label: string
@@ -25,6 +25,7 @@ export const KIND_LABEL: Record<LessonKind, string> = {
   template: "Template",
   ui: "UI",
   diagram: "Diagram",
+  "case-study": "Case study",
 }
 
 export const LESSONS: Lesson[] = [
@@ -35,8 +36,8 @@ export const LESSONS: Lesson[] = [
     summary:
       "The fleet questionnaire. Six questions are merge blockers. The rest need an explicit answer or N/A. Use it while you work, then again on the PR.",
     kind: "gate",
-    status: "partial",
-    github: "https://github.com/Ripnrip/Andromeda/pull/76",
+    status: "shipped",
+    github: "https://github.com/Ripnrip/Andromeda/tree/main/.claude/skills/swift-review-gate",
     downloads: [
       { label: "SKILL.md", href: "/api/lessons/download?artifact=swift-review-gate", filename: "swift-review-gate.tar" },
     ],
@@ -110,6 +111,22 @@ export const LESSONS: Lesson[] = [
     status: "spec",
     downloads: [
       { label: "app-control.md", href: "/lessons/pack/app-control.md", filename: "app-control.md" },
+    ],
+  },
+  {
+    slug: "claude-mem-for-all",
+    title: "claude-mem-for-all",
+    eyebrow: "Cross-agent memory",
+    summary:
+      "Persistent context for every coding agent — Claude Code, Codex, Cursor, Gemini, OpenClaw, Copilot — from one hook core. Swift Darwin dispatch moat, plugin discovery with SemVer, project-identity resolution. 533/533 tests, proven non-virgin recall (1,540 observations). The repo is the pack.",
+    kind: "case-study",
+    status: "shipped",
+    github: "https://github.com/Ripnrip/claude-mem-for-all",
+    downloads: [
+      {
+        label: "github.com/Ripnrip/claude-mem-for-all",
+        href: "https://github.com/Ripnrip/claude-mem-for-all",
+      },
     ],
   },
   {
