@@ -31,10 +31,10 @@ final class Gate0CompileSmokeTests: XCTestCase {
     }
 
     func testInferWriteIsNotAdvertisedAsLLMProxy() {
-        let infer = BarPillar.all.first { $0.id == "infer.write" }
-        XCTAssertEqual(infer?.name, "infer.write")
+        let infer = BarPillar.all.first { $0.id == ClientCapabilityID.inferWrite.rawValue }
+        XCTAssertEqual(infer?.name, ClientCapabilityID.inferWrite.rawValue)
         XCTAssertEqual(infer?.health, .spec)
-        XCTAssertEqual(Pillar.models.title, "infer.write")
+        XCTAssertEqual(Pillar.models.title, ClientCapabilityID.inferWrite.rawValue)
         XCTAssertEqual(Pillar.models.status, .specified)
         // Honesty language may mention generation; never advertise as an LLM proxy product.
         let blurb = Pillar.models.blurb.lowercased()
@@ -50,7 +50,10 @@ final class Gate0CompileSmokeTests: XCTestCase {
             for brand in banned {
                 XCTAssertFalse(lower.contains(brand), "client catalog leaked provider brand \(brand) in \(name)")
             }
-            XCTAssertTrue(name.hasPrefix("infer.write"), "expected capability alias, got \(name)")
+            XCTAssertTrue(
+                name.hasPrefix(ClientCapabilityID.inferWrite.rawValue),
+                "expected capability alias, got \(name)"
+            )
         }
     }
 

@@ -90,12 +90,12 @@ public final class AndromedaBarDelegate: NSObject, NSApplicationDelegate {
 /// controls, and a live fleet pulse, in the Andromeda glass idiom.
 public struct AndromedaBarContent: View {
     private let caps: [(String, String)] = [
-        ("memory.recall", "brain.head.profile"),
-        ("mcp.host", "point.3.connected.trianglepath.dotted"),
-        ("skills.invoke", "sparkles"),
-        ("infer.write", "square.and.pencil"),
-        ("secrets.broker", "lock.shield"),
-        ("fleet.pulse", "waveform.path.ecg"),
+        (ClientCapabilityID.memoryRecall.rawValue, "brain.head.profile"),
+        (ClientCapabilityID.mcpHost.rawValue, "point.3.connected.trianglepath.dotted"),
+        (ClientCapabilityID.skillsInvoke.rawValue, "sparkles"),
+        (ClientCapabilityID.inferWrite.rawValue, "square.and.pencil"),
+        (ClientCapabilityID.secretsBroker.rawValue, "lock.shield"),
+        (ClientCapabilityID.fleetPulse.rawValue, "waveform.path.ecg"),
     ]
     @State private var beat = false
     public init() {}

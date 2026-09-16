@@ -39,12 +39,12 @@ public struct BarPillar: Identifiable, Sendable {
     /// `infer.write` remains a stable client id but is an episodic-store alias today —
     /// never advertise it as LLM inference (see AGENTS.md).
     public static let all: [BarPillar] = [
-        .init(id: "memory.recall",  name: "Memory · Anima",  short: "memory",  symbol: "waveform",              health: .live),
-        .init(id: "mcp.host",       name: "MCP host",        short: "mcp",     symbol: "point.3.connected.trianglepath.dotted", health: .partial),
-        .init(id: "skills.invoke",  name: "Skills registry", short: "skills",  symbol: "sparkles",              health: .spec),
-        .init(id: "infer.write",    name: "infer.write",     short: "infer",   symbol: "square.and.pencil",     health: .spec),
-        .init(id: "secrets.broker", name: "Secrets broker",  short: "secrets", symbol: "lock.shield.fill",      health: .spec),
-        .init(id: "fleet.pulse",    name: "Fleet runtime",   short: "fleet",   symbol: "chart.line.uptrend.xyaxis", health: .partial),
+        .init(id: ClientCapabilityID.memoryRecall.rawValue,  name: "Memory · Anima",  short: "memory",  symbol: "waveform",              health: .live),
+        .init(id: ClientCapabilityID.mcpHost.rawValue,       name: "MCP host",        short: "mcp",     symbol: "point.3.connected.trianglepath.dotted", health: .partial),
+        .init(id: ClientCapabilityID.skillsInvoke.rawValue,  name: "Skills registry", short: "skills",  symbol: "sparkles",              health: .spec),
+        .init(id: ClientCapabilityID.inferWrite.rawValue,    name: ClientCapabilityID.inferWrite.rawValue, short: "infer",   symbol: "square.and.pencil",     health: .spec),
+        .init(id: ClientCapabilityID.secretsBroker.rawValue, name: "Secrets broker",  short: "secrets", symbol: "lock.shield.fill",      health: .spec),
+        .init(id: ClientCapabilityID.fleetPulse.rawValue,    name: "Fleet runtime",   short: "fleet",   symbol: "chart.line.uptrend.xyaxis", health: .partial),
     ]
 }
 
@@ -152,7 +152,7 @@ public struct PillarButton: View {
                     .foregroundStyle(Color.andromedaGlow)
                     .frame(width: 22, height: 22)
                     // Memory streams a live waveform; the symbol animates for it.
-                    .symbolEffect(.variableColor.iterative, isActive: pillar.id == "memory.recall")
+                    .symbolEffect(.variableColor.iterative, isActive: pillar.id == ClientCapabilityID.memoryRecall.rawValue)
                 Circle().fill(pillar.health.color)
                     .frame(width: 5, height: 5)
                     .shadow(color: pillar.health.color, radius: 3)

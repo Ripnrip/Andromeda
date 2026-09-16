@@ -47,7 +47,7 @@ public struct AndromedaHUDCapsule: View {
     public var capability: String
     public var fleet: Int
     public var fleetVital: FleetVital
-    public init(capability: String = "infer.write", fleet: Int = 3, fleetVital: FleetVital = .unverified) {
+    public init(capability: String = ClientCapabilityID.inferWrite.rawValue, fleet: Int = 3, fleetVital: FleetVital = .unverified) {
         self.capability = capability; self.fleet = fleet; self.fleetVital = fleetVital
     }
     public var body: some View {
