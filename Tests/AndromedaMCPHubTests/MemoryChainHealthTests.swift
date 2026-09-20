@@ -243,6 +243,40 @@ struct MemoryChainProofStoreTests {
         #expect(!MemoryChainProofStore.isInsideSandbox(sibling))
         #expect(MemoryChainProofStore.isInsideSandbox(MemoryChainProofStore.defaultPath))
     }
+
+    /// A symlink planted inside the sandbox cannot redirect a write outside
+    /// it — ancestor symlinks are resolved on both sides of the comparison
+    /// (Cursor security review on #84).
+    @Test("symlinked directory inside the sandbox is resolved away")
+    func symlinkEscapeIsRefused() throws {
+        let escapedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("escape-target-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: escapedRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: escapedRoot) }
+
+        let linkPath = MemoryChainProofStore.sandboxDirectory
+            .appendingPathComponent("link-\(UUID().uuidString)").path
+        try FileManager.default.createSymbolicLink(
+            atPath: linkPath, withDestinationPath: escapedRoot.path
+        )
+        defer { try? FileManager.default.removeItem(atPath: linkPath) }
+
+        let throughLink = (linkPath as NSString)
+            .appendingPathComponent("memory-chain.json")
+
+        #expect(!MemoryChainProofStore.isInsideSandbox(throughLink))
+        #expect(throws: MemoryChainProofStoreError.self) {
+            try MemoryChainProofStore.save(
+                MemoryChainProofState(legs: [MemoryChainProofLeg(id: "x", status: .pass)]),
+                to: throughLink
+            )
+        }
+        #expect(
+            !FileManager.default.fileExists(
+                atPath: escapedRoot.appendingPathComponent("memory-chain.json").path
+            )
+        )
+    }
 }
 
 // MARK: - MemoryChainHealth.build (report assembly)

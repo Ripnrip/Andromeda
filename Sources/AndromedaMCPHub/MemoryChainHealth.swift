@@ -241,17 +241,32 @@ public enum MemoryChainProofStore {
     public static let defaultPath = "~/.andromeda/proofs/memory-chain.json"
 
     /// Canonical write boundary (ADR-0020): every write lands inside
-    /// `~/.andromeda/proofs/` — resolved, standardized, symlink-free prefix.
+    /// `~/.andromeda/proofs/`. Both sides of the comparison resolve symlinks
+    /// in every existing component, so a symlink planted inside (or across)
+    /// the sandbox tree cannot redirect a write outside it.
     public static var sandboxDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".andromeda/proofs")
-            .standardizedFileURL
+            .resolvingSymlinksInPath()
     }
 
-    /// True when `path` resolves to the sandbox directory or something inside it.
-    public static func isInsideSandbox(_ path: String) -> Bool {
-        let resolved = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+    /// Resolves `path` the way a write would follow it: symlink resolution on
+    /// every existing ancestor (the file itself may not exist yet), then the
+    /// final component reattached and standardized (`..` collapsed).
+    private static func writeResolvedPath(_ path: String) -> String {
+        let target = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+        let resolvedParent = target.deletingLastPathComponent().resolvingSymlinksInPath()
+        return resolvedParent
+            .appendingPathComponent(target.lastPathComponent)
             .standardizedFileURL.path
+    }
+
+    /// True when `path` resolves to the sandbox directory or something inside
+    /// it, following symlinks in the ancestor chain. (Check-then-write is
+    /// still not atomic against a concurrent symlink swap — the guard bounds
+    /// honest misuse and confused callers, not a racing local attacker.)
+    public static func isInsideSandbox(_ path: String) -> Bool {
+        let resolved = writeResolvedPath(path)
         let sandbox = sandboxDirectory.path
         return resolved == sandbox || resolved.hasPrefix(sandbox + "/")
     }
@@ -272,9 +287,7 @@ public enum MemoryChainProofStore {
 
     public static func save(_ state: MemoryChainProofState, to path: String) throws {
         guard isInsideSandbox(path) else {
-            throw MemoryChainProofStoreError.pathOutsideSandbox(
-                URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL.path
-            )
+            throw MemoryChainProofStoreError.pathOutsideSandbox(writeResolvedPath(path))
         }
         let expanded = (path as NSString).expandingTildeInPath
         let url = URL(fileURLWithPath: expanded)
