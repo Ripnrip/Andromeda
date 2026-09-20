@@ -121,15 +121,22 @@ struct HubUpstreamDigestTests {
 // MARK: - MemoryChainProofStore (ADR-0020 document)
 
 struct MemoryChainProofStoreTests {
-    private func proofPath() -> String {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("memory-chain-proof-\(UUID().uuidString).json").path
+    /// Test path INSIDE the canonical sandbox (writes are confined there,
+    /// per ADR-0020 + Cursor security review on #84). Cleaned up after.
+    private func sandboxedProofPath() -> String {
+        MemoryChainProofStore.sandboxDirectory
+            .appendingPathComponent("test-\(UUID().uuidString).json").path
+    }
+
+    private func cleanup(_ path: String) {
+        try? FileManager.default.removeItem(atPath: path)
     }
 
     /// Save → load round-trips legs, statuses, and dates.
     @Test("proof state round-trips through disk")
     func roundTrips() throws {
-        let path = proofPath()
+        let path = sandboxedProofPath()
+        defer { cleanup(path) }
         let when = Date(timeIntervalSince1970: 1_760_000_000)
         let state = MemoryChainProofState(
             lastRun: when,
@@ -147,7 +154,8 @@ struct MemoryChainProofStoreTests {
     /// No document yet means the proof has not been run — nil, not an error.
     @Test("absent proof document loads as nil")
     func absentFileIsNil() throws {
-        let path = proofPath()
+        let path = sandboxedProofPath()
+        defer { cleanup(path) }
         let loaded = try MemoryChainProofStore.load(from: path)
         #expect(loaded == nil)
     }
@@ -156,7 +164,8 @@ struct MemoryChainProofStoreTests {
     /// honest failure instead of misreading fields.
     @Test("newer schema version is rejected")
     func rejectsNewerVersion() throws {
-        let path = proofPath()
+        let path = sandboxedProofPath()
+        defer { cleanup(path) }
         let future = """
         {"version": 99, "lastRun": null, "legs": []}
         """
@@ -164,6 +173,37 @@ struct MemoryChainProofStoreTests {
         #expect(throws: MemoryChainProofStoreError.unsupportedVersion(99)) {
             _ = try MemoryChainProofStore.load(from: path)
         }
+    }
+
+    /// The write side is confined to `~/.andromeda/proofs/` — a path outside
+    /// throws before any directory is created (filesystem_workspace_boundary,
+    /// Cursor security review on #84).
+    @Test("save outside the proofs sandbox is refused")
+    func saveOutsideSandboxRefused() throws {
+        let outside = FileManager.default.temporaryDirectory
+            .appendingPathComponent("escape-\(UUID().uuidString)")
+            .appendingPathComponent("memory-chain.json").path
+        defer { try? FileManager.default.removeItem(atPath: outside) }
+
+        #expect(throws: MemoryChainProofStoreError.pathOutsideSandbox(outside)) {
+            try MemoryChainProofStore.save(
+                MemoryChainProofState(legs: [MemoryChainProofLeg(id: "x", status: .pass)]),
+                to: outside
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: outside))
+    }
+
+    /// The prefix check must not be fooled by sibling directories that share
+    /// a prefix (`~/.andromeda/proofs-not/` is outside).
+    @Test("sandbox prefix check rejects sibling directory names")
+    func prefixCheckRejectsSiblings() {
+        let sibling = MemoryChainProofStore.sandboxDirectory
+            .deletingLastPathComponent()
+            .appendingPathComponent("proofs-not")
+            .appendingPathComponent("memory-chain.json").path
+        #expect(!MemoryChainProofStore.isInsideSandbox(sibling))
+        #expect(MemoryChainProofStore.isInsideSandbox(MemoryChainProofStore.defaultPath))
     }
 }
 
