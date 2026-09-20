@@ -161,6 +161,18 @@ public struct MemoryChainProofState: Sendable, Equatable, Codable {
 public enum MemoryChainProofStoreError: Error, Equatable {
     /// Future schema — the reader must not guess at fields it does not know.
     case unsupportedVersion(Int)
+    /// Writes are confined to the canonical proofs directory (ADR-0020):
+    /// the store never creates directory trees or files elsewhere.
+    case pathOutsideSandbox(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case let .unsupportedVersion(version):
+            "proof-state schema version \(version) is newer than this reader (ADR-0020)"
+        case let .pathOutsideSandbox(path):
+            "refusing to write proof state outside ~/.andromeda/proofs: \(path)"
+        }
+    }
 }
 
 /// Loads/stores the proof-state document. Absent file is `nil` (proof not
@@ -168,6 +180,22 @@ public enum MemoryChainProofStoreError: Error, Equatable {
 public enum MemoryChainProofStore {
     public static let version = 1
     public static let defaultPath = "~/.andromeda/proofs/memory-chain.json"
+
+    /// Canonical write boundary (ADR-0020): every write lands inside
+    /// `~/.andromeda/proofs/` — resolved, standardized, symlink-free prefix.
+    public static var sandboxDirectory: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".andromeda/proofs")
+            .standardizedFileURL
+    }
+
+    /// True when `path` resolves to the sandbox directory or something inside it.
+    public static func isInsideSandbox(_ path: String) -> Bool {
+        let resolved = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+            .standardizedFileURL.path
+        let sandbox = sandboxDirectory.path
+        return resolved == sandbox || resolved.hasPrefix(sandbox + "/")
+    }
 
     public static func load(from path: String) throws -> MemoryChainProofState? {
         let expanded = (path as NSString).expandingTildeInPath
@@ -184,6 +212,11 @@ public enum MemoryChainProofStore {
     }
 
     public static func save(_ state: MemoryChainProofState, to path: String) throws {
+        guard isInsideSandbox(path) else {
+            throw MemoryChainProofStoreError.pathOutsideSandbox(
+                URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL.path
+            )
+        }
         let expanded = (path as NSString).expandingTildeInPath
         let url = URL(fileURLWithPath: expanded)
         try FileManager.default.createDirectory(
