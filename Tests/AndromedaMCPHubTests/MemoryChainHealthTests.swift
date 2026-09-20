@@ -77,6 +77,44 @@ struct HubTelemetryReaderTests {
         #expect(records.isEmpty)
         #expect(skipped == 0)
     }
+
+    /// The reader scans backward in chunks — a large history must still yield
+    /// the newest records (Cursor security review on #84: unbounded read).
+    @Test("tail is bounded on a large history")
+    func tailBoundedOnLargeHistory() throws {
+        // ~200k small lines: far past one 64 KB chunk, cheap to write.
+        let stamp = "2026-09-20T08:00:00Z"
+        let lines = (0 ..< 200_000).map { "{\"ts\":\"\(stamp)\",\"kind\":\"upstream.heartbeat\",\"f_server\":\"s\($0 % 4)\"}" }
+        let path = try writeFixture(lines)
+
+        let (records, skipped) = try HubTelemetryReader.tail(path: path, limit: 10)
+        #expect(records.count == 10)
+        #expect(skipped == 0)
+        // exact suffix: window is lines 199_990...199_999 → s2...s3.
+        #expect(records.last?.fields["server"] == "s3")
+        #expect(records.first?.fields["server"] == "s2")
+        try? FileManager.default.removeItem(atPath: path)
+    }
+
+    /// A pathological unterminated blob is one skipped line, not a whole-file
+    /// allocation — and the newest real records still come through when the
+    /// blob is older than the requested window.
+    @Test("unterminated blob is skipped, not buffered")
+    func unterminatedBlobIsSkippedNotBuffered() throws {
+        let stamp = "2026-09-20T08:00:00Z"
+        let good = "{\"ts\":\"\(stamp)\",\"kind\":\"shim.connected\",\"f_server\":\"memory\"}"
+        let blob = String(repeating: "x", count: 2 * 1024 * 1024)  // 2 MiB, no newline
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("hub-telemetry-\(UUID().uuidString).jsonl")
+        try ([blob, good, good].joined(separator: "\n") as String)
+            .write(to: url, atomically: true, encoding: .utf8)
+
+        let (records, skipped) = try HubTelemetryReader.tail(path: url.path, limit: 10)
+        #expect(records.count == 2)
+        #expect(records.allSatisfy { $0.kind == "shim.connected" })
+        #expect(skipped == 1)
+        try? FileManager.default.removeItem(at: url)
+    }
 }
 
 // MARK: - HubUpstreamDigest (telemetry fold)
