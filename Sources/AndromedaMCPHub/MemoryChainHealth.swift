@@ -30,6 +30,13 @@ public struct HubTelemetryRecord: Sendable, Equatable {
 /// (a hub that never ran yet is "no events", not an error); a malformed line
 /// is counted, never silently dropped.
 public enum HubTelemetryReader {
+    /// Backward-scan chunk size — memory bound per iteration, not a line bound.
+    private static let chunkBytes = 64 * 1024
+    /// A telemetry line longer than this is treated as one undecodable record
+    /// (`skippedLines`), never buffered whole (Cursor security review on #84:
+    /// an unterminated multi-MB blob must not become a multi-MB allocation).
+    private static let maxLineBytes = 1024 * 1024
+
     /// Decodes the last `limit` records from `path`.
     /// - Returns: records in file order plus how many trailing lines failed to decode.
     public static func tail(path: String, limit: Int = 50) throws -> (records: [HubTelemetryRecord], skippedLines: Int) {
@@ -37,17 +44,14 @@ public enum HubTelemetryReader {
         guard FileManager.default.fileExists(atPath: expanded) else {
             return ([], 0)
         }
-        let raw = try String(contentsOfFile: expanded, encoding: .utf8)
-        let lines = raw.split(separator: "\n", omittingEmptySubsequences: true)
-            .suffix(max(0, limit))
-            .map(String.init)
+        let lines = try lastCompleteLines(at: expanded, limit: max(0, limit))
 
         let formatter = ISO8601DateFormatter()
         var records: [HubTelemetryRecord] = []
         var skipped = 0
         for line in lines {
-            guard let data = line.data(using: .utf8),
-                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            guard let line,
+                  let object = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any],
                   let kind = object["kind"] as? String,
                   let ts = object["ts"] as? String,
                   let date = formatter.date(from: ts)
@@ -64,6 +68,61 @@ public enum HubTelemetryReader {
             records.append(HubTelemetryRecord(timestamp: date, kind: kind, fields: fields))
         }
         return (records, skipped)
+    }
+
+    /// Collects the newest `limit` complete non-empty lines by seeking to
+    /// end-of-file and scanning backward in fixed chunks. The telemetry log
+    /// grows without bound over the hub's lifetime, so the reader must never
+    /// load it whole — only `chunkBytes` + one line are ever in memory.
+    /// A `nil` element is a line that exceeded `maxLineBytes` (counted, not
+    /// decoded). Returned in file order.
+    private static func lastCompleteLines(at path: String, limit: Int) throws -> [Data?] {
+        let handle = try FileHandle(forReadingFrom: URL(fileURLWithPath: path))
+        defer { try? handle.close() }
+        let size = Int(try handle.seekToEnd())
+        guard size > 0, limit > 0 else { return [] }
+
+        var newestFirst: [Data?] = []   // newest → oldest
+        var pending = Data()            // tail of a line whose head lies in an earlier chunk
+        var position = size
+
+        while position > 0 {
+            if pending.count > maxLineBytes {
+                // Pathological unterminated blob: stop walking older history,
+                // report it as one skipped line. Older real lines past the
+                // blob are unreachable without buffering it — not worth it.
+                newestFirst.append(nil)
+                break
+            }
+            let readSize = min(chunkBytes, position)
+            position -= readSize
+            try handle.seek(toOffset: UInt64(position))
+            var data = try handle.read(upToCount: readSize) ?? Data()
+            data.append(pending)
+            pending = Data()
+
+            // data spans [position, scannedEnd): its first segment may be an
+            // incomplete line head; every later segment is newline-terminated.
+            var segments: [Data] = []
+            var start = data.startIndex
+            while let newline = data[start...].firstIndex(of: UInt8(ascii: "\n")) {
+                segments.append(data[start ..< newline])
+                start = data.index(after: newline)
+            }
+            segments.append(data[start...])  // tail after the final newline (may be empty)
+            pending = segments.removeFirst()
+            for segment in segments.reversed() where !segment.isEmpty {
+                newestFirst.append(segment)
+                if newestFirst.count == limit {
+                    return newestFirst.reversed()
+                }
+            }
+        }
+        // position == 0: whatever is still pending is the file's first line.
+        if !pending.isEmpty, pending.count <= maxLineBytes, newestFirst.count < limit {
+            newestFirst.append(pending)
+        }
+        return newestFirst.reversed()
     }
 }
 
