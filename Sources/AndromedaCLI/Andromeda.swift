@@ -1,6 +1,7 @@
 import AndromedaBrand
 import AndromedaCore
 import AndromedaGateway
+import AndromedaHostOps
 import ArgumentParser
 import Foundation
 import Logging
@@ -11,7 +12,7 @@ struct Andromeda: AsyncParsableCommand {
         commandName: "andromeda",
         abstract: "Andromeda — Swift-native control plane and Hummingbird model gateway.",
         version: AndromedaVersion.string,
-        subcommands: [Serve.self, Status.self, Brand.self, MCPHubCommand.self],
+        subcommands: [Serve.self, Status.self, Brand.self, InstallCLI.self, MCPHubCommand.self],
         defaultSubcommand: Status.self
     )
 }
@@ -138,5 +139,44 @@ struct Serve: AsyncParsableCommand {
         case "critical": .critical
         default: .info
         }
+    }
+}
+
+/// BIN-101 slice · HAB-606 prevention: fail-closed atomic install of a built
+/// executable (fresh inode → ad-hoc re-sign → strict verify → atomic rename).
+///
+/// HAB-606: freshly copied SwiftPM binaries published at their final path
+/// before their post-copy signature settled were SIGKILLed by the macOS 26
+/// signing monitor (Taskgated Invalid Signature / Invalid Page). This command
+/// stages and signs a fresh inode next to the destination and only then
+/// renames it into place, so consumers never observe an unsigned inode.
+struct InstallCLI: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "install-cli",
+        abstract: "Atomically install a built executable: stage fresh inode, re-sign, verify, rename.",
+        discussion: """
+        Fail-closed install transaction (HAB-606 prevention, BIN-101 slice).
+
+        The destination is never written in place: a staging copy with a fresh
+        inode is ad-hoc re-signed and strictly verified next to the destination,
+        then atomically renamed into it. Any failure leaves the destination
+        untouched. Use for single-file executables whose dependencies are all
+        system libraries (e.g. the `andromeda` CLI itself).
+        """
+    )
+
+    @Option(help: "Built executable to install (e.g. .build/release/andromeda).")
+    var source: String
+
+    @Option(help: "Final install path (e.g. ~/.local/bin/andromeda). Parent directories are created.")
+    var destination: String
+
+    func run() async throws {
+        let installer = BinaryInstaller()
+        let report = try await installer.install(
+            source: URL(fileURLWithPath: source),
+            destination: URL(fileURLWithPath: (destination as NSString).expandingTildeInPath)
+        )
+        print(report)
     }
 }
