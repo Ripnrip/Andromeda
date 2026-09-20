@@ -3,6 +3,7 @@ import AndromedaCore
 import AndromedaGateway
 import AndromedaHostOps
 import ArgumentParser
+import Darwin
 import Foundation
 import Logging
 
@@ -12,7 +13,7 @@ struct Andromeda: AsyncParsableCommand {
         commandName: "andromeda",
         abstract: "Andromeda — Swift-native control plane and Hummingbird model gateway.",
         version: AndromedaVersion.string,
-        subcommands: [Serve.self, Status.self, Brand.self, InstallCLI.self, InstallApp.self, MCPHubCommand.self],
+        subcommands: [Serve.self, Status.self, Brand.self, InstallCLI.self, InstallApp.self, InstallLaunchAgent.self, MCPHubCommand.self],
         defaultSubcommand: Status.self
     )
 }
@@ -250,3 +251,68 @@ struct InstallApp: AsyncParsableCommand {
         print(report)
     }
 }
+
+
+/// BIN-101 leftover · HAB-622: rewrite Studio HOME template in a LaunchAgent
+/// plist, write it to an explicit destination, optionally bootstrap.
+///
+/// Kickstart is opt-in (`--kickstart`) and requires `--bootstrap`. Heartbeat
+/// cron must not pass `--kickstart` (AGENTS.md: no invisible launchd jobs).
+/// Destination is required — this command never defaults to
+/// `~/Library/LaunchAgents`.
+struct InstallLaunchAgent: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "install-launch-agent",
+        abstract: "Render a LaunchAgent plist (HOME rewrite) and optionally bootstrap it.",
+        discussion: """
+        Fail-closed LaunchAgent install (HAB-622, BIN-101 leftover).
+
+        launchd does not expand $HOME/~. ops/*.plist bake the Studio home
+        template /Users/admin; this command rewrites that string to --home
+        (absolute) and writes the result to --destination.
+
+        --bootstrap runs bootout then bootstrap (legacy load fallback).
+        --kickstart is opt-in and refused without --bootstrap. Cron must
+        not kickstart live HUD.
+        """
+    )
+
+    @Option(help: "Source plist (e.g. ops/com.andromeda.hud.plist).")
+    var source: String
+
+    @Option(help: "Destination plist path. Parent directories are created. No default.")
+    var destination: String
+
+    @Option(help: "Expected Label. Defaults to the Label inside the rendered plist.")
+    var label: String?
+
+    @Option(help: "Absolute HOME to rewrite the Studio template to. Defaults to the process home.")
+    var home: String?
+
+    @Option(help: "uid for gui/<uid> domain. Defaults to the process uid.")
+    var uid: UInt32?
+
+    @Flag(help: "launchctl bootout + bootstrap (legacy load fallback). Off by default.")
+    var bootstrap: Bool = false
+
+    @Flag(help: "launchctl kickstart -k after bootstrap. Off by default; requires --bootstrap.")
+    var kickstart: Bool = false
+
+    func run() async throws {
+        let sourceURL = URL(fileURLWithPath: (source as NSString).expandingTildeInPath)
+        let destURL = URL(fileURLWithPath: (destination as NSString).expandingTildeInPath)
+        let homePath = (home ?? NSHomeDirectory())
+        let resolvedUID = uid ?? UInt32(getuid())
+        let spec = LaunchAgentInstaller.Spec(
+            label: label,
+            home: homePath,
+            uid: resolvedUID,
+            bootstrap: bootstrap,
+            kickstart: kickstart
+        )
+        let installer = LaunchAgentInstaller()
+        let report = try await installer.install(source: sourceURL, destination: destURL, spec: spec)
+        print(report)
+    }
+}
+
