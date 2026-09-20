@@ -1,3 +1,4 @@
+import AndromedaMCPHub
 import Foundation
 import MemoryKit
 import Observation
@@ -6,6 +7,22 @@ import os.log
 enum HUDLogger {
     private static let subsystem = "com.andromeda.hud"
     static let core = Logger(subsystem: subsystem, category: "🧠 HUDModel")
+}
+
+/// 🩺 Injectable probe behind `memory_health` (HAB-599) — tests fixture the
+/// report; the live default reads the hub census + telemetry + proof state.
+public typealias ChainHealthProvider = @Sendable () async throws -> MemoryChainHealthReport
+
+/// Typed `memory_health` failures surfaced on the HUD glass.
+public enum ChainHealthError: LocalizedError, Sendable, Equatable {
+    case hubConfigMissing(path: String)
+
+    public var errorDescription: String? {
+        switch self {
+        case let .hubConfigMissing(path):
+            "no hub config at \(path) — see ADR-0019 (mcp-hub-config-schema)"
+        }
+    }
 }
 
 /// 🌟 Stable client capability IDs — never tracker brands.
@@ -194,6 +211,8 @@ public enum HUDOutcome: Equatable, Sendable {
     case created(title: String)
     /// ✨ Capability `project.state.update` confirmation.
     case updated(title: String)
+    /// 🩺 Capability `memory_health` — operator memory-chain census (HAB-599/BIN-287).
+    case chainHealth(MemoryChainHealthReport)
     case empty(message: String)
     case failed(message: String)
 
@@ -202,7 +221,7 @@ public enum HUDOutcome: Equatable, Sendable {
         switch self {
         case .idle:
             return false
-        case .syncing, .recalled, .projects, .stored, .journaled, .created, .updated, .empty, .failed:
+        case .syncing, .recalled, .projects, .stored, .journaled, .created, .updated, .chainHealth, .empty, .failed:
             return true
         }
     }
@@ -259,6 +278,10 @@ public final class HUDModel {
     /// 🔮 Capability surface for `project.state.*` — live Studio bridge by default.
     public private(set) var projectSurface: any ProjectStateSurface
 
+    /// 🩺 Capability probe for `memory_health` — live hub census by default
+    /// (config + socket probe + telemetry tail + proof state); injectable for tests.
+    @ObservationIgnored private let chainHealthProvider: ChainHealthProvider
+
     /// UserDefaults key for persisted recent queries — exposed for test isolation.
     public static let recentQueriesDefaultsKey = "andromeda.hud.recentQueries"
     private static let recentQueriesLimit = 8
@@ -275,16 +298,19 @@ public final class HUDModel {
 
     /// - Parameters:
     ///   - projectSurface: Capability surface for `project.state.*` (defaults to live Studio bridge).
+    ///   - chainHealthProvider: Capability probe for `memory_health` (defaults to live hub census).
     ///   - memorySessionReady: When `true`, skips on-disk MemoryKit boot in `.task` — use for
     ///     unit/perf tests so SwiftUI appearance does not retain the model via `start()`.
     ///   - recentQueries: When non-`nil`, seeds the in-memory list and skips UserDefaults load
     ///     (snapshot / unit fixtures). Pass `[]` for an empty hermetic slate.
     public init(
         projectSurface: (any ProjectStateSurface)? = nil,
+        chainHealthProvider: @escaping ChainHealthProvider = HUDModel.liveChainHealth,
         memorySessionReady: Bool = false,
         recentQueries: [String]? = nil
     ) {
         self.projectSurface = projectSurface ?? ProjectStateBridgeFactory.makeStudioBridge()
+        self.chainHealthProvider = chainHealthProvider
         if let recentQueries {
             self.recentQueries = Array(recentQueries.prefix(Self.recentQueriesLimit))
         } else {
@@ -482,12 +508,7 @@ public final class HUDModel {
                 token: token
             )
         case .health:
-            applyOutcome(
-                .empty(
-                    message: "\(HUDCapabilityID.memoryHealth.rawValue) — use Andromida Companion for outbox/drift detail"
-                ),
-                token: token
-            )
+            await runChainHealth(token: token)
         case .journal(let body):
             guard isReady, let capture else {
                 applyOutcome(.failed(message: "Memory session not ready"), token: token)
@@ -539,8 +560,71 @@ public final class HUDModel {
         }
     }
 
-    public func showActivationFeedback(_ message: String) {
-        activationFeedback = message
+    // MARK: - memory_health (HAB-599 / BIN-287)
+
+    /// Capability: `memory_health` — operator memory-chain census. The chain
+    /// report is read-only observation (config census + socket probe +
+    /// telemetry tail + proof state); the HUD never mutates hub state.
+    private func runChainHealth(token: UInt64) async {
+        HUDLogger.core.info("🌐 🩺 memory_health AWAKENS")
+        do {
+            let report = try await chainHealthProvider()
+            applyOutcome(.chainHealth(report), token: token)
+            HUDLogger.core.info("🎉 🩺 memory_health COMPLETE overall=\(report.overall.rawValue)")
+        } catch is CancellationError {
+            return
+        } catch {
+            applyOutcome(
+                .failed(message: "memory_health failed: \(error.localizedDescription)"),
+                token: token
+            )
+            HUDLogger.core.error("💥 🩺 memory_health failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Live chain-health probe: ADR-0019 hub config census, real socket
+    /// probes, telemetry tail, and the ADR-0020 proof document. A missing
+    /// config is an honest failure with the ADR pointer — never a fake
+    /// all-green report.
+    nonisolated public static func liveChainHealth() throws -> MemoryChainHealthReport {
+        guard FileManager.default.fileExists(
+            atPath: (MCPHubConfiguration.defaultPath as NSString).expandingTildeInPath
+        ) else {
+            throw ChainHealthError.hubConfigMissing(path: MCPHubConfiguration.defaultPath)
+        }
+        let configuration = try MCPHubConfiguration.load(from: MCPHubConfiguration.defaultPath)
+
+        var telemetry: (records: [HubTelemetryRecord], skippedLines: Int) = ([], 0)
+        do {
+            telemetry = try HubTelemetryReader.tail(path: configuration.telemetryLogPath)
+            if telemetry.skippedLines > 0 {
+                HUDLogger.core.warning(
+                    "🧹 memory_health telemetry tail skipped \(telemetry.skippedLines) malformed line(s)"
+                )
+            }
+        } catch {
+            // Unreadable telemetry degrades to an empty tail — the census
+            // (sockets) is still truth — but say so, never silently.
+            HUDLogger.core.error("💥 memory_health telemetry tail failed: \(error.localizedDescription)")
+        }
+
+        let proof: MemoryChainProofState?
+        do {
+            proof = try MemoryChainProofStore.load(from: MemoryChainProofStore.defaultPath)
+        } catch {
+            HUDLogger.core.error("💥 memory_health proof state unreadable: \(error.localizedDescription)")
+            throw error
+        }
+
+        return MemoryChainHealth.build(
+            configuration: configuration,
+            probe: HubSocketProbe.probeListening(path:),
+            telemetryRecords: telemetry.records,
+            proof: proof
+        )
+    }
+
+    public func showActivationFeedback(_ message: String) {        activationFeedback = message
         feedbackClearTask?.cancel()
         feedbackClearTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
