@@ -250,6 +250,7 @@ let package = Package(
             name: "AndromedaHUDCore",
             dependencies: [
                 .product(name: "MemoryKit", package: "MemoryKit"),
+                "AndromedaMCPHub",
             ],
             path: "Sources/AndromedaHUDCore",
             swiftSettings: [

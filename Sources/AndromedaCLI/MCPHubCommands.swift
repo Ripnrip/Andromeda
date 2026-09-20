@@ -115,7 +115,7 @@ struct MCPHubCommand: AsyncParsableCommand {
             let configuration = try MCPHubCommand.loadConfiguration(path: config)
             for server in configuration.servers {
                 let socketPath = configuration.socketPath(for: server.id)
-                let probe = Self.probeListening(path: socketPath)
+                let probe = HubSocketProbe.probeListening(path: socketPath)
                 let marker = probe.isListening ? "🟢" : "⚪️"
                 print("\(marker) \(server.id) — \(socketPath)\(probe.isListening ? " (listening)" : " (no hub)")")
                 if let refusal = probe.refusalReason {
@@ -128,81 +128,6 @@ struct MCPHubCommand: AsyncParsableCommand {
             }
             let telemetryPath = configuration.telemetryLogPath
             print("📊 telemetry: \(telemetryPath)")
-        }
-
-        /// A stale socket pathname survives crashes — existence is not
-        /// health (Codex P2). Probe by connecting: a live listener accepts;
-        /// a dead file refuses. Typed outcome + errno so the caller logs
-        /// WHY, not just that (BofA review ask: no silent Bool here).
-        static func probeListening(path: String) -> ProbeOutcome {
-            let expanded = (path as NSString).expandingTildeInPath
-            let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-            guard fd >= 0 else { return .socketCreationFailed(errno: errno) }
-            defer { close(fd) }
-            var addr = sockaddr_un()
-            addr.sun_family = sa_family_t(AF_UNIX)
-            let pathBytes = Array(expanded.utf8)
-            guard pathBytes.count < MemoryLayout.size(ofValue: addr.sun_path) else {
-                return .pathTooLong
-            }
-            withUnsafeMutableBytes(of: &addr.sun_path) { dest in
-                _ = pathBytes.withUnsafeBufferPointer { src in
-                    memcpy(dest.baseAddress!, src.baseAddress!, pathBytes.count)
-                }
-            }
-            let result = withUnsafePointer(to: &addr) { pointer in
-                pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
-                    Darwin.connect(fd, sockaddrPointer, socklen_t(MemoryLayout<sockaddr_un>.size))
-                }
-            }
-            guard result == 0 else { return .connectFailed(errno: errno) }
-            return .listening
-        }
-    }
-}
-
-// MARK: - Socket probe outcome
-
-// Why a socket is (not) listening — every failure mode the probe
-
-// can hit, as a typed value instead of a bare Bool that erases
-
-// the difference (Q3: honest about cost and failure).
-
-enum ProbeOutcome: Sendable, Equatable {
-    case listening
-
-    // socket() failed — kernel out of descriptors, etc.
-
-    case socketCreationFailed(errno: Int32)
-
-    // Path longer than sockaddr_un.sun_path (~104 bytes).
-
-    case pathTooLong
-
-    // connect() refused — dead/stale socket file, or no hub
-
-    // bound. errno names which (ECONNREFUSED vs ENOENT vs …).
-
-    case connectFailed(errno: Int32)
-
-    var isListening: Bool {
-        if case .listening = self {
-            return true
-        }
-
-        return false
-    }
-
-    var refusalReason: String? {
-        switch self {
-        case .listening: nil
-
-        case let .socketCreationFailed(errno): "socket() failed (errno \(errno))"
-
-        case .pathTooLong: "path exceeds sun_path capacity"
-
-        case let .connectFailed(errno): "connect refused (errno \(errno))"
         }
     }
 }
