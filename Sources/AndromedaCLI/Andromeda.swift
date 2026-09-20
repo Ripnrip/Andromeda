@@ -12,7 +12,7 @@ struct Andromeda: AsyncParsableCommand {
         commandName: "andromeda",
         abstract: "Andromeda — Swift-native control plane and Hummingbird model gateway.",
         version: AndromedaVersion.string,
-        subcommands: [Serve.self, Status.self, Brand.self, InstallCLI.self, MCPHubCommand.self],
+        subcommands: [Serve.self, Status.self, Brand.self, InstallCLI.self, InstallApp.self, MCPHubCommand.self],
         defaultSubcommand: Status.self
     )
 }
@@ -177,6 +177,76 @@ struct InstallCLI: AsyncParsableCommand {
             source: URL(fileURLWithPath: source),
             destination: URL(fileURLWithPath: (destination as NSString).expandingTildeInPath)
         )
+        print(report)
+    }
+}
+
+
+/// BIN-101 slice · HAB-621: fail-closed atomic install of a minimal `.app`
+/// bundle (stage tree → strip leftover sigs → `codesign --force --deep` →
+/// `--verify --deep --strict` → atomic replace).
+///
+/// Companion to `install-cli` (bare Mach-O). Does **not** open the app, does
+/// **not** install LaunchAgents, and does **not** default to `~/Applications`
+/// — callers pass `--destination` explicitly.
+struct InstallApp: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "install-app",
+        abstract: "Atomically install a built executable as a signed .app bundle.",
+        discussion: """
+        Fail-closed .app install transaction (HAB-621, BIN-101 slice).
+
+        Assembles Contents/MacOS + Info.plist at a staging .app next to the
+        destination, ad-hoc deep-signs and strictly verifies that staging
+        tree, then atomically publishes it. The live destination is never
+        overwritten with an unsigned tree. Any failure leaves it untouched.
+
+        Does not `open -a` and does not touch LaunchAgents.
+        """
+    )
+
+    @Option(help: "Built executable to wrap (e.g. .build/release/AndromedaHome).")
+    var source: String
+
+    @Option(help: "Final .app path (e.g. /tmp/AndromedaHome.app). Parent directories are created.")
+    var destination: String
+
+    @Option(name: .customLong("bundle-id"), help: "CFBundleIdentifier (e.g. com.andromeda.home).")
+    var bundleId: String
+
+    @Option(name: .customLong("display-name"), help: "CFBundleDisplayName. Defaults to the product name.")
+    var displayName: String?
+
+    @Option(help: "CFBundleExecutable / MacOS filename. Defaults to the source basename.")
+    var product: String?
+
+    @Option(help: "CFBundleShortVersionString.")
+    var version: String = "0.3"
+
+    @Option(help: "CFBundleVersion. Defaults to yyyyMMddHHmm.")
+    var build: String?
+
+    @Flag(name: .customLong("lsui-element"), help: "Set LSUIElement (accessory HUD, no Dock icon).")
+    var lsuiElement: Bool = false
+
+    func run() async throws {
+        let sourceURL = URL(fileURLWithPath: source)
+        let destURL = URL(fileURLWithPath: (destination as NSString).expandingTildeInPath)
+        let productName = product ?? sourceURL.lastPathComponent
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMddHHmm"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        let spec = AppBundleInstaller.Spec(
+            productName: productName,
+            bundleIdentifier: bundleId,
+            displayName: displayName ?? productName,
+            shortVersion: version,
+            buildVersion: build ?? formatter.string(from: Date()),
+            lsuiElement: lsuiElement
+        )
+        let installer = AppBundleInstaller()
+        let report = try await installer.install(source: sourceURL, destination: destURL, spec: spec)
         print(report)
     }
 }
