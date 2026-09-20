@@ -113,10 +113,9 @@ struct RepositoryPolicyTests {
     /// Returns the set of repository-relative paths for shell scripts that are grandfathered.
     /// New entries here require explicit approval in the PR review — this is not a way to bypass the policy.
     private func allowlistedShellPaths(in repositoryRoot: URL) -> Set<String> {
-        [
-            // macOS code signing wrapper — Xcode toolchain doesn't expose signing via Swift CLI yet
-            repositoryRoot.appendingPathComponent("scripts/install-and-sign.sh").path,
-        ]
+        // HAB-622 / BIN-101: scripts/install-and-sign.sh deleted; typed Swift
+        // install-cli / install-app / install-launch-agent replaced it.
+        []
     }
 }
 
