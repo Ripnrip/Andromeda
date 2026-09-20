@@ -99,6 +99,8 @@ function renderBody(slug: string) {
       return <UiBody />
     case "app-control":
       return <AppControlBody />
+    case "claude-mem-for-all":
+      return <CaseStudyBody />
     case "diagrams":
       return <DiagramsBody />
     default:
@@ -249,6 +251,70 @@ function AppControlBody() {
           OSA waits for a real Andromeda.app bundle.
         </li>
       </ol>
+    </div>
+  )
+}
+
+function CaseStudyBody() {
+  return (
+    <div className="max-w-2xl space-y-6 text-sm leading-relaxed text-muted-foreground">
+      <p>
+        Every coding agent ships its own memory, so the learning dies with the tool that wrote it.
+        This fork of <code className="text-foreground">claude-mem</code> inverts that: one SQLite
+        store, and any writer — Claude Code, Codex, Cursor, Antigravity, Hermes, pi, or a plain
+        shell script — deposits its checkpoint note through the same idempotent bridge, the{" "}
+        <code className="text-foreground">claude-mem-for-all</code> CLI (
+        <code className="text-foreground">tools/claude-mem-for-all.swift</code>).
+      </p>
+      <p>
+        The store&rsquo;s provenance is the point. Every deposit is tagged{" "}
+        <code className="text-foreground">platform_source</code> (
+        <code className="text-foreground">pi</code>, <code className="text-foreground">hermes</code>,
+        &hellip;) — a learning stays attributed to the agent that produced it instead of collapsing
+        into <code className="text-foreground">claude</code> just because it landed in the same
+        database.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <article className="rounded-2xl border border-border bg-card/40 p-4">
+          <h3 className="font-medium">Swift hook launcher (BIN-283)</h3>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Darwin dispatch for plugin hooks with a node fallback — no more anonymous interpreter
+            processes per hook.
+          </p>
+        </article>
+        <article className="rounded-2xl border border-border bg-card/40 p-4">
+          <h3 className="font-medium">Dual-hook Codex SessionStart (BIN-253/254)</h3>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Worker bootstrap and memory injection are separate hooks, each observable on its own.
+          </p>
+        </article>
+        <article className="rounded-2xl border border-border bg-card/40 p-4">
+          <h3 className="font-medium">Why Swift</h3>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            One static binary instead of an interpreter herd. The repo&rsquo;s own{" "}
+            <code className="text-foreground">docs/why-swift.md</code> names the cases where
+            Python, bash, or curl would be the right call.
+          </p>
+        </article>
+        <article className="rounded-2xl border border-border bg-card/40 p-4">
+          <h3 className="font-medium">Upstream, not a hard fork</h3>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Synced with upstream <code className="text-foreground">main</code> through the
+            v13.24.1 line; upstream features merged intact.
+          </p>
+        </article>
+      </div>
+      <p>
+        <strong className="text-foreground">Proof, not vibes.</strong> 533/533 tests green, and
+        1,540 observations with proven non-virgin recall — memory written by one agent, actually
+        read back by a different one. A store nobody re-reads is a write-only log, and a write-only
+        log is not memory.
+      </p>
+      <p>
+        Honesty: the numbers are the fork&rsquo;s own, from its README and test suite — not
+        independently re-run for this page. The repo is the pack: architecture, data-flow, and
+        integration-matrix diagrams plus per-agent recipes live in the repo, not in this summary.
+      </p>
     </div>
   )
 }
