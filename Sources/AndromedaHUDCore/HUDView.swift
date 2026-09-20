@@ -446,6 +446,8 @@ struct HUDOutcomeView: View {
                 selectedIndex: selectedIndex,
                 onActivateItem: onActivateProjectItem
             )
+        case .chainHealth(let report):
+            HUDChainHealthView(report: report)
         }
     }
 
