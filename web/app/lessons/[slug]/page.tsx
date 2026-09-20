@@ -255,6 +255,8 @@ function AppControlBody() {
   )
 }
 
+// Renders the /lessons/claude-mem-for-all case-study body: fork story, provenance
+// model, BIN-283/253-254 mechanics, proof numbers, and honesty notes.
 function CaseStudyBody() {
   return (
     <div className="max-w-2xl space-y-6 text-sm leading-relaxed text-muted-foreground">
