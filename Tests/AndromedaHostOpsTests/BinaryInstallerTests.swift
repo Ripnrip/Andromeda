@@ -180,6 +180,21 @@ struct BinaryInstallerTests {
         #expect(gaps.map(\.installName) == ["@loader_path/libmissing.dylib"])
     }
 
+    @Test
+    func requiredLibraryGapsAllowsSourceAdjacentWhenDestMissing() {
+        let libs = BinaryInstaller.parseOtoolL("""
+        /tmp/bin:
+        \t@loader_path/libcompanion.dylib (compatibility version 0.0.0, current version 0.0.0)
+        """)
+        let gaps = BinaryInstaller.requiredLibraryGaps(
+            libs,
+            adjacentDirectory: URL(fileURLWithPath: "/tmp/dest"),
+            sourceDirectory: URL(fileURLWithPath: "/tmp/src"),
+            fileExists: { $0 == "/tmp/src/libcompanion.dylib" }
+        )
+        #expect(gaps.isEmpty)
+    }
+
     @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
     func missingRequiredLoaderPathDylibFailsClosedAndLeavesDestination() async throws {
         let dir = makeTempDir()
@@ -219,6 +234,63 @@ struct BinaryInstallerTests {
         let newInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
         #expect(newInode == oldInode)
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.contains(".install-") }
+        #expect(leftovers.isEmpty)
+    }
+
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func adjacentLoaderPathDylibIsCopiedSignedAndPublished() async throws {
+        let root = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sourceDir = root.appendingPathComponent("src")
+        let destDir = root.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        let dummyC = sourceDir.appendingPathComponent("dummy.c")
+        try "void dummy(void) {}\n".write(to: dummyC, atomically: true, encoding: .utf8)
+        let dylib = sourceDir.appendingPathComponent("libcompanion.dylib")
+        let clang = LiveShell()
+        let libBuild = try await clang.execute([
+            "/usr/bin/clang", "-dynamiclib",
+            "-install_name", "@loader_path/libcompanion.dylib",
+            "-o", dylib.path, dummyC.path,
+        ])
+        #expect(libBuild.success)
+
+        let mainC = sourceDir.appendingPathComponent("main.c")
+        try "int main(void) { return 0; }\n".write(to: mainC, atomically: true, encoding: .utf8)
+        let source = sourceDir.appendingPathComponent("victim")
+        let link = try await clang.execute([
+            "/usr/bin/clang", "-o", source.path, mainC.path, dylib.path,
+            "-Wl,-rpath,@loader_path",
+        ])
+        #expect(link.success)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: source.path)
+
+        let destination = destDir.appendingPathComponent("dest-bin")
+        try FileManager.default.copyItem(at: source, to: destination)
+        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+
+        let installer = BinaryInstaller()
+        let report = try await installer.install(source: source, destination: destination)
+
+        #expect(report.publishedInode != UInt64(oldInode))
+        #expect(report.companionDylibs == ["libcompanion.dylib"])
+
+        let publishedDylib = destDir.appendingPathComponent("libcompanion.dylib")
+        #expect(FileManager.default.fileExists(atPath: publishedDylib.path))
+
+        let binVerify = try await LiveShell().execute(["codesign", "--verify", "--strict", destination.path])
+        #expect(binVerify.success)
+        let libVerify = try await LiveShell().execute(["codesign", "--verify", "--strict", publishedDylib.path])
+        #expect(libVerify.success)
+
+        let run = try await LiveShell().execute([destination.path])
+        #expect(run.success)
+
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: destDir.path)
             .filter { $0.contains(".install-") }
         #expect(leftovers.isEmpty)
     }

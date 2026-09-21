@@ -24,14 +24,17 @@ import Foundation
 /// fully-signed old artifact or the fully-signed new one. Any failure before
 /// the rename leaves the destination untouched and removes the staging file.
 ///
-/// Scope: single-file executables. System libraries (`/usr/lib`, `/System`,
-/// `/Library/Apple`) and **weak** loads are allowed to be missing (the live
-/// `andromeda` CLI weakly links `@rpath/libswiftCompatibilitySpan.dylib`).
-/// Required runtime-relative dylibs (`@rpath` / `@loader_path` /
-/// `@executable_path`) must exist next to the staged copy — otherwise the
-/// transaction fails closed and the destination is left untouched. Bundles
-/// that ship adjacent rpath dylibs must re-sign those dylibs too and use
-/// `codesign --deep` on the `.app` (`AppBundleInstaller`). HAB-625.
+/// Scope: single-file executables plus **adjacent** required rpath dylibs.
+/// System libraries (`/usr/lib`, `/System`, `/Library/Apple`) and **weak**
+/// loads are allowed to be missing (the live `andromeda` CLI weakly links
+/// `@rpath/libswiftCompatibilitySpan.dylib`). Required runtime-relative
+/// dylibs (`@rpath` / `@loader_path` / `@executable_path`) must exist next to
+/// the source *or* already next to the destination — otherwise the
+/// transaction fails closed (HAB-625). Companions found next to the source
+/// are staged, ad-hoc re-signed, strictly verified, then renamed into the
+/// destination directory before the executable itself (HAB-626). Bundles
+/// that ship a tree of rpath dylibs use `codesign --deep` on the `.app`
+/// (`AppBundleInstaller`).
 public actor BinaryInstaller {
 
     /// Outcome of a successful install transaction.
@@ -52,9 +55,13 @@ public actor BinaryInstaller {
         public let publishedInode: UInt64
         /// Size of the installed executable in bytes.
         public let bytes: Int
+        /// Adjacent required dylibs copied+signed into the destination directory.
+        public let companionDylibs: [String]
 
         public var description: String {
             let previous = previousDestinationInode.map(String.init) ?? "none (fresh install)"
+            let companions =
+                companionDylibs.isEmpty ? "(none)" : companionDylibs.joined(separator: ", ")
             return """
                 install-cli report
                   source:          \(source)
@@ -63,13 +70,16 @@ public actor BinaryInstaller {
                   previous inode:  \(previous)
                   published inode: \(publishedInode)  (atomic rename, fresh inode)
                   size:            \(bytes) bytes
+                  companions:      \(companions)
                 """
         }
     }
 
     /// Every failure mode of the transaction. All of them leave the
     /// destination untouched (or, for `postPublishVerificationFailed`, fail
-    /// loudly after a staged-and-verified publish).
+    /// loudly after a staged-and-verified publish). Companion dylibs are
+    /// published *before* the executable; a binary-rename failure may leave
+    /// newly-signed companions beside the old binary.
     public enum InstallError: Error, CustomStringConvertible, Sendable {
         case sourceMissing(String)
         case sourceNotExecutable(String)
@@ -140,6 +150,13 @@ public actor BinaryInstaller {
         }
     }
 
+    private struct PlannedCompanion {
+        let fileName: String
+        let sourceURL: URL
+        let stagingURL: URL
+        let destinationURL: URL
+    }
+
     private let shell: any ShellExecuting
     private let fileManager: FileManager
 
@@ -186,9 +203,13 @@ public actor BinaryInstaller {
         } catch {
             throw InstallError.stagingFailed(error.localizedDescription)
         }
-        // Fail-closed helper: never leak the staging file.
+
+        var stagedURLs: [URL] = [stagingURL]
+        // Fail-closed helper: never leak staging files.
         func cleanupAndThrow(_ error: InstallError) -> InstallError {
-            try? fileManager.removeItem(at: stagingURL)
+            for url in stagedURLs.reversed() {
+                try? fileManager.removeItem(at: url)
+            }
             return error
         }
 
@@ -199,18 +220,62 @@ public actor BinaryInstaller {
             throw cleanupAndThrow(.chmodFailed(error.localizedDescription))
         }
 
-        // 4. Fail closed if required runtime-relative dylibs are missing next
-        //    to the staged copy. Weak loads (e.g. libswiftCompatibilitySpan)
-        //    and system libraries are allowed to be absent. HAB-625.
+        // 4. Inspect linked libraries. Required adjacent dylibs must exist
+        //    next to the source or already next to the destination (HAB-625).
+        //    Source-adjacent companions are staged+signed+published (HAB-626).
+        let libraries: [LinkedLibrary]
         do {
-            try await inspectLinkedLibraries(at: stagingURL)
+            libraries = try await loadLinkedLibraries(at: stagingURL)
         } catch let error as InstallError {
             throw cleanupAndThrow(error)
         } catch {
             throw cleanupAndThrow(.linkedLibraryInspectionFailed(error.localizedDescription))
         }
 
-        // 5. Ad-hoc re-sign the staged copy — never the live destination.
+        let sourceDirectory = source.deletingLastPathComponent()
+        let gaps = Self.requiredLibraryGaps(
+            libraries,
+            adjacentDirectory: destinationDirectory,
+            sourceDirectory: sourceDirectory,
+            fileExists: { [fileManager] path in
+                fileManager.fileExists(atPath: path)
+            }
+        )
+        if !gaps.isEmpty {
+            let detail = gaps.map(\.installName).joined(separator: ", ")
+            throw cleanupAndThrow(.missingRequiredLinkedLibrary(detail))
+        }
+
+        let companions: [PlannedCompanion]
+        do {
+            companions = try stageCompanions(
+                libraries: libraries,
+                sourceDirectory: sourceDirectory,
+                destinationDirectory: destinationDirectory,
+                stagedURLs: &stagedURLs
+            )
+        } catch let error as InstallError {
+            throw cleanupAndThrow(error)
+        } catch {
+            throw cleanupAndThrow(.stagingFailed(error.localizedDescription))
+        }
+
+        // 5. Ad-hoc re-sign companions, then the staged executable.
+        for companion in companions {
+            let signResult = try await shell.execute([
+                "codesign", "--force", "--sign", "-", companion.stagingURL.path,
+            ])
+            guard signResult.success else {
+                throw cleanupAndThrow(.signingFailed("\(companion.fileName): \(signResult.output)"))
+            }
+            let verifyResult = try await shell.execute([
+                "codesign", "--verify", "--strict", companion.stagingURL.path,
+            ])
+            guard verifyResult.success else {
+                throw cleanupAndThrow(.verificationFailed("\(companion.fileName): \(verifyResult.output)"))
+            }
+        }
+
         let signResult = try await shell.execute(["codesign", "--force", "--sign", "-", stagingURL.path])
         guard signResult.success else {
             throw cleanupAndThrow(.signingFailed(signResult.output))
@@ -225,13 +290,28 @@ public actor BinaryInstaller {
         // the signed inode here — it is what the rename below publishes.
         let signedInode = inodeNumber(at: stagingURL)
 
-        // 7. Atomic publish: rename(2) replaces the directory entry only.
+        // 7. Atomic publish: companions first (so the old binary still has
+        //    loadable dylibs if the executable rename fails), then the binary.
+        for companion in companions {
+            let renameResult = rename(companion.stagingURL.path, companion.destinationURL.path)
+            guard renameResult == 0 else {
+                let detail = String(cString: strerror(errno))
+                throw cleanupAndThrow(
+                    .publishFailed(
+                        "rename(\(companion.stagingURL.path) -> \(companion.destinationURL.path)): \(detail)"
+                    )
+                )
+            }
+            stagedURLs.removeAll { $0 == companion.stagingURL }
+        }
+
         let previousInode = inodeNumber(at: destination)
         let renameResult = rename(stagingURL.path, destination.path)
         guard renameResult == 0 else {
             let detail = String(cString: strerror(errno))
             throw cleanupAndThrow(.publishFailed("rename(\(stagingURL.path) -> \(destination.path)): \(detail)"))
         }
+        stagedURLs.removeAll { $0 == stagingURL }
         let publishedInode = inodeNumber(at: destination)
         let bytes = ((try? fileManager.attributesOfItem(atPath: destination.path))?[.size] as? Int) ?? 0
 
@@ -250,7 +330,8 @@ public actor BinaryInstaller {
             signedInode: signedInode ?? 0,
             previousDestinationInode: previousInode,
             publishedInode: publishedInode ?? 0,
-            bytes: bytes
+            bytes: bytes,
+            companionDylibs: companions.map(\.fileName)
         )
     }
 
@@ -259,23 +340,52 @@ public actor BinaryInstaller {
         return (attributes?[.systemFileNumber] as? Int).map(UInt64.init)
     }
 
-    private func inspectLinkedLibraries(at staged: URL) async throws {
+    private func loadLinkedLibraries(at staged: URL) async throws -> [LinkedLibrary] {
         let result = try await shell.execute(["/usr/bin/otool", "-L", staged.path])
         guard result.success else {
             throw InstallError.linkedLibraryInspectionFailed(result.output)
         }
-        let libraries = Self.parseOtoolL(result.output)
-        let gaps = Self.requiredLibraryGaps(
-            libraries,
-            adjacentDirectory: staged.deletingLastPathComponent(),
-            fileExists: { [fileManager] path in
-                fileManager.fileExists(atPath: path)
+        return Self.parseOtoolL(result.output)
+    }
+
+    private func stageCompanions(
+        libraries: [LinkedLibrary],
+        sourceDirectory: URL,
+        destinationDirectory: URL,
+        stagedURLs: inout [URL]
+    ) throws -> [PlannedCompanion] {
+        var planned: [PlannedCompanion] = []
+        var seen: Set<String> = []
+        for library in libraries {
+            if library.isWeak { continue }
+            guard let name = library.adjacentFileName else { continue }
+            guard seen.insert(name).inserted else { continue }
+            let sourceURL = sourceDirectory.appendingPathComponent(name)
+            guard fileManager.fileExists(atPath: sourceURL.path) else { continue }
+            let destinationURL = destinationDirectory.appendingPathComponent(name)
+            let stagingURL = destinationDirectory
+                .appendingPathComponent(".\(name).install-\(UUID().uuidString).tmp")
+            do {
+                try fileManager.copyItem(at: sourceURL, to: stagingURL)
+            } catch {
+                throw InstallError.stagingFailed("\(name): \(error.localizedDescription)")
             }
-        )
-        if !gaps.isEmpty {
-            let detail = gaps.map(\.installName).joined(separator: ", ")
-            throw InstallError.missingRequiredLinkedLibrary(detail)
+            stagedURLs.append(stagingURL)
+            do {
+                try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: stagingURL.path)
+            } catch {
+                throw InstallError.chmodFailed("\(name): \(error.localizedDescription)")
+            }
+            planned.append(
+                PlannedCompanion(
+                    fileName: name,
+                    sourceURL: sourceURL,
+                    stagingURL: stagingURL,
+                    destinationURL: destinationURL
+                )
+            )
         }
+        return planned
     }
 
     /// Parse `otool -L` stdout into load commands. Header lines (`path:`) skipped.
@@ -296,16 +406,23 @@ public actor BinaryInstaller {
         return libraries
     }
 
-    /// Required (non-weak) libraries that would not resolve after a single-file publish.
+    /// Required (non-weak) libraries that would not resolve after publish.
+    /// Adjacent names may be satisfied by the source directory (copied in
+    /// HAB-626) or by an already-installed companion next to the destination.
     public static func requiredLibraryGaps(
         _ libraries: [LinkedLibrary],
         adjacentDirectory: URL,
+        sourceDirectory: URL? = nil,
         fileExists: (String) -> Bool
     ) -> [LinkedLibrary] {
         libraries.filter { library in
             if library.isWeak { return false }
             if library.isSystem { return false }
             if let name = library.adjacentFileName {
+                if let sourceDirectory {
+                    let sourceAdjacent = sourceDirectory.appendingPathComponent(name)
+                    if fileExists(sourceAdjacent.path) { return false }
+                }
                 let adjacent = adjacentDirectory.appendingPathComponent(name)
                 return !fileExists(adjacent.path)
             }
