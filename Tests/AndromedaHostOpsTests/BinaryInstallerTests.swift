@@ -432,4 +432,78 @@ struct BinaryInstallerTests {
             .filter { $0.contains(".install-") || $0.contains(".rollback-") || $0.contains(".orphan-") }
         #expect(leftovers.isEmpty)
     }
+
+    /// HAB-631: dest post-publish verify succeeding is not enough — a failed
+    /// companion dest verify must restore parked dest + companion inodes.
+    private actor PostPublishCompanionFailingShell: ShellExecuting {
+        let companionPath: String
+        let live = LiveShell()
+
+        init(companionPath: String) {
+            self.companionPath = companionPath
+        }
+
+        func execute(_ arguments: [String]) async throws -> ShellResult {
+            if arguments.contains("--verify"), arguments.last == companionPath {
+                return ShellResult(success: false, output: "mocked post-publish companion verify failure")
+            }
+            return try await live.execute(arguments)
+        }
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func postPublishCompanionVerifyFailureRestoresParkedDestAndCompanion() async throws {
+        let root = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sourceDir = root.appendingPathComponent("src")
+        let destDir = root.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        let dummyC = sourceDir.appendingPathComponent("dummy.c")
+        try "void dummy(void) {}\n".write(to: dummyC, atomically: true, encoding: .utf8)
+        let dylib = sourceDir.appendingPathComponent("libcompanion.dylib")
+        let clang = LiveShell()
+        let libBuild = try await clang.execute([
+            "/usr/bin/clang", "-dynamiclib",
+            "-install_name", "@loader_path/libcompanion.dylib",
+            "-o", dylib.path, dummyC.path,
+        ])
+        #expect(libBuild.success)
+
+        let mainC = sourceDir.appendingPathComponent("main.c")
+        try "int main(void) { return 0; }\n".write(to: mainC, atomically: true, encoding: .utf8)
+        let source = sourceDir.appendingPathComponent("victim")
+        let link = try await clang.execute([
+            "/usr/bin/clang", "-o", source.path, mainC.path, dylib.path,
+            "-Wl,-rpath,@loader_path",
+        ])
+        #expect(link.success)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: source.path)
+
+        let destination = destDir.appendingPathComponent("dest-bin")
+        try FileManager.default.copyItem(at: source, to: destination)
+        let oldBinInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+
+        let oldDylib = destDir.appendingPathComponent("libcompanion.dylib")
+        try FileManager.default.copyItem(at: dylib, to: oldDylib)
+        let oldDylibInode = try FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as! Int
+
+        let installer = BinaryInstaller(shell: PostPublishCompanionFailingShell(companionPath: oldDylib.path))
+        await #expect(throws: BinaryInstaller.InstallError.self) {
+            _ = try await installer.install(source: source, destination: destination)
+        }
+
+        let newBinInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        #expect(newBinInode == oldBinInode)
+
+        #expect(FileManager.default.fileExists(atPath: oldDylib.path))
+        let restoredDylibInode = try FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as! Int
+        #expect(restoredDylibInode == oldDylibInode)
+
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: destDir.path)
+            .filter { $0.contains(".install-") || $0.contains(".rollback-") || $0.contains(".orphan-") }
+        #expect(leftovers.isEmpty)
+    }
+
 }

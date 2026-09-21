@@ -36,8 +36,9 @@ import Foundation
 /// companion inodes are parked first and restored if the executable rename
 /// (or a later companion rename) fails (HAB-628). The previous dest
 /// executable is parked the same way and kept (with companion backups)
-/// until post-publish `codesign --verify --strict` succeeds; a failed
-/// verify restores dest + companions (HAB-629). Bundles that ship a tree
+/// until post-publish `codesign --verify --strict` succeeds on dest AND
+/// each published companion; a failed dest or companion verify restores
+/// dest + companions (HAB-629 / HAB-631). Bundles that ship a tree
 /// of rpath dylibs use `codesign --deep` on the `.app` (`AppBundleInstaller`).
 public actor BinaryInstaller {
 
@@ -84,8 +85,9 @@ public actor BinaryInstaller {
     /// the executable; a binary-rename failure restores parked companion
     /// inodes so dest never keeps new dylibs beside the old binary
     /// (HAB-628). The previous dest inode is parked before the executable
-    /// rename, and backups stay until post-publish verify succeeds so a
-    /// failed verify can restore dest + companions (HAB-629).
+    /// rename, and backups stay until post-publish verify succeeds on dest
+    /// and each companion so a failed dest or companion verify can restore
+    /// dest + companions (HAB-629 / HAB-631).
     public enum InstallError: Error, CustomStringConvertible, Sendable {
         case sourceMissing(String)
         case sourceNotExecutable(String)
@@ -336,8 +338,9 @@ public actor BinaryInstaller {
         let publishedInode = inodeNumber(at: destination)
         let bytes = ((try? fileManager.attributesOfItem(atPath: destination.path))?[.size] as? Int) ?? 0
 
-        // 8. Post-publish verification. Backups stay until this succeeds so a
-        //    failed verify can restore dest + companions (HAB-629).
+        // 8. Post-publish verification. Backups stay until dest AND each
+        //    published companion verify so a failed dest or companion
+        //    check can restore dest + companions (HAB-629 / HAB-631).
         let postVerify = try await shell.execute(["codesign", "--verify", "--strict", destination.path])
         guard postVerify.success, publishedInode == signedInode else {
             rollbackPublishedCompanions(publishedCompanions + [parkedDestination])
@@ -347,6 +350,19 @@ public actor BinaryInstaller {
                     "published=\(publishedInode.map(String.init) ?? "nil") signed=\(signedInode.map(String.init) ?? "nil")): \(postVerify.output)"
                 )
             )
+        }
+        for companion in publishedCompanions {
+            let companionVerify = try await shell.execute([
+                "codesign", "--verify", "--strict", companion.destinationURL.path,
+            ])
+            guard companionVerify.success else {
+                rollbackPublishedCompanions(publishedCompanions + [parkedDestination])
+                throw cleanupAndThrow(
+                    .postPublishVerificationFailed(
+                        "\(companion.fileName): \(companionVerify.output)"
+                    )
+                )
+            }
         }
         dropCompanionBackups(publishedCompanions + [parkedDestination])
 
