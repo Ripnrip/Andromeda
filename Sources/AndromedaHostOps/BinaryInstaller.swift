@@ -32,9 +32,10 @@ import Foundation
 /// the source *or* already next to the destination — otherwise the
 /// transaction fails closed (HAB-625). Companions found next to the source
 /// are staged, ad-hoc re-signed, strictly verified, then renamed into the
-/// destination directory before the executable itself (HAB-626). Bundles
-/// that ship a tree of rpath dylibs use `codesign --deep` on the `.app`
-/// (`AppBundleInstaller`).
+/// destination directory before the executable itself (HAB-626). Previous
+/// companion inodes are parked first and restored if the executable rename
+/// (or a later companion rename) fails (HAB-628). Bundles that ship a tree
+/// of rpath dylibs use `codesign --deep` on the `.app` (`AppBundleInstaller`).
 public actor BinaryInstaller {
 
     /// Outcome of a successful install transaction.
@@ -78,8 +79,9 @@ public actor BinaryInstaller {
     /// Every failure mode of the transaction. All of them leave the
     /// destination untouched (or, for `postPublishVerificationFailed`, fail
     /// loudly after a staged-and-verified publish). Companion dylibs are
-    /// published *before* the executable; a binary-rename failure may leave
-    /// newly-signed companions beside the old binary.
+    /// published *before* the executable; a binary-rename failure restores
+    /// parked companion inodes so dest never keeps new dylibs beside the
+    /// old binary (HAB-628).
     public enum InstallError: Error, CustomStringConvertible, Sendable {
         case sourceMissing(String)
         case sourceNotExecutable(String)
@@ -159,13 +161,18 @@ public actor BinaryInstaller {
 
     private let shell: any ShellExecuting
     private let fileManager: FileManager
+    /// Injected `rename(2)` so tests can fail the executable publish after
+    /// companions have already been renamed into the destination directory.
+    private let renamePaths: @Sendable (String, String) -> Int32
 
     public init(
         shell: (any ShellExecuting)? = LiveShell(),
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        renamePaths: (@Sendable (String, String) -> Int32)? = nil
     ) {
         self.shell = shell ?? LiveShell()
         self.fileManager = fileManager
+        self.renamePaths = renamePaths ?? { old, new in rename(old, new) }
     }
 
     /// Run the full install transaction and return its report.
@@ -290,28 +297,27 @@ public actor BinaryInstaller {
         // the signed inode here — it is what the rename below publishes.
         let signedInode = inodeNumber(at: stagingURL)
 
-        // 7. Atomic publish: companions first (so the old binary still has
-        //    loadable dylibs if the executable rename fails), then the binary.
-        for companion in companions {
-            let renameResult = rename(companion.stagingURL.path, companion.destinationURL.path)
-            guard renameResult == 0 else {
-                let detail = String(cString: strerror(errno))
-                throw cleanupAndThrow(
-                    .publishFailed(
-                        "rename(\(companion.stagingURL.path) -> \(companion.destinationURL.path)): \(detail)"
-                    )
-                )
-            }
-            stagedURLs.removeAll { $0 == companion.stagingURL }
+        // 7. Atomic publish: companions first (park previous companion inodes,
+        //    then rename staged copies in). The executable rename is last.
+        //    Any publish failure restores parked companions (HAB-628).
+        let publishedCompanions: [PublishedCompanion]
+        do {
+            publishedCompanions = try publishCompanions(companions, stagedURLs: &stagedURLs)
+        } catch let error as InstallError {
+            throw cleanupAndThrow(error)
+        } catch {
+            throw cleanupAndThrow(.publishFailed(error.localizedDescription))
         }
 
         let previousInode = inodeNumber(at: destination)
-        let renameResult = rename(stagingURL.path, destination.path)
+        let renameResult = renamePaths(stagingURL.path, destination.path)
         guard renameResult == 0 else {
             let detail = String(cString: strerror(errno))
+            rollbackPublishedCompanions(publishedCompanions)
             throw cleanupAndThrow(.publishFailed("rename(\(stagingURL.path) -> \(destination.path)): \(detail)"))
         }
         stagedURLs.removeAll { $0 == stagingURL }
+        dropCompanionBackups(publishedCompanions)
         let publishedInode = inodeNumber(at: destination)
         let bytes = ((try? fileManager.attributesOfItem(atPath: destination.path))?[.size] as? Int) ?? 0
 
@@ -386,6 +392,91 @@ public actor BinaryInstaller {
             )
         }
         return planned
+    }
+
+    private struct PublishedCompanion {
+        let fileName: String
+        let destinationURL: URL
+        let backupURL: URL?
+    }
+
+    /// Park any existing dest companion, then rename the staged copy into place.
+    private func publishCompanions(
+        _ companions: [PlannedCompanion],
+        stagedURLs: inout [URL]
+    ) throws -> [PublishedCompanion] {
+        var published: [PublishedCompanion] = []
+        for companion in companions {
+            let backupURL: URL?
+            do {
+                backupURL = try parkExistingCompanion(
+                    companion.destinationURL,
+                    fileName: companion.fileName
+                )
+            } catch let error as InstallError {
+                rollbackPublishedCompanions(published)
+                throw error
+            }
+            let item = PublishedCompanion(
+                fileName: companion.fileName,
+                destinationURL: companion.destinationURL,
+                backupURL: backupURL
+            )
+            let renameResult = renamePaths(companion.stagingURL.path, companion.destinationURL.path)
+            guard renameResult == 0 else {
+                let detail = String(cString: strerror(errno))
+                rollbackPublishedCompanions(published + [item])
+                throw InstallError.publishFailed(
+                    "rename(\(companion.stagingURL.path) -> \(companion.destinationURL.path)): \(detail)"
+                )
+            }
+            stagedURLs.removeAll { $0 == companion.stagingURL }
+            published.append(item)
+        }
+        return published
+    }
+
+    /// Move an existing dest companion aside so its inode can be restored.
+    private func parkExistingCompanion(_ destinationURL: URL, fileName: String) throws -> URL? {
+        guard fileManager.fileExists(atPath: destinationURL.path) else { return nil }
+        let backupURL = destinationURL.deletingLastPathComponent()
+            .appendingPathComponent(".\(fileName).rollback-\(UUID().uuidString).tmp")
+        let result = renamePaths(destinationURL.path, backupURL.path)
+        guard result == 0 else {
+            let detail = String(cString: strerror(errno))
+            throw InstallError.publishFailed(
+                "park(\(destinationURL.path) -> \(backupURL.path)): \(detail)"
+            )
+        }
+        return backupURL
+    }
+
+    /// Restore parked companion inodes and drop any newly published copies.
+    private func rollbackPublishedCompanions(_ published: [PublishedCompanion]) {
+        for item in published.reversed() {
+            if fileManager.fileExists(atPath: item.destinationURL.path) {
+                let orphan = item.destinationURL.deletingLastPathComponent()
+                    .appendingPathComponent(".\(item.fileName).orphan-\(UUID().uuidString).tmp")
+                if renamePaths(item.destinationURL.path, orphan.path) == 0 {
+                    try? fileManager.removeItem(at: orphan)
+                } else {
+                    try? fileManager.removeItem(at: item.destinationURL)
+                }
+            }
+            if let backup = item.backupURL, fileManager.fileExists(atPath: backup.path) {
+                _ = renamePaths(backup.path, item.destinationURL.path)
+            }
+        }
+    }
+
+    /// After a successful executable publish, the parked previous companions
+    /// are no longer needed.
+    private func dropCompanionBackups(_ published: [PublishedCompanion]) {
+        for item in published {
+            if let backup = item.backupURL {
+                try? fileManager.removeItem(at: backup)
+            }
+        }
     }
 
     /// Parse `otool -L` stdout into load commands. Header lines (`path:`) skipped.

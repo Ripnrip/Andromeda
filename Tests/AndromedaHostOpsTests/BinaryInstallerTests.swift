@@ -1,4 +1,5 @@
 import AndromedaHostOps
+import Darwin
 import Foundation
 import Testing
 
@@ -292,6 +293,68 @@ struct BinaryInstallerTests {
 
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: destDir.path)
             .filter { $0.contains(".install-") }
+        #expect(leftovers.isEmpty)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func binaryRenameFailureRestoresParkedCompanionAndLeavesDestination() async throws {
+        let root = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sourceDir = root.appendingPathComponent("src")
+        let destDir = root.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        let dummyC = sourceDir.appendingPathComponent("dummy.c")
+        try "void dummy(void) {}\n".write(to: dummyC, atomically: true, encoding: .utf8)
+        let dylib = sourceDir.appendingPathComponent("libcompanion.dylib")
+        let clang = LiveShell()
+        let libBuild = try await clang.execute([
+            "/usr/bin/clang", "-dynamiclib",
+            "-install_name", "@loader_path/libcompanion.dylib",
+            "-o", dylib.path, dummyC.path,
+        ])
+        #expect(libBuild.success)
+
+        let mainC = sourceDir.appendingPathComponent("main.c")
+        try "int main(void) { return 0; }\n".write(to: mainC, atomically: true, encoding: .utf8)
+        let source = sourceDir.appendingPathComponent("victim")
+        let link = try await clang.execute([
+            "/usr/bin/clang", "-o", source.path, mainC.path, dylib.path,
+            "-Wl,-rpath,@loader_path",
+        ])
+        #expect(link.success)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: source.path)
+
+        let destination = destDir.appendingPathComponent("dest-bin")
+        try FileManager.default.copyItem(at: source, to: destination)
+        let oldBinInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+
+        let oldDylib = destDir.appendingPathComponent("libcompanion.dylib")
+        try FileManager.default.copyItem(at: dylib, to: oldDylib)
+        let oldDylibInode = try FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as! Int
+
+        let destPath = destination.path
+        let installer = BinaryInstaller(renamePaths: { old, new in
+            if new == destPath {
+                errno = EACCES
+                return -1
+            }
+            return rename(old, new)
+        })
+        await #expect(throws: BinaryInstaller.InstallError.self) {
+            _ = try await installer.install(source: source, destination: destination)
+        }
+
+        let newBinInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        #expect(newBinInode == oldBinInode)
+
+        #expect(FileManager.default.fileExists(atPath: oldDylib.path))
+        let restoredDylibInode = try FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as! Int
+        #expect(restoredDylibInode == oldDylibInode)
+
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: destDir.path)
+            .filter { $0.contains(".install-") || $0.contains(".rollback-") || $0.contains(".orphan-") }
         #expect(leftovers.isEmpty)
     }
 }
