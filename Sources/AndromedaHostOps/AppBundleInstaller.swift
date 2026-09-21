@@ -15,12 +15,17 @@ import Foundation
 /// 3. strip leftover signatures on the inner binary and the staging bundle,
 /// 4. ad-hoc re-sign the staging bundle (`codesign --force --deep --sign -`),
 /// 5. strictly verify (`codesign --verify --deep --strict`),
-/// 6. atomically publish staging → destination (`replaceItemAt` if the dest
-///    exists, `moveItem` if it does not).
+/// 6. park the previous destination bundle (same-volume rename) if it
+///    exists, then `moveItem` staging → destination,
+/// 7. strictly verify the published dest (`codesign --verify --deep --strict`),
+/// 8. drop the parked backup only after that verify succeeds. A failed
+///    post-publish verify restores the parked bundle (HAB-630, HAB-629 leftover).
 ///
 /// The live destination is never mutated until the staging bundle has a
 /// strict-valid signature. Any failure before publish leaves the destination
-/// untouched and removes the staging tree.
+/// untouched and removes the staging tree. After publish, a failed dest
+/// verify restores the previous bundle (or leaves dest absent on a fresh
+/// install) and removes staging/rollback/orphan leftovers.
 ///
 /// Out of scope: LaunchAgent plist rewrite/bootstrap, `open -a`, writing
 /// `~/Applications` (callers choose the destination), adjacent rpath dylibs
@@ -114,7 +119,7 @@ public actor AppBundleInstaller {
             case .publishFailed(let detail):
                 "Atomic publish into destination failed (destination untouched): \(detail)"
             case .postPublishVerificationFailed(let detail):
-                "Published bundle failed post-publish verification: \(detail)"
+                "Published bundle failed post-publish verification (destination restored): \(detail)"
             }
         }
     }
@@ -197,19 +202,48 @@ public actor AppBundleInstaller {
         }
 
         let replacedExisting = fileManager.fileExists(atPath: destination.path)
-        do {
-            if replacedExisting {
-                _ = try fileManager.replaceItemAt(
-                    destination,
-                    withItemAt: stagingURL,
-                    backupItemName: nil,
-                    options: []
+
+        // Park the previous dest bundle so a failed publish or post-publish
+        // verify can restore it (HAB-630). Same-volume rename, matching
+        // BinaryInstaller HAB-629.
+        let backupURL: URL?
+        if replacedExisting {
+            let parked = destinationDirectory
+                .appendingPathComponent(".\(spec.productName).rollback-\(UUID().uuidString).tmp.app")
+            do {
+                try fileManager.moveItem(at: destination, to: parked)
+                backupURL = parked
+            } catch {
+                throw cleanupAndThrow(
+                    .publishFailed("park(\(destination.path) -> \(parked.path)): \(error.localizedDescription)")
                 )
-            } else {
-                try fileManager.moveItem(at: stagingURL, to: destination)
             }
+        } else {
+            backupURL = nil
+        }
+
+        func rollbackPublish() {
+            if fileManager.fileExists(atPath: destination.path) {
+                let orphan = destinationDirectory
+                    .appendingPathComponent(".\(spec.productName).orphan-\(UUID().uuidString).tmp.app")
+                do {
+                    try fileManager.moveItem(at: destination, to: orphan)
+                    try? fileManager.removeItem(at: orphan)
+                } catch {
+                    try? fileManager.removeItem(at: destination)
+                }
+            }
+            if let backupURL, fileManager.fileExists(atPath: backupURL.path) {
+                try? fileManager.moveItem(at: backupURL, to: destination)
+            }
+            try? fileManager.removeItem(at: stagingURL)
+        }
+
+        do {
+            try fileManager.moveItem(at: stagingURL, to: destination)
         } catch {
-            throw cleanupAndThrow(.publishFailed(error.localizedDescription))
+            rollbackPublish()
+            throw InstallError.publishFailed(error.localizedDescription)
         }
 
         let bytes = directoryByteSize(at: destination)
@@ -218,7 +252,11 @@ public actor AppBundleInstaller {
             "codesign", "--verify", "--deep", "--strict", destination.path,
         ])
         guard postVerify.success else {
+            rollbackPublish()
             throw InstallError.postPublishVerificationFailed(postVerify.output)
+        }
+        if let backupURL {
+            try? fileManager.removeItem(at: backupURL)
         }
 
         return Report(
