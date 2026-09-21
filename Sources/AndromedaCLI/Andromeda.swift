@@ -160,9 +160,10 @@ struct InstallCLI: AsyncParsableCommand {
 
         The destination is never written in place: a staging copy with a fresh
         inode is ad-hoc re-signed and strictly verified next to the destination,
-        then atomically renamed into it. Any failure leaves the destination
-        untouched. Use for single-file executables whose dependencies are all
-        system libraries (e.g. the `andromeda` CLI itself).
+        then atomically renamed into it. Required adjacent rpath dylibs found
+        next to the source are staged, re-signed, and published beside the
+        destination (HAB-626); missing required companions fail closed (HAB-625).
+        Any failure before publish leaves the destination binary untouched.
         """
     )
 
