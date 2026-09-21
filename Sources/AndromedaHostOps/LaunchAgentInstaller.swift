@@ -7,18 +7,22 @@ import Foundation
 /// Fail-closed LaunchAgent install: rewrite Studio HOME template, write the
 /// plist, optionally `bootstrap` (legacy `load` fallback). Kickstart is opt-in.
 ///
-/// BIN-101 leftover · HAB-622. Companion to `BinaryInstaller` (HAB-618) and
-/// `AppBundleInstaller` (HAB-621). `scripts/install-and-sign.sh` rendered
-/// `/Users/admin` → `$HOME` then `bootout`+`bootstrap` then `kickstart -k`.
-/// launchd does **not** expand `$HOME`/`~`, so every path in the plist must
-/// be absolute after rewrite.
+/// BIN-101 leftover · HAB-622 / HAB-632. Companion to `BinaryInstaller`
+/// (HAB-618) and `AppBundleInstaller` (HAB-621). `scripts/install-and-sign.sh`
+/// rendered `/Users/admin` → `$HOME` then `bootout`+`bootstrap` then
+/// `kickstart -k`. launchd does **not** expand `$HOME`/`~`, so every path in
+/// the plist must be absolute after rewrite.
 ///
 /// This type keeps the rewrite + bootstrap contract and **does not** kickstart
 /// unless `Spec.kickstart` is true. Heartbeat cron must never pass kickstart
 /// (AGENTS.md: no invisible launchd jobs; do not kickstart live HUD).
 ///
 /// Destination is caller-chosen. Tests and CLI never default to
-/// `~/Library/LaunchAgents`.
+/// `~/Library/LaunchAgents`. The previous dest plist is parked before
+/// publish; a failed `bootstrap`+`load` restores that inode (or leaves dest
+/// absent on a fresh install) so dest never keeps a new plist that launchd
+/// refused (HAB-632, HAB-629 leftover). File-level restore only — cron does
+/// not re-bootstrap the previous job.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -103,13 +107,13 @@ public actor LaunchAgentInstaller {
             case .destinationIsDirectory(let path):
                 "Destination exists and is a directory: \(path)"
             case .writeFailed(let detail):
-                "Failed to write rendered plist: \(detail)"
+                "Failed to write rendered plist (destination restored): \(detail)"
             case .logDirectoryFailed(let detail):
                 "Failed to create log directory: \(detail)"
             case .kickstartWithoutBootstrap:
                 "kickstart requires bootstrap (refusing to kickstart an unregistered job)"
             case .bootstrapFailed(let detail):
-                "launchctl bootstrap/load failed: \(detail)"
+                "launchctl bootstrap/load failed (destination restored): \(detail)"
             }
         }
     }
@@ -211,9 +215,57 @@ public actor LaunchAgentInstaller {
             }
         }
 
+        // Park previous dest, then publish staging. A failed bootstrap+load
+        // restores the parked inode (HAB-632). Same-volume rename, matching
+        // AppBundleInstaller HAB-630 / BinaryInstaller HAB-629.
+        let stagingURL = destinationDirectory
+            .appendingPathComponent(".\(destination.lastPathComponent).install-\(UUID().uuidString).tmp")
         do {
-            try rendered.write(to: destination, atomically: true, encoding: .utf8)
+            try rendered.write(to: stagingURL, atomically: true, encoding: .utf8)
         } catch {
+            try? fileManager.removeItem(at: stagingURL)
+            throw InstallError.writeFailed(error.localizedDescription)
+        }
+
+        let replacedExisting = fileManager.fileExists(atPath: destination.path)
+        let backupURL: URL?
+        if replacedExisting {
+            let parked = destinationDirectory
+                .appendingPathComponent(".\(destination.lastPathComponent).rollback-\(UUID().uuidString).tmp")
+            do {
+                try fileManager.moveItem(at: destination, to: parked)
+                backupURL = parked
+            } catch {
+                try? fileManager.removeItem(at: stagingURL)
+                throw InstallError.writeFailed(
+                    "park(\(destination.path) -> \(parked.path)): \(error.localizedDescription)"
+                )
+            }
+        } else {
+            backupURL = nil
+        }
+
+        func rollbackPublish() {
+            if fileManager.fileExists(atPath: destination.path) {
+                let orphan = destinationDirectory
+                    .appendingPathComponent(".\(destination.lastPathComponent).orphan-\(UUID().uuidString).tmp")
+                do {
+                    try fileManager.moveItem(at: destination, to: orphan)
+                    try? fileManager.removeItem(at: orphan)
+                } catch {
+                    try? fileManager.removeItem(at: destination)
+                }
+            }
+            if let backupURL, fileManager.fileExists(atPath: backupURL.path) {
+                try? fileManager.moveItem(at: backupURL, to: destination)
+            }
+            try? fileManager.removeItem(at: stagingURL)
+        }
+
+        do {
+            try fileManager.moveItem(at: stagingURL, to: destination)
+        } catch {
+            rollbackPublish()
             throw InstallError.writeFailed(error.localizedDescription)
         }
 
@@ -232,6 +284,7 @@ public actor LaunchAgentInstaller {
                 _ = try? await shell.execute(["launchctl", "unload", destination.path])
                 let load = try await shell.execute(["launchctl", "load", destination.path])
                 guard load.success else {
+                    rollbackPublish()
                     throw InstallError.bootstrapFailed(
                         "bootstrap: \(boot.output); load: \(load.output)"
                     )
@@ -248,6 +301,9 @@ public actor LaunchAgentInstaller {
                     kickstarted = plain.success
                 }
             }
+        }
+        if let backupURL {
+            try? fileManager.removeItem(at: backupURL)
         }
 
         return Report(
