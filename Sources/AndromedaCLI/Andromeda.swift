@@ -163,7 +163,9 @@ struct InstallCLI: AsyncParsableCommand {
         then atomically renamed into it. Required adjacent rpath dylibs found
         next to the source are staged, re-signed, and published beside the
         destination (HAB-626); missing required companions fail closed (HAB-625).
-        Any failure before publish leaves the destination binary untouched.
+        Post-publish verify covers dest AND each companion; failure restores
+        parked dest + companions (HAB-629 / HAB-631). Any failure before
+        publish leaves the destination binary untouched.
         """
     )
 
