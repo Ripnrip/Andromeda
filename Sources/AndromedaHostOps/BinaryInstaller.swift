@@ -24,11 +24,14 @@ import Foundation
 /// fully-signed old artifact or the fully-signed new one. Any failure before
 /// the rename leaves the destination untouched and removes the staging file.
 ///
-/// Scope: single-file executables whose dependencies are all system libraries
-/// (the `andromeda` CLI links only `/usr/lib` and system frameworks, with an
-/// `@loader_path` rpath and no adjacent dylibs). Bundles that ship adjacent
-/// rpath dylibs must re-sign those dylibs too and use `codesign --deep` on the
-/// `.app` — that path is out of scope for this type.
+/// Scope: single-file executables. System libraries (`/usr/lib`, `/System`,
+/// `/Library/Apple`) and **weak** loads are allowed to be missing (the live
+/// `andromeda` CLI weakly links `@rpath/libswiftCompatibilitySpan.dylib`).
+/// Required runtime-relative dylibs (`@rpath` / `@loader_path` /
+/// `@executable_path`) must exist next to the staged copy — otherwise the
+/// transaction fails closed and the destination is left untouched. Bundles
+/// that ship adjacent rpath dylibs must re-sign those dylibs too and use
+/// `codesign --deep` on the `.app` (`AppBundleInstaller`). HAB-625.
 public actor BinaryInstaller {
 
     /// Outcome of a successful install transaction.
@@ -77,6 +80,8 @@ public actor BinaryInstaller {
         case verificationFailed(String)
         case publishFailed(String)
         case postPublishVerificationFailed(String)
+        case linkedLibraryInspectionFailed(String)
+        case missingRequiredLinkedLibrary(String)
 
         public var description: String {
             switch self {
@@ -98,7 +103,40 @@ public actor BinaryInstaller {
                 "Atomic rename into destination failed (destination untouched): \(detail)"
             case .postPublishVerificationFailed(let detail):
                 "Published artifact failed post-publish verification: \(detail)"
+            case .linkedLibraryInspectionFailed(let detail):
+                "Could not inspect staged linked libraries (destination untouched): \(detail)"
+            case .missingRequiredLinkedLibrary(let detail):
+                "Staged copy is missing a required non-system dylib (destination untouched): \(detail)"
             }
+        }
+    }
+
+    /// One `otool -L` load command from a Mach-O.
+    public struct LinkedLibrary: Sendable, Equatable {
+        public let installName: String
+        public let isWeak: Bool
+
+        public var isSystem: Bool {
+            installName.hasPrefix("/usr/lib/")
+                || installName.hasPrefix("/System/")
+                || installName.hasPrefix("/Library/Apple/")
+        }
+
+        public var isRuntimeRelative: Bool {
+            installName.hasPrefix("@rpath/")
+                || installName.hasPrefix("@loader_path/")
+                || installName.hasPrefix("@executable_path/")
+        }
+
+        /// Last path component when the install name is `@rpath/foo.dylib` (no subdirs).
+        public var adjacentFileName: String? {
+            for prefix in ["@rpath/", "@loader_path/", "@executable_path/"] {
+                guard installName.hasPrefix(prefix) else { continue }
+                let rest = String(installName.dropFirst(prefix.count))
+                if rest.isEmpty || rest.contains("/") { return nil }
+                return rest
+            }
+            return nil
         }
     }
 
@@ -161,13 +199,24 @@ public actor BinaryInstaller {
             throw cleanupAndThrow(.chmodFailed(error.localizedDescription))
         }
 
-        // 4. Ad-hoc re-sign the staged copy — never the live destination.
+        // 4. Fail closed if required runtime-relative dylibs are missing next
+        //    to the staged copy. Weak loads (e.g. libswiftCompatibilitySpan)
+        //    and system libraries are allowed to be absent. HAB-625.
+        do {
+            try await inspectLinkedLibraries(at: stagingURL)
+        } catch let error as InstallError {
+            throw cleanupAndThrow(error)
+        } catch {
+            throw cleanupAndThrow(.linkedLibraryInspectionFailed(error.localizedDescription))
+        }
+
+        // 5. Ad-hoc re-sign the staged copy — never the live destination.
         let signResult = try await shell.execute(["codesign", "--force", "--sign", "-", stagingURL.path])
         guard signResult.success else {
             throw cleanupAndThrow(.signingFailed(signResult.output))
         }
 
-        // 5. Strict verification before anything is published.
+        // 6. Strict verification before anything is published.
         let verifyResult = try await shell.execute(["codesign", "--verify", "--strict", stagingURL.path])
         guard verifyResult.success else {
             throw cleanupAndThrow(.verificationFailed(verifyResult.output))
@@ -176,7 +225,7 @@ public actor BinaryInstaller {
         // the signed inode here — it is what the rename below publishes.
         let signedInode = inodeNumber(at: stagingURL)
 
-        // 6. Atomic publish: rename(2) replaces the directory entry only.
+        // 7. Atomic publish: rename(2) replaces the directory entry only.
         let previousInode = inodeNumber(at: destination)
         let renameResult = rename(stagingURL.path, destination.path)
         guard renameResult == 0 else {
@@ -186,7 +235,7 @@ public actor BinaryInstaller {
         let publishedInode = inodeNumber(at: destination)
         let bytes = ((try? fileManager.attributesOfItem(atPath: destination.path))?[.size] as? Int) ?? 0
 
-        // 7. Post-publish verification — the world sees the new inode now.
+        // 8. Post-publish verification — the world sees the new inode now.
         let postVerify = try await shell.execute(["codesign", "--verify", "--strict", destination.path])
         guard postVerify.success, publishedInode == signedInode else {
             throw InstallError.postPublishVerificationFailed(
@@ -208,5 +257,64 @@ public actor BinaryInstaller {
     private func inodeNumber(at url: URL) -> UInt64? {
         let attributes = try? fileManager.attributesOfItem(atPath: url.path)
         return (attributes?[.systemFileNumber] as? Int).map(UInt64.init)
+    }
+
+    private func inspectLinkedLibraries(at staged: URL) async throws {
+        let result = try await shell.execute(["/usr/bin/otool", "-L", staged.path])
+        guard result.success else {
+            throw InstallError.linkedLibraryInspectionFailed(result.output)
+        }
+        let libraries = Self.parseOtoolL(result.output)
+        let gaps = Self.requiredLibraryGaps(
+            libraries,
+            adjacentDirectory: staged.deletingLastPathComponent(),
+            fileExists: { [fileManager] path in
+                fileManager.fileExists(atPath: path)
+            }
+        )
+        if !gaps.isEmpty {
+            let detail = gaps.map(\.installName).joined(separator: ", ")
+            throw InstallError.missingRequiredLinkedLibrary(detail)
+        }
+    }
+
+    /// Parse `otool -L` stdout into load commands. Header lines (`path:`) skipped.
+    public static func parseOtoolL(_ output: String) -> [LinkedLibrary] {
+        var libraries: [LinkedLibrary] = []
+        for raw in output.split(whereSeparator: \.isNewline) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty { continue }
+            if line.hasSuffix(":") { continue }
+            guard let paren = line.firstIndex(of: "(") else { continue }
+            let name = line[..<paren].trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { continue }
+            let meta = line[paren...]
+            libraries.append(
+                LinkedLibrary(installName: String(name), isWeak: meta.contains("weak"))
+            )
+        }
+        return libraries
+    }
+
+    /// Required (non-weak) libraries that would not resolve after a single-file publish.
+    public static func requiredLibraryGaps(
+        _ libraries: [LinkedLibrary],
+        adjacentDirectory: URL,
+        fileExists: (String) -> Bool
+    ) -> [LinkedLibrary] {
+        libraries.filter { library in
+            if library.isWeak { return false }
+            if library.isSystem { return false }
+            if let name = library.adjacentFileName {
+                let adjacent = adjacentDirectory.appendingPathComponent(name)
+                return !fileExists(adjacent.path)
+            }
+            if library.isRuntimeRelative {
+                // `@rpath/subdir/lib.dylib` — we do not copy directory trees.
+                return true
+            }
+            // Absolute non-system path: dyld can still load it if it exists.
+            return !fileExists(library.installName)
+        }
     }
 }
