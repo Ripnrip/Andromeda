@@ -40,7 +40,14 @@ struct AppBundleInstallerTests {
 
     private func leftoverInstallTrees(in dir: URL) throws -> [String] {
         try FileManager.default.contentsOfDirectory(atPath: dir.path)
-            .filter { $0.contains(".install-") }
+            .filter {
+                $0.contains(".install-") || $0.contains(".rollback-") || $0.contains(".orphan-")
+            }
+    }
+
+    private func bundleInode(at url: URL) throws -> Int {
+        let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+        return attrs[.systemFileNumber] as! Int
     }
 
     private func dummyUnsignedBundle(at url: URL, marker: String) throws {
@@ -172,6 +179,65 @@ struct AppBundleInstallerTests {
             encoding: .utf8
         )
         #expect(marker == "keep-me")
+        #expect(try leftoverInstallTrees(in: dir).isEmpty)
+    }
+
+    private actor PostPublishFailingShell: ShellExecuting {
+        let destPath: String
+        let live = LiveShell()
+
+        init(destPath: String) {
+            self.destPath = destPath
+        }
+
+        func execute(_ arguments: [String]) async throws -> ShellResult {
+            if arguments.contains("--verify"), arguments.last == destPath {
+                return ShellResult(success: false, output: "mocked post-publish verify failure")
+            }
+            return try await live.execute(arguments)
+        }
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/codesign")))
+    func postPublishVerifyFailureRestoresParkedBundle() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let source = makeSource(dir)
+        let destination = dir.appendingPathComponent("FixtureHome.app")
+        try dummyUnsignedBundle(at: destination, marker: "keep-me")
+        let oldInode = try bundleInode(at: destination)
+        let oldMarkerPath = destination.appendingPathComponent("Contents/MacOS/OLD")
+
+        let installer = AppBundleInstaller(shell: PostPublishFailingShell(destPath: destination.path))
+        await #expect(throws: AppBundleInstaller.InstallError.self) {
+            _ = try await installer.install(source: source, destination: destination, spec: spec())
+        }
+
+        #expect(FileManager.default.fileExists(atPath: oldMarkerPath.path))
+        let marker = try String(contentsOf: oldMarkerPath, encoding: .utf8)
+        #expect(marker == "keep-me")
+        let restoredInode = try bundleInode(at: destination)
+        #expect(restoredInode == oldInode)
+        #expect(!FileManager.default.fileExists(atPath: destination.appendingPathComponent("Contents/MacOS/FixtureHome").path))
+        #expect(try leftoverInstallTrees(in: dir).isEmpty)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/codesign")))
+    func postPublishVerifyFailureOnFreshInstallLeavesDestAbsent() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let source = makeSource(dir)
+        let destination = dir.appendingPathComponent("FreshHome.app")
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+
+        let installer = AppBundleInstaller(shell: PostPublishFailingShell(destPath: destination.path))
+        await #expect(throws: AppBundleInstaller.InstallError.self) {
+            _ = try await installer.install(source: source, destination: destination, spec: spec())
+        }
+
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
         #expect(try leftoverInstallTrees(in: dir).isEmpty)
     }
 
