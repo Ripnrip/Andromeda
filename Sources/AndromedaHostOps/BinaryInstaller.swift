@@ -34,7 +34,10 @@ import Foundation
 /// are staged, ad-hoc re-signed, strictly verified, then renamed into the
 /// destination directory before the executable itself (HAB-626). Previous
 /// companion inodes are parked first and restored if the executable rename
-/// (or a later companion rename) fails (HAB-628). Bundles that ship a tree
+/// (or a later companion rename) fails (HAB-628). The previous dest
+/// executable is parked the same way and kept (with companion backups)
+/// until post-publish `codesign --verify --strict` succeeds; a failed
+/// verify restores dest + companions (HAB-629). Bundles that ship a tree
 /// of rpath dylibs use `codesign --deep` on the `.app` (`AppBundleInstaller`).
 public actor BinaryInstaller {
 
@@ -76,12 +79,13 @@ public actor BinaryInstaller {
         }
     }
 
-    /// Every failure mode of the transaction. All of them leave the
-    /// destination untouched (or, for `postPublishVerificationFailed`, fail
-    /// loudly after a staged-and-verified publish). Companion dylibs are
-    /// published *before* the executable; a binary-rename failure restores
-    /// parked companion inodes so dest never keeps new dylibs beside the
-    /// old binary (HAB-628).
+    /// Every failure mode of the transaction leaves dest + companions as
+    /// they were before this call. Companion dylibs are published *before*
+    /// the executable; a binary-rename failure restores parked companion
+    /// inodes so dest never keeps new dylibs beside the old binary
+    /// (HAB-628). The previous dest inode is parked before the executable
+    /// rename, and backups stay until post-publish verify succeeds so a
+    /// failed verify can restore dest + companions (HAB-629).
     public enum InstallError: Error, CustomStringConvertible, Sendable {
         case sourceMissing(String)
         case sourceNotExecutable(String)
@@ -114,7 +118,7 @@ public actor BinaryInstaller {
             case .publishFailed(let detail):
                 "Atomic rename into destination failed (destination untouched): \(detail)"
             case .postPublishVerificationFailed(let detail):
-                "Published artifact failed post-publish verification: \(detail)"
+                "Published artifact failed post-publish verification (destination restored): \(detail)"
             case .linkedLibraryInspectionFailed(let detail):
                 "Could not inspect staged linked libraries (destination untouched): \(detail)"
             case .missingRequiredLinkedLibrary(let detail):
@@ -298,8 +302,9 @@ public actor BinaryInstaller {
         let signedInode = inodeNumber(at: stagingURL)
 
         // 7. Atomic publish: companions first (park previous companion inodes,
-        //    then rename staged copies in). The executable rename is last.
-        //    Any publish failure restores parked companions (HAB-628).
+        //    then rename staged copies in). Park the previous dest executable
+        //    next, then rename the staged binary last. Any publish failure
+        //    restores parked dest + companions (HAB-628 / HAB-629).
         let publishedCompanions: [PublishedCompanion]
         do {
             publishedCompanions = try publishCompanions(companions, stagedURLs: &stagedURLs)
@@ -310,25 +315,40 @@ public actor BinaryInstaller {
         }
 
         let previousInode = inodeNumber(at: destination)
+        let parkedDestination: PublishedCompanion
+        do {
+            parkedDestination = try parkDestination(destination)
+        } catch let error as InstallError {
+            rollbackPublishedCompanions(publishedCompanions)
+            throw cleanupAndThrow(error)
+        } catch {
+            rollbackPublishedCompanions(publishedCompanions)
+            throw cleanupAndThrow(.publishFailed(error.localizedDescription))
+        }
+
         let renameResult = renamePaths(stagingURL.path, destination.path)
         guard renameResult == 0 else {
             let detail = String(cString: strerror(errno))
-            rollbackPublishedCompanions(publishedCompanions)
+            rollbackPublishedCompanions(publishedCompanions + [parkedDestination])
             throw cleanupAndThrow(.publishFailed("rename(\(stagingURL.path) -> \(destination.path)): \(detail)"))
         }
         stagedURLs.removeAll { $0 == stagingURL }
-        dropCompanionBackups(publishedCompanions)
         let publishedInode = inodeNumber(at: destination)
         let bytes = ((try? fileManager.attributesOfItem(atPath: destination.path))?[.size] as? Int) ?? 0
 
-        // 8. Post-publish verification — the world sees the new inode now.
+        // 8. Post-publish verification. Backups stay until this succeeds so a
+        //    failed verify can restore dest + companions (HAB-629).
         let postVerify = try await shell.execute(["codesign", "--verify", "--strict", destination.path])
         guard postVerify.success, publishedInode == signedInode else {
-            throw InstallError.postPublishVerificationFailed(
-                "publish sanity failed (verify.success=\(postVerify.success), " +
-                "published=\(publishedInode.map(String.init) ?? "nil") signed=\(signedInode.map(String.init) ?? "nil")): \(postVerify.output)"
+            rollbackPublishedCompanions(publishedCompanions + [parkedDestination])
+            throw cleanupAndThrow(
+                .postPublishVerificationFailed(
+                    "publish sanity failed (verify.success=\(postVerify.success), " +
+                    "published=\(publishedInode.map(String.init) ?? "nil") signed=\(signedInode.map(String.init) ?? "nil")): \(postVerify.output)"
+                )
             )
         }
+        dropCompanionBackups(publishedCompanions + [parkedDestination])
 
         return Report(
             source: source.path,
@@ -436,6 +456,20 @@ public actor BinaryInstaller {
         return published
     }
 
+    /// Park the previous dest executable so a failed binary rename or
+    /// post-publish verify can restore it (HAB-629).
+    private func parkDestination(_ destination: URL) throws -> PublishedCompanion {
+        let backupURL = try parkExistingCompanion(
+            destination,
+            fileName: destination.lastPathComponent
+        )
+        return PublishedCompanion(
+            fileName: destination.lastPathComponent,
+            destinationURL: destination,
+            backupURL: backupURL
+        )
+    }
+
     /// Move an existing dest companion aside so its inode can be restored.
     private func parkExistingCompanion(_ destinationURL: URL, fileName: String) throws -> URL? {
         guard fileManager.fileExists(atPath: destinationURL.path) else { return nil }
@@ -469,7 +503,7 @@ public actor BinaryInstaller {
         }
     }
 
-    /// After a successful executable publish, the parked previous companions
+    /// After post-publish verify succeeds, parked previous dest + companions
     /// are no longer needed.
     private func dropCompanionBackups(_ published: [PublishedCompanion]) {
         for item in published {
