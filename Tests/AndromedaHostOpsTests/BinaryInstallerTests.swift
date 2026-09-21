@@ -128,4 +128,98 @@ struct BinaryInstallerTests {
             .filter { $0.contains(".install-") }
         #expect(leftovers.isEmpty)
     }
+
+    // MARK: - HAB-625 linked-library policy
+
+    @Test
+    func parseOtoolLSkipsHeaderAndNotesWeak() {
+        let sample = """
+        /tmp/andromeda:
+        \t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)
+        \t/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation (compatibility version 300.0.0, current version 1.0.0)
+        \t@rpath/libswiftCompatibilitySpan.dylib (compatibility version 0.0.0, current version 0.0.0, weak)
+        \t@loader_path/libmissing.dylib (compatibility version 0.0.0, current version 0.0.0)
+        """
+        let libs = BinaryInstaller.parseOtoolL(sample)
+        #expect(libs.count == 4)
+        #expect(libs[0].isSystem)
+        #expect(!libs[0].isWeak)
+        #expect(libs[2].installName == "@rpath/libswiftCompatibilitySpan.dylib")
+        #expect(libs[2].isWeak)
+        #expect(libs[2].adjacentFileName == "libswiftCompatibilitySpan.dylib")
+        #expect(libs[3].adjacentFileName == "libmissing.dylib")
+        #expect(!libs[3].isWeak)
+    }
+
+    @Test
+    func requiredLibraryGapsAllowsWeakMissingAndSystem() {
+        let libs = BinaryInstaller.parseOtoolL("""
+        /tmp/bin:
+        \t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1.0.0)
+        \t@rpath/libswiftCompatibilitySpan.dylib (compatibility version 0.0.0, current version 0.0.0, weak)
+        """)
+        let gaps = BinaryInstaller.requiredLibraryGaps(
+            libs,
+            adjacentDirectory: URL(fileURLWithPath: "/tmp"),
+            fileExists: { _ in false }
+        )
+        #expect(gaps.isEmpty)
+    }
+
+    @Test
+    func requiredLibraryGapsFailsOnMissingRequiredLoaderPath() {
+        let libs = BinaryInstaller.parseOtoolL("""
+        /tmp/bin:
+        \t@loader_path/libmissing.dylib (compatibility version 0.0.0, current version 0.0.0)
+        """)
+        let gaps = BinaryInstaller.requiredLibraryGaps(
+            libs,
+            adjacentDirectory: URL(fileURLWithPath: "/tmp"),
+            fileExists: { _ in false }
+        )
+        #expect(gaps.map(\.installName) == ["@loader_path/libmissing.dylib"])
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func missingRequiredLoaderPathDylibFailsClosedAndLeavesDestination() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let dummyC = dir.appendingPathComponent("dummy.c")
+        try "void dummy(void) {}\n".write(to: dummyC, atomically: true, encoding: .utf8)
+        let dylib = dir.appendingPathComponent("libmissing.dylib")
+        let clang = LiveShell()
+        let libBuild = try await clang.execute([
+            "/usr/bin/clang", "-dynamiclib",
+            "-install_name", "@loader_path/libmissing.dylib",
+            "-o", dylib.path, dummyC.path,
+        ])
+        #expect(libBuild.success)
+
+        let mainC = dir.appendingPathComponent("main.c")
+        try "int main(void) { return 0; }\n".write(to: mainC, atomically: true, encoding: .utf8)
+        let source = dir.appendingPathComponent("victim")
+        let link = try await clang.execute([
+            "/usr/bin/clang", "-o", source.path, mainC.path, dylib.path,
+            "-Wl,-rpath,@loader_path",
+        ])
+        #expect(link.success)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: source.path)
+        try FileManager.default.removeItem(at: dylib)
+
+        let destination = dir.appendingPathComponent("dest-bin")
+        try FileManager.default.copyItem(at: source, to: destination)
+        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+
+        let installer = BinaryInstaller()
+        await #expect(throws: BinaryInstaller.InstallError.self) {
+            _ = try await installer.install(source: source, destination: destination)
+        }
+
+        let newInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        #expect(newInode == oldInode)
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.contains(".install-") }
+        #expect(leftovers.isEmpty)
+    }
 }
