@@ -30,9 +30,12 @@ import Foundation
 /// `@rpath/libswiftCompatibilitySpan.dylib`). Required runtime-relative
 /// dylibs (`@rpath` / `@loader_path` / `@executable_path`) must exist next to
 /// the source *or* already next to the destination — otherwise the
-/// transaction fails closed (HAB-625). Companions found next to the source
-/// are staged, ad-hoc re-signed, strictly verified, then renamed into the
-/// destination directory before the executable itself (HAB-626). Previous
+/// transaction fails closed (HAB-625). Companion dylibs are themselves
+/// `otool -L`'d (HAB-674): a nested required adjacent name is staged too,
+/// and a missing nested required dylib fails closed before publish.
+/// Companions found next to the source are staged, ad-hoc re-signed,
+/// strictly verified, then renamed into the destination directory before
+/// the executable itself (HAB-626). Previous
 /// companion inodes are parked first and restored if the executable rename
 /// (or a later companion rename) fails (HAB-628). The previous dest
 /// executable is parked the same way and kept (with companion backups)
@@ -236,16 +239,22 @@ public actor BinaryInstaller {
         // 4. Inspect linked libraries. Required adjacent dylibs must exist
         //    next to the source or already next to the destination (HAB-625).
         //    Source-adjacent companions are staged+signed+published (HAB-626).
+        //    Companions are inspected too — nested required adjacent names
+        //    join the same fail-closed + stage set (HAB-674).
+        let sourceDirectory = source.deletingLastPathComponent()
         let libraries: [LinkedLibrary]
         do {
-            libraries = try await loadLinkedLibraries(at: stagingURL)
+            let initial = try await loadLinkedLibraries(at: stagingURL)
+            libraries = try await expandLinkedLibraries(
+                initial: initial,
+                sourceDirectory: sourceDirectory
+            )
         } catch let error as InstallError {
             throw cleanupAndThrow(error)
         } catch {
             throw cleanupAndThrow(.linkedLibraryInspectionFailed(error.localizedDescription))
         }
 
-        let sourceDirectory = source.deletingLastPathComponent()
         let gaps = Self.requiredLibraryGaps(
             libraries,
             adjacentDirectory: destinationDirectory,
@@ -388,6 +397,43 @@ public actor BinaryInstaller {
             throw InstallError.linkedLibraryInspectionFailed(result.output)
         }
         return Self.parseOtoolL(result.output)
+    }
+
+    /// Walk source-adjacent companions and union their load commands.
+    ///
+    /// HAB-625 only inspected the staged executable. A dylib that itself
+    /// requires `@loader_path/libnested.dylib` would then publish without
+    /// the nested file (or succeed when the nested file is missing). BFS
+    /// over adjacent names, skipping missing source files (dest-adjacent
+    /// leftovers still satisfy `requiredLibraryGaps`).
+    private func expandLinkedLibraries(
+        initial: [LinkedLibrary],
+        sourceDirectory: URL
+    ) async throws -> [LinkedLibrary] {
+        var all = initial
+        var seen: Set<String> = []
+        var queue: [String] = []
+        func enqueue(_ libraries: [LinkedLibrary]) {
+            for library in libraries {
+                if library.isWeak { continue }
+                guard let name = library.adjacentFileName else { continue }
+                if seen.insert(name).inserted {
+                    queue.append(name)
+                }
+            }
+        }
+        enqueue(initial)
+        var index = 0
+        while index < queue.count {
+            let name = queue[index]
+            index += 1
+            let sourceURL = sourceDirectory.appendingPathComponent(name)
+            guard fileManager.fileExists(atPath: sourceURL.path) else { continue }
+            let nested = try await loadLinkedLibraries(at: sourceURL)
+            all.append(contentsOf: nested)
+            enqueue(nested)
+        }
+        return all
     }
 
     private func stageCompanions(
