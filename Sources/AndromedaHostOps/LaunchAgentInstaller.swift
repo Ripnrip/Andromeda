@@ -23,6 +23,13 @@ import Foundation
 /// absent on a fresh install) so dest never keeps a new plist that launchd
 /// refused (HAB-632, HAB-629 leftover). File-level restore only — cron does
 /// not re-bootstrap the previous job.
+///
+/// `launchctl bootstrap` can return 0 even when Program/ProgramArguments[0]
+/// is missing; launchd then exec-fails (KeepAlive hammers). HAB-632 does
+/// not cover that — it only restores on bootstrap+load *command* failure.
+/// When `Spec.bootstrap` is true, the rendered Program path must be an
+/// absolute existing executable before dest is parked (HAB-676). Rewrite-only
+/// (`bootstrap` false) stays a dry-run and does not require the binary.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -89,6 +96,9 @@ public actor LaunchAgentInstaller {
         case logDirectoryFailed(String)
         case kickstartWithoutBootstrap
         case bootstrapFailed(String)
+        case programMissing(String)
+        case programNotAbsolute(String)
+        case programNotExecutable(String)
 
         public var description: String {
             switch self {
@@ -114,6 +124,12 @@ public actor LaunchAgentInstaller {
                 "kickstart requires bootstrap (refusing to kickstart an unregistered job)"
             case .bootstrapFailed(let detail):
                 "launchctl bootstrap/load failed (destination restored): \(detail)"
+            case .programMissing(let path):
+                "LaunchAgent Program does not exist (destination untouched): \(path)"
+            case .programNotAbsolute(let path):
+                "LaunchAgent Program must be an absolute path (launchd does not expand $HOME/~): \(path)"
+            case .programNotExecutable(let path):
+                "LaunchAgent Program is not executable (destination untouched): \(path)"
             }
         }
     }
@@ -183,6 +199,12 @@ public actor LaunchAgentInstaller {
         }
         if let expected = spec.label, expected != plistLabel {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
+        }
+
+        // HAB-676: bootstrap can succeed with a missing Program. Require the
+        // rendered exec path before parking dest. Rewrite-only dry-run skips.
+        if spec.bootstrap {
+            try Self.validateProgram(dict, fileManager: fileManager)
         }
 
         let destinationDirectory = destination.deletingLastPathComponent()
@@ -318,4 +340,37 @@ public actor LaunchAgentInstaller {
             kickstarted: kickstarted
         )
     }
+    /// Program or ProgramArguments[0] after HOME rewrite.
+    public static func programPath(from dict: [String: Any]) -> String? {
+        if let program = dict["Program"] as? String {
+            let trimmed = program.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        if let args = dict["ProgramArguments"] as? [String], let first = args.first {
+            let trimmed = first.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return nil
+    }
+
+    /// Fail-closed Program check used only when bootstrapping (HAB-676).
+    public static func validateProgram(
+        _ dict: [String: Any],
+        fileManager: FileManager
+    ) throws {
+        guard let path = programPath(from: dict) else {
+            throw InstallError.programMissing("(no Program or ProgramArguments[0])")
+        }
+        guard path.hasPrefix("/") else {
+            throw InstallError.programNotAbsolute(path)
+        }
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory), !isDirectory.boolValue else {
+            throw InstallError.programMissing(path)
+        }
+        guard fileManager.isExecutableFile(atPath: path) else {
+            throw InstallError.programNotExecutable(path)
+        }
+    }
+
 }

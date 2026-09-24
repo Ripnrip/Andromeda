@@ -71,6 +71,20 @@ struct LaunchAgentInstallerTests {
         """
     }
 
+
+    @discardableResult
+    private func plantFixtureProgram(home: String) -> URL {
+        let url = URL(fileURLWithPath: home)
+            .appendingPathComponent("Applications/Fixture.app/Contents/MacOS/Fixture")
+        try! FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(atPath: url.path, contents: Data("#!/bin/sh\nexit 0\n".utf8))
+        try! FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url
+    }
+
     private actor RecordingShell: ShellExecuting {
         private(set) var calls: [[String]] = []
         var failIfContains: [String] = []
@@ -227,6 +241,7 @@ struct LaunchAgentInstallerTests {
         let source = writePlist(dir, name: "src.plist", body: fixturePlist())
         let destination = dir.appendingPathComponent("out.plist")
         let home = isolatedHome(in: dir)
+        _ = plantFixtureProgram(home: home)
         let shell = RecordingShell()
         let installer = LaunchAgentInstaller(shell: shell)
         let report = try await installer.install(
@@ -252,6 +267,7 @@ struct LaunchAgentInstallerTests {
         let source = writePlist(dir, name: "src.plist", body: fixturePlist())
         let destination = dir.appendingPathComponent("out.plist")
         let home = isolatedHome(in: dir)
+        _ = plantFixtureProgram(home: home)
         let shell = RecordingShell()
         await shell.setFailIfContains(["launchctl bootstrap"])
         let installer = LaunchAgentInstaller(shell: shell)
@@ -276,6 +292,7 @@ struct LaunchAgentInstallerTests {
         let source = writePlist(dir, name: "src.plist", body: fixturePlist())
         let destination = dir.appendingPathComponent("out.plist")
         let home = isolatedHome(in: dir)
+        _ = plantFixtureProgram(home: home)
         let shell = RecordingShell()
         await shell.setFailIfContains(["launchctl bootstrap", "launchctl load "])
         let installer = LaunchAgentInstaller(shell: shell)
@@ -302,6 +319,7 @@ struct LaunchAgentInstallerTests {
         try previous.write(to: destination, atomically: true, encoding: .utf8)
         let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
         let home = isolatedHome(in: dir)
+        _ = plantFixtureProgram(home: home)
         let shell = RecordingShell()
         await shell.setFailIfContains(["launchctl bootstrap", "launchctl load "])
         let installer = LaunchAgentInstaller(shell: shell)
@@ -329,6 +347,7 @@ struct LaunchAgentInstallerTests {
         let source = writePlist(dir, name: "src.plist", body: fixturePlist())
         let destination = dir.appendingPathComponent("fresh.plist")
         let home = isolatedHome(in: dir)
+        _ = plantFixtureProgram(home: home)
         let shell = RecordingShell()
         await shell.setFailIfContains(["launchctl bootstrap", "launchctl load "])
         let installer = LaunchAgentInstaller(shell: shell)
@@ -352,6 +371,7 @@ struct LaunchAgentInstallerTests {
         let source = writePlist(dir, name: "src.plist", body: fixturePlist())
         let destination = dir.appendingPathComponent("out.plist")
         let home = isolatedHome(in: dir)
+        _ = plantFixtureProgram(home: home)
         let shell = RecordingShell()
         await shell.setFailIfContains(["kickstart -k"])
         let installer = LaunchAgentInstaller(shell: shell)
@@ -371,6 +391,104 @@ struct LaunchAgentInstallerTests {
         let joined = calls.map { $0.joined(separator: " ") }
         #expect(joined.contains("launchctl kickstart -k gui/501/com.andromeda.fixture.agent"))
         #expect(joined.contains("launchctl kickstart gui/501/com.andromeda.fixture.agent"))
+    }
+
+
+    @Test
+    func bootstrapMissingProgramFailsClosedBeforeLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let source = writePlist(dir, name: "src.plist", body: fixturePlist())
+        let destination = dir.appendingPathComponent("out.plist")
+        let previous = "keep-me\n"
+        try previous.write(to: destination, atomically: true, encoding: .utf8)
+        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let home = isolatedHome(in: dir)
+        // Intentionally do not plant Program.
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+        let restored = try String(contentsOf: destination, encoding: .utf8)
+        #expect(restored == previous)
+        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        #expect(restoredInode == oldInode)
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test
+    func bootstrapMissingProgramLeavesFreshDestAbsent() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let source = writePlist(dir, name: "src.plist", body: fixturePlist())
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test
+    func bootstrapNonExecutableProgramFailsClosed() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let source = writePlist(dir, name: "src.plist", body: fixturePlist())
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let program = URL(fileURLWithPath: home)
+            .appendingPathComponent("Applications/Fixture.app/Contents/MacOS/Fixture")
+        try FileManager.default.createDirectory(
+            at: program.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(atPath: program.path, contents: Data("not-exec".utf8))
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: program.path)
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test
+    func rewriteOnlyDoesNotRequireProgram() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let source = writePlist(dir, name: "src.plist", body: fixturePlist())
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let installer = LaunchAgentInstaller(shell: RecordingShell())
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: false)
+        )
+        #expect(report.rewritten)
+        #expect(!report.bootstrapped)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
     }
 
     // MARK: - Real ops templates (rewrite only)

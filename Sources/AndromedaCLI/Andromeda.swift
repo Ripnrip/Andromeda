@@ -274,7 +274,7 @@ struct InstallLaunchAgent: AsyncParsableCommand {
         commandName: "install-launch-agent",
         abstract: "Render a LaunchAgent plist (HOME rewrite) and optionally bootstrap it.",
         discussion: """
-        Fail-closed LaunchAgent install (HAB-622 / HAB-632, BIN-101 leftover).
+        Fail-closed LaunchAgent install (HAB-622 / HAB-632 / HAB-676, BIN-101 leftover).
 
         launchd does not expand $HOME/~. ops/*.plist bake the Studio home
         template /Users/admin; this command rewrites that string to --home
@@ -282,9 +282,13 @@ struct InstallLaunchAgent: AsyncParsableCommand {
 
         Previous dest is parked until publish succeeds; a failed
         bootstrap+load restores that inode (or leaves dest absent on a
-        fresh install). --bootstrap runs bootout then bootstrap (legacy
-        load fallback). --kickstart is opt-in and refused without
-        --bootstrap. Cron must not kickstart live HUD.
+        fresh install). --bootstrap requires the rendered Program path to
+        exist and be executable before dest is parked (HAB-676) — launchctl
+        bootstrap can otherwise succeed and KeepAlive-hammer a missing
+        binary. Rewrite-only (no --bootstrap) stays a dry-run.
+        --bootstrap runs bootout then bootstrap (legacy load fallback).
+        --kickstart is opt-in and refused without --bootstrap. Cron must
+        not kickstart live HUD.
         """
     )
 
