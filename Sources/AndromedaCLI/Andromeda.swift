@@ -198,16 +198,17 @@ struct InstallApp: AsyncParsableCommand {
         commandName: "install-app",
         abstract: "Atomically install a built executable as a signed .app bundle.",
         discussion: """
-        Fail-closed .app install transaction (HAB-621 / HAB-630 / HAB-671, BIN-101 slice).
+        Fail-closed .app install transaction (HAB-621 / HAB-630 / HAB-671 / HAB-673, BIN-101 slice).
 
         Assembles Contents/MacOS + Info.plist at a staging .app next to the
         destination, inspects the inner executable with otool -L, copies
         source-adjacent required rpath dylibs into Contents/MacOS (fails closed
         if a required non-system dylib is missing), ad-hoc deep-signs and
         strictly verifies that staging tree, parks any previous dest bundle,
-        then publishes staging. A failed post-publish --deep --strict verify
-        restores the parked bundle (HAB-630). The live destination is never
-        overwritten with an unsigned tree.
+        then publishes staging. A failed post-publish --deep --strict dest
+        verify or companion --strict verify restores the parked bundle
+        (HAB-630 / HAB-673). The live destination is never overwritten with
+        an unsigned tree.
 
         Does not `open -a` and does not touch LaunchAgents.
         """
