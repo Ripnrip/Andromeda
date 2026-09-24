@@ -18,8 +18,12 @@ import Foundation
 /// 6. park the previous destination bundle (same-volume rename) if it
 ///    exists, then `moveItem` staging → destination,
 /// 7. strictly verify the published dest (`codesign --verify --deep --strict`),
-/// 8. drop the parked backup only after that verify succeeds. A failed
-///    post-publish verify restores the parked bundle (HAB-630, HAB-629 leftover).
+/// 8. strictly verify each published companion dylib at dest
+///    (`codesign --verify --strict`); `--deep` on the bundle is not enough
+///    to guarantee a standalone-valid nested Mach-O (HAB-673, HAB-631 leftover),
+/// 9. drop the parked backup only after dest + companions succeed. A failed
+///    post-publish dest or companion verify restores the parked bundle
+///    (HAB-630 / HAB-673).
 ///
 /// The live destination is never mutated until the staging bundle has a
 /// strict-valid signature. Any failure before publish leaves the destination
@@ -32,7 +36,9 @@ import Foundation
 /// must sit next to the source (copied into `Contents/MacOS` before
 /// `--deep` sign) or the transaction fails closed (HAB-671, HAB-625 leftover).
 /// Weak and system loads stay allowed. Dest-bundle leftovers do **not**
-/// satisfy gaps — the whole `.app` is replaced.
+/// satisfy gaps — the whole `.app` is replaced. After publish, each
+/// companion is verified at dest; failure restores the parked bundle
+/// (HAB-673, HAB-631 leftover).
 ///
 /// Out of scope: LaunchAgent plist rewrite/bootstrap, `open -a`, writing
 /// `~/Applications` (callers choose the destination).
@@ -130,7 +136,7 @@ public actor AppBundleInstaller {
             case .publishFailed(let detail):
                 "Atomic publish into destination failed (destination untouched): \(detail)"
             case .postPublishVerificationFailed(let detail):
-                "Published bundle failed post-publish verification (destination restored): \(detail)"
+                "Published bundle or companion failed post-publish verification (destination restored): \(detail)"
             case .linkedLibraryInspectionFailed(let detail):
                 "Could not inspect linked libraries of staged inner executable (destination untouched): \(detail)"
             case .missingRequiredLinkedLibrary(let detail):
@@ -306,6 +312,23 @@ public actor AppBundleInstaller {
         guard postVerify.success else {
             rollbackPublish()
             throw InstallError.postPublishVerificationFailed(postVerify.output)
+        }
+        // HAB-673: dest --deep --strict is not enough — a nested companion
+        // can fail standalone `codesign --verify --strict` even when the
+        // bundle's sealed resources look fine. Restore parked dest.
+        for name in companionNames {
+            let companionURL = destination
+                .appendingPathComponent("Contents/MacOS")
+                .appendingPathComponent(name)
+            let companionVerify = try await shell.execute([
+                "codesign", "--verify", "--strict", companionURL.path,
+            ])
+            guard companionVerify.success else {
+                rollbackPublish()
+                throw InstallError.postPublishVerificationFailed(
+                    "\(name): \(companionVerify.output)"
+                )
+            }
         }
         if let backupURL {
             try? fileManager.removeItem(at: backupURL)
