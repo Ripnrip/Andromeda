@@ -27,9 +27,15 @@ import Foundation
 /// verify restores the previous bundle (or leaves dest absent on a fresh
 /// install) and removes staging/rollback/orphan leftovers.
 ///
+/// After assemble, `otool -L` inspects the inner executable. Required
+/// runtime-relative dylibs (`@rpath` / `@loader_path` / `@executable_path`)
+/// must sit next to the source (copied into `Contents/MacOS` before
+/// `--deep` sign) or the transaction fails closed (HAB-671, HAB-625 leftover).
+/// Weak and system loads stay allowed. Dest-bundle leftovers do **not**
+/// satisfy gaps — the whole `.app` is replaced.
+///
 /// Out of scope: LaunchAgent plist rewrite/bootstrap, `open -a`, writing
-/// `~/Applications` (callers choose the destination), adjacent rpath dylibs
-/// beyond `codesign --deep`.
+/// `~/Applications` (callers choose the destination).
 public actor AppBundleInstaller {
 
     /// Identity written into `Contents/Info.plist`.
@@ -69,6 +75,8 @@ public actor AppBundleInstaller {
         public let productName: String
         public let bytes: Int
         public let replacedExisting: Bool
+        /// Adjacent required dylibs copied into `Contents/MacOS` (HAB-671).
+        public let companionDylibs: [String]
 
         public var description: String {
             """
@@ -78,6 +86,7 @@ public actor AppBundleInstaller {
               bundle id:    \(bundleIdentifier)
               product:      \(productName)
               replaced:     \(replacedExisting)
+              companions:   \(companionDylibs.joined(separator: ", "))
               size:         \(bytes) bytes
             """
         }
@@ -95,6 +104,8 @@ public actor AppBundleInstaller {
         case verificationFailed(String)
         case publishFailed(String)
         case postPublishVerificationFailed(String)
+        case linkedLibraryInspectionFailed(String)
+        case missingRequiredLinkedLibrary(String)
 
         public var description: String {
             switch self {
@@ -120,6 +131,10 @@ public actor AppBundleInstaller {
                 "Atomic publish into destination failed (destination untouched): \(detail)"
             case .postPublishVerificationFailed(let detail):
                 "Published bundle failed post-publish verification (destination restored): \(detail)"
+            case .linkedLibraryInspectionFailed(let detail):
+                "Could not inspect linked libraries of staged inner executable (destination untouched): \(detail)"
+            case .missingRequiredLinkedLibrary(let detail):
+                "Staged bundle is missing a required non-system dylib (destination untouched): \(detail)"
             }
         }
     }
@@ -179,6 +194,43 @@ public actor AppBundleInstaller {
 
         let innerBinary = stagingURL
             .appendingPathComponent("Contents/MacOS/\(spec.productName)")
+        let macosDir = innerBinary.deletingLastPathComponent()
+        let sourceDirectory = source.deletingLastPathComponent()
+
+        let libraries: [BinaryInstaller.LinkedLibrary]
+        do {
+            libraries = try await loadLinkedLibraries(at: innerBinary)
+        } catch let error as InstallError {
+            throw cleanupAndThrow(error)
+        } catch {
+            throw cleanupAndThrow(.linkedLibraryInspectionFailed(error.localizedDescription))
+        }
+
+        let gaps = BinaryInstaller.requiredLibraryGaps(
+            libraries,
+            adjacentDirectory: macosDir,
+            sourceDirectory: sourceDirectory,
+            fileExists: { [fileManager] path in
+                fileManager.fileExists(atPath: path)
+            }
+        )
+        if !gaps.isEmpty {
+            let detail = gaps.map(\.installName).joined(separator: ", ")
+            throw cleanupAndThrow(.missingRequiredLinkedLibrary(detail))
+        }
+
+        let companionNames: [String]
+        do {
+            companionNames = try stageCompanionDylibs(
+                libraries: libraries,
+                sourceDirectory: sourceDirectory,
+                macosDirectory: macosDir
+            )
+        } catch let error as InstallError {
+            throw cleanupAndThrow(error)
+        } catch {
+            throw cleanupAndThrow(.stagingFailed(error.localizedDescription))
+        }
 
         // Best-effort strip of any signature that came along with the source
         // copy (Apple-signed system binaries, linker-signed SwiftPM artifacts).
@@ -265,7 +317,8 @@ public actor AppBundleInstaller {
             bundleIdentifier: spec.bundleIdentifier,
             productName: spec.productName,
             bytes: bytes,
-            replacedExisting: replacedExisting
+            replacedExisting: replacedExisting,
+            companionDylibs: companionNames
         )
     }
 
@@ -309,6 +362,46 @@ public actor AppBundleInstaller {
         } catch {
             throw InstallError.plistFailed(error.localizedDescription)
         }
+    }
+
+    private func loadLinkedLibraries(at staged: URL) async throws -> [BinaryInstaller.LinkedLibrary] {
+        let result = try await shell.execute(["/usr/bin/otool", "-L", staged.path])
+        guard result.success else {
+            throw InstallError.linkedLibraryInspectionFailed(result.output)
+        }
+        return BinaryInstaller.parseOtoolL(result.output)
+    }
+
+    /// Copy source-adjacent required dylibs into `Contents/MacOS` so
+    /// `@loader_path` / `@executable_path` / flat `@rpath` resolve after publish.
+    private func stageCompanionDylibs(
+        libraries: [BinaryInstaller.LinkedLibrary],
+        sourceDirectory: URL,
+        macosDirectory: URL
+    ) throws -> [String] {
+        var names: [String] = []
+        var seen: Set<String> = []
+        for library in libraries {
+            if library.isWeak { continue }
+            guard let name = library.adjacentFileName else { continue }
+            guard seen.insert(name).inserted else { continue }
+            let sourceURL = sourceDirectory.appendingPathComponent(name)
+            guard fileManager.fileExists(atPath: sourceURL.path) else { continue }
+            let destURL = macosDirectory.appendingPathComponent(name)
+            if fileManager.fileExists(atPath: destURL.path) { continue }
+            do {
+                try fileManager.copyItem(at: sourceURL, to: destURL)
+            } catch {
+                throw InstallError.stagingFailed("\(name): \(error.localizedDescription)")
+            }
+            do {
+                try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destURL.path)
+            } catch {
+                throw InstallError.chmodFailed("\(name): \(error.localizedDescription)")
+            }
+            names.append(name)
+        }
+        return names.sorted()
     }
 
     private func directoryByteSize(at url: URL) -> Int {

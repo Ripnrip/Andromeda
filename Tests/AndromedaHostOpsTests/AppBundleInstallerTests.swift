@@ -252,4 +252,102 @@ struct AppBundleInstallerTests {
             _ = try await installer.install(source: source, destination: destination, spec: spec())
         }
     }
+
+    // MARK: - Adjacent rpath dylibs (HAB-671)
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func missingRequiredLoaderPathDylibFailsClosedAndLeavesDestination() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let dummyC = dir.appendingPathComponent("dummy.c")
+        try "void dummy(void) {}\n".write(to: dummyC, atomically: true, encoding: .utf8)
+        let dylib = dir.appendingPathComponent("libmissing.dylib")
+        let clang = LiveShell()
+        let libBuild = try await clang.execute([
+            "/usr/bin/clang", "-dynamiclib",
+            "-install_name", "@loader_path/libmissing.dylib",
+            "-o", dylib.path, dummyC.path,
+        ])
+        #expect(libBuild.success)
+
+        let mainC = dir.appendingPathComponent("main.c")
+        try "int main(void) { return 0; }\n".write(to: mainC, atomically: true, encoding: .utf8)
+        let source = dir.appendingPathComponent("victim")
+        let link = try await clang.execute([
+            "/usr/bin/clang", "-o", source.path, mainC.path, dylib.path,
+            "-Wl,-rpath,@loader_path",
+        ])
+        #expect(link.success)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: source.path)
+        try FileManager.default.removeItem(at: dylib)
+
+        let destination = dir.appendingPathComponent("FixtureHome.app")
+        try dummyUnsignedBundle(at: destination, marker: "keep-me")
+        let oldInode = try bundleInode(at: destination)
+
+        let installer = AppBundleInstaller()
+        await #expect(throws: AppBundleInstaller.InstallError.self) {
+            _ = try await installer.install(source: source, destination: destination, spec: spec())
+        }
+
+        let restoredInode = try bundleInode(at: destination)
+        #expect(restoredInode == oldInode)
+        let marker = try String(
+            contentsOf: destination.appendingPathComponent("Contents/MacOS/OLD"),
+            encoding: .utf8
+        )
+        #expect(marker == "keep-me")
+        #expect(!FileManager.default.fileExists(atPath: destination.appendingPathComponent("Contents/MacOS/FixtureHome").path))
+        #expect(try leftoverInstallTrees(in: dir).isEmpty)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang") && FileManager.default.fileExists(atPath: "/usr/bin/codesign")))
+    func adjacentLoaderPathDylibIsCopiedIntoMacOSAndDeepSigned() async throws {
+        let root = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sourceDir = root.appendingPathComponent("src")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+
+        let dummyC = sourceDir.appendingPathComponent("dummy.c")
+        try "void dummy(void) {}\n".write(to: dummyC, atomically: true, encoding: .utf8)
+        let dylib = sourceDir.appendingPathComponent("libcompanion.dylib")
+        let clang = LiveShell()
+        let libBuild = try await clang.execute([
+            "/usr/bin/clang", "-dynamiclib",
+            "-install_name", "@loader_path/libcompanion.dylib",
+            "-o", dylib.path, dummyC.path,
+        ])
+        #expect(libBuild.success)
+
+        let mainC = sourceDir.appendingPathComponent("main.c")
+        try "int main(void) { return 0; }\n".write(to: mainC, atomically: true, encoding: .utf8)
+        let source = sourceDir.appendingPathComponent("victim")
+        let link = try await clang.execute([
+            "/usr/bin/clang", "-o", source.path, mainC.path, dylib.path,
+            "-Wl,-rpath,@loader_path",
+        ])
+        #expect(link.success)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: source.path)
+
+        let destination = root.appendingPathComponent("FixtureHome.app")
+        try dummyUnsignedBundle(at: destination, marker: "old-bundle")
+
+        let installer = AppBundleInstaller()
+        let report = try await installer.install(source: source, destination: destination, spec: spec())
+        #expect(report.companionDylibs == ["libcompanion.dylib"])
+
+        let publishedDylib = destination.appendingPathComponent("Contents/MacOS/libcompanion.dylib")
+        #expect(FileManager.default.fileExists(atPath: publishedDylib.path))
+        let verify = try await LiveShell().execute([
+            "codesign", "--verify", "--deep", "--strict", destination.path,
+        ])
+        #expect(verify.success)
+        let dylibVerify = try await LiveShell().execute([
+            "codesign", "--verify", "--strict", publishedDylib.path,
+        ])
+        #expect(dylibVerify.success)
+        #expect(!FileManager.default.fileExists(atPath: destination.appendingPathComponent("Contents/MacOS/OLD").path))
+        #expect(try leftoverInstallTrees(in: root).isEmpty)
+    }
 }
