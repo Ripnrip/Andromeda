@@ -441,4 +441,110 @@ struct AppBundleInstallerTests {
         #expect(!FileManager.default.fileExists(atPath: destination.path))
         #expect(try leftoverInstallTrees(in: root).isEmpty)
     }
+
+    // MARK: - HAB-675 nested companion rpaths
+
+    private func makeNestedLoaderPathFixture(in sourceDir: URL) async throws -> (source: URL, companion: URL, nested: URL) {
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        let clang = LiveShell()
+
+        let nestedC = sourceDir.appendingPathComponent("nested.c")
+        try "void nested(void) {}\n".write(to: nestedC, atomically: true, encoding: .utf8)
+        let nested = sourceDir.appendingPathComponent("libnested.dylib")
+        let nestedBuild = try await clang.execute([
+            "/usr/bin/clang", "-dynamiclib",
+            "-install_name", "@loader_path/libnested.dylib",
+            "-o", nested.path, nestedC.path,
+        ])
+        #expect(nestedBuild.success)
+
+        let companionC = sourceDir.appendingPathComponent("companion.c")
+        try "void nested(void); void dummy(void) { nested(); }\n".write(
+            to: companionC, atomically: true, encoding: .utf8
+        )
+        let companion = sourceDir.appendingPathComponent("libcompanion.dylib")
+        let companionBuild = try await clang.execute([
+            "/usr/bin/clang", "-dynamiclib",
+            "-install_name", "@loader_path/libcompanion.dylib",
+            "-o", companion.path, companionC.path, nested.path,
+            "-Wl,-rpath,@loader_path",
+        ])
+        #expect(companionBuild.success)
+
+        let mainC = sourceDir.appendingPathComponent("main.c")
+        try "int main(void) { return 0; }\n".write(to: mainC, atomically: true, encoding: .utf8)
+        let source = sourceDir.appendingPathComponent("victim")
+        let link = try await clang.execute([
+            "/usr/bin/clang", "-o", source.path, mainC.path, companion.path,
+            "-Wl,-rpath,@loader_path",
+        ])
+        #expect(link.success)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: source.path)
+        return (source, companion, nested)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func nestedRequiredLoaderPathDylibFailsClosedAndLeavesDestination() async throws {
+        let root = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sourceDir = root.appendingPathComponent("src")
+        let (source, _, nested) = try await makeNestedLoaderPathFixture(in: sourceDir)
+        try FileManager.default.removeItem(at: nested)
+
+        let destination = root.appendingPathComponent("FixtureHome.app")
+        try dummyUnsignedBundle(at: destination, marker: "keep-me")
+        let oldInode = try bundleInode(at: destination)
+
+        let installer = AppBundleInstaller()
+        await #expect(throws: AppBundleInstaller.InstallError.self) {
+            _ = try await installer.install(source: source, destination: destination, spec: spec())
+        }
+
+        let restoredInode = try bundleInode(at: destination)
+        #expect(restoredInode == oldInode)
+        let marker = try String(
+            contentsOf: destination.appendingPathComponent("Contents/MacOS/OLD"),
+            encoding: .utf8
+        )
+        #expect(marker == "keep-me")
+        #expect(!FileManager.default.fileExists(atPath: destination.appendingPathComponent("Contents/MacOS/FixtureHome").path))
+        #expect(!FileManager.default.fileExists(atPath: destination.appendingPathComponent("Contents/MacOS/libcompanion.dylib").path))
+        #expect(!FileManager.default.fileExists(atPath: destination.appendingPathComponent("Contents/MacOS/libnested.dylib").path))
+        #expect(try leftoverInstallTrees(in: root).isEmpty)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang") && FileManager.default.fileExists(atPath: "/usr/bin/codesign")))
+    func nestedLoaderPathDylibIsCopiedIntoMacOSAndDeepSigned() async throws {
+        let root = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sourceDir = root.appendingPathComponent("src")
+        let (source, _, _) = try await makeNestedLoaderPathFixture(in: sourceDir)
+
+        let destination = root.appendingPathComponent("FixtureHome.app")
+        try dummyUnsignedBundle(at: destination, marker: "old-bundle")
+
+        let installer = AppBundleInstaller()
+        let report = try await installer.install(source: source, destination: destination, spec: spec())
+        #expect(report.companionDylibs == ["libcompanion.dylib", "libnested.dylib"])
+
+        let publishedCompanion = destination.appendingPathComponent("Contents/MacOS/libcompanion.dylib")
+        let publishedNested = destination.appendingPathComponent("Contents/MacOS/libnested.dylib")
+        #expect(FileManager.default.fileExists(atPath: publishedCompanion.path))
+        #expect(FileManager.default.fileExists(atPath: publishedNested.path))
+
+        let verify = try await LiveShell().execute([
+            "codesign", "--verify", "--deep", "--strict", destination.path,
+        ])
+        #expect(verify.success)
+        let companionVerify = try await LiveShell().execute([
+            "codesign", "--verify", "--strict", publishedCompanion.path,
+        ])
+        #expect(companionVerify.success)
+        let nestedVerify = try await LiveShell().execute([
+            "codesign", "--verify", "--strict", publishedNested.path,
+        ])
+        #expect(nestedVerify.success)
+        #expect(!FileManager.default.fileExists(atPath: destination.appendingPathComponent("Contents/MacOS/OLD").path))
+        #expect(try leftoverInstallTrees(in: root).isEmpty)
+    }
 }

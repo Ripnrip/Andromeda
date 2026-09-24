@@ -35,10 +35,12 @@ import Foundation
 /// runtime-relative dylibs (`@rpath` / `@loader_path` / `@executable_path`)
 /// must sit next to the source (copied into `Contents/MacOS` before
 /// `--deep` sign) or the transaction fails closed (HAB-671, HAB-625 leftover).
-/// Weak and system loads stay allowed. Dest-bundle leftovers do **not**
-/// satisfy gaps — the whole `.app` is replaced. After publish, each
-/// companion is verified at dest; failure restores the parked bundle
-/// (HAB-673, HAB-631 leftover).
+/// Companion dylibs are themselves `otool -L`'d (HAB-675, HAB-674 leftover):
+/// a nested required adjacent name is staged too, and a missing nested
+/// required dylib fails closed before publish. Weak and system loads stay
+/// allowed. Dest-bundle leftovers do **not** satisfy gaps — the whole `.app`
+/// is replaced. After publish, each companion is verified at dest; failure
+/// restores the parked bundle (HAB-673, HAB-631 leftover).
 ///
 /// Out of scope: LaunchAgent plist rewrite/bootstrap, `open -a`, writing
 /// `~/Applications` (callers choose the destination).
@@ -203,9 +205,15 @@ public actor AppBundleInstaller {
         let macosDir = innerBinary.deletingLastPathComponent()
         let sourceDirectory = source.deletingLastPathComponent()
 
+        // HAB-675: inspect companions too — nested required adjacent names
+        // join the same fail-closed + stage set (BinaryInstaller HAB-674).
         let libraries: [BinaryInstaller.LinkedLibrary]
         do {
-            libraries = try await loadLinkedLibraries(at: innerBinary)
+            let initial = try await loadLinkedLibraries(at: innerBinary)
+            libraries = try await expandLinkedLibraries(
+                initial: initial,
+                sourceDirectory: sourceDirectory
+            )
         } catch let error as InstallError {
             throw cleanupAndThrow(error)
         } catch {
@@ -393,6 +401,43 @@ public actor AppBundleInstaller {
             throw InstallError.linkedLibraryInspectionFailed(result.output)
         }
         return BinaryInstaller.parseOtoolL(result.output)
+    }
+
+    /// Walk source-adjacent companions and union their load commands.
+    ///
+    /// HAB-671 only inspected the inner executable. A dylib that itself
+    /// requires `@loader_path/libnested.dylib` would then publish without
+    /// the nested file (or succeed when the nested file is missing). BFS
+    /// over adjacent names, skipping missing source files. Dest-bundle
+    /// leftovers still do not satisfy gaps (whole `.app` is replaced).
+    private func expandLinkedLibraries(
+        initial: [BinaryInstaller.LinkedLibrary],
+        sourceDirectory: URL
+    ) async throws -> [BinaryInstaller.LinkedLibrary] {
+        var all = initial
+        var seen: Set<String> = []
+        var queue: [String] = []
+        func enqueue(_ libraries: [BinaryInstaller.LinkedLibrary]) {
+            for library in libraries {
+                if library.isWeak { continue }
+                guard let name = library.adjacentFileName else { continue }
+                if seen.insert(name).inserted {
+                    queue.append(name)
+                }
+            }
+        }
+        enqueue(initial)
+        var index = 0
+        while index < queue.count {
+            let name = queue[index]
+            index += 1
+            let sourceURL = sourceDirectory.appendingPathComponent(name)
+            guard fileManager.fileExists(atPath: sourceURL.path) else { continue }
+            let nested = try await loadLinkedLibraries(at: sourceURL)
+            all.append(contentsOf: nested)
+            enqueue(nested)
+        }
+        return all
     }
 
     /// Copy source-adjacent required dylibs into `Contents/MacOS` so
