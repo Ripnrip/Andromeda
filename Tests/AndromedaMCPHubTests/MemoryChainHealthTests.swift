@@ -170,6 +170,17 @@ struct MemoryChainProofStoreTests {
         try? FileManager.default.removeItem(atPath: path)
     }
 
+    /// Every test that writes (directly or via save) must be self-sufficient:
+    /// the sandbox directory may not exist on a fresh machine (CI runner),
+    /// and swift-testing's parallel ordering means no other test can be
+    /// relied on to have created it (post-#84 main-run lesson).
+    private func ensureSandboxExists() throws {
+        try FileManager.default.createDirectory(
+            at: MemoryChainProofStore.sandboxDirectory,
+            withIntermediateDirectories: true
+        )
+    }
+
     /// Save → load round-trips legs, statuses, and dates.
     @Test("proof state round-trips through disk")
     func roundTrips() throws {
@@ -204,6 +215,7 @@ struct MemoryChainProofStoreTests {
     func rejectsNewerVersion() throws {
         let path = sandboxedProofPath()
         defer { cleanup(path) }
+        try ensureSandboxExists()  // atomically: writes need an existing parent
         let future = """
         {"version": 99, "lastRun": null, "legs": []}
         """
@@ -254,6 +266,10 @@ struct MemoryChainProofStoreTests {
         try FileManager.default.createDirectory(at: escapedRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: escapedRoot) }
 
+        // The sandbox directory may not exist yet (fresh CI runner) — this
+        // test must not depend on another test having created it (post-merge
+        // main run after #84: createSymbolicLink failed on a missing parent).
+        try ensureSandboxExists()
         let linkPath = MemoryChainProofStore.sandboxDirectory
             .appendingPathComponent("link-\(UUID().uuidString)").path
         try FileManager.default.createSymbolicLink(
