@@ -274,7 +274,7 @@ struct InstallLaunchAgent: AsyncParsableCommand {
         commandName: "install-launch-agent",
         abstract: "Render a LaunchAgent plist (HOME rewrite) and optionally bootstrap it.",
         discussion: """
-        Fail-closed LaunchAgent install (HAB-622 / HAB-632 / HAB-676 / HAB-677 / HAB-678 / HAB-680 / HAB-681 / HAB-682 / HAB-683 / HAB-684 / HAB-686 / HAB-687 / HAB-688 / HAB-689, BIN-101 leftover).
+        Fail-closed LaunchAgent install (HAB-622 / HAB-632 / HAB-676 / HAB-677 / HAB-678 / HAB-680 / HAB-681 / HAB-682 / HAB-683 / HAB-684 / HAB-686 / HAB-687 / HAB-688 / HAB-689 / HAB-690, BIN-101 leftover).
 
         launchd does not expand $HOME/~. ops/*.plist bake the Studio home
         template /Users/admin; this command rewrites that string to --home
@@ -311,8 +311,10 @@ struct InstallLaunchAgent: AsyncParsableCommand {
         stay allowed. Paid provider API keys in EnvironmentVariables
         (OPENROUTER_/ANTHROPIC_/OPENAI_/XAI_/GROQ_ prefixes plus
         GOOGLE_API_KEY/GEMINI_API_KEY) are refused on --bootstrap
-        (HAB-689); HOME/PATH/LANG allowed. Rewrite-only does not
-        inspect those keys.
+        (HAB-689); HOME/PATH/LANG allowed. DYLD_* EnvironmentVariables
+        are refused on --bootstrap (HAB-690): ad-hoc signed Program
+        honors DYLD_INSERT_LIBRARIES / search-path keys after
+        HAB-677/680. Rewrite-only does not inspect those keys.
         Rewrite-only (no --bootstrap) stays a dry-run.
         --bootstrap runs bootout then bootstrap (legacy load fallback).
         --kickstart is opt-in and refused without --bootstrap. Cron must

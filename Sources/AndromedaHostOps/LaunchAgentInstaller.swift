@@ -72,7 +72,11 @@ import Foundation
 /// bootstrap (HAB-689): `ops/com.andromeda.hud.plist` is local-only
 /// (`OPENROUTER_*`, `ANTHROPIC_*`, paid keys). `launchctl bootstrap`
 /// can return 0 while injecting those keys into the job env (spend +
-/// leak). HOME/PATH/LANG stay allowed. Rewrite-only unchanged.
+/// leak). HOME/PATH/LANG stay allowed. `DYLD_*` EnvironmentVariables
+/// are refused on bootstrap (HAB-690): ad-hoc signed Program /
+/// companions (HAB-677/680) are not restricted, so
+/// `DYLD_INSERT_LIBRARIES` / search-path keys hijack the image after
+/// codesign passed. Rewrite-only unchanged.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -158,6 +162,7 @@ public actor LaunchAgentInstaller {
         case programUsesOpen(String)
         case programUsesOsascript(String)
         case environmentPaidApiKey(String)
+        case environmentDyldInjection(String)
 
         public var description: String {
             switch self {
@@ -221,6 +226,8 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent Program/ProgramArguments must not include /usr/bin/osascript (osascript inherits Aqua/agent-shell env): \(path)"
             case .environmentPaidApiKey(let keys):
                 "LaunchAgent EnvironmentVariables must not include paid provider API keys (destination untouched): \(keys)"
+            case .environmentDyldInjection(let keys):
+                "LaunchAgent EnvironmentVariables must not include DYLD_* keys (destination untouched): \(keys)"
             }
         }
     }
@@ -292,7 +299,7 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678/680/681/682/683/684/686/687/688/689: bootstrap
+        // HAB-676/677/678/680/681/682/683/684/686/687/688/689/690: bootstrap
         // can succeed with a missing, unsigned, dylib-incomplete, or
         // unsigned-companion Mach-O Program, a WorkingDirectory that
         // cannot be chdir'd, a log path launchd cannot open,
@@ -301,14 +308,15 @@ public actor LaunchAgentInstaller {
         // Program/ProgramArguments containing /usr/bin/open or
         // /usr/bin/osascript (LaunchServices/osascript inherit
         // Aqua/agent-shell env, including via arch/env trampolines),
-        // or paid provider API keys in EnvironmentVariables (HUD
-        // local-only contract; KeepAlive then spend+leak).
+        // paid provider API keys in EnvironmentVariables (HUD
+        // local-only contract; KeepAlive then spend+leak), or DYLD_*
+        // keys that hijack an ad-hoc signed Program after HAB-677/680.
         // Require the rendered exec path (not open/osascript in any
         // argv slot; signature + adjacent rpath dylibs + companion
         // signatures if Mach-O), WorkingDirectory (if present), log
         // paths (if present), HOME (if present), PATH (if present),
-        // and no paid API keys before parking dest. Rewrite-only
-        // dry-run skips.
+        // no paid API keys, and no DYLD_* keys before parking dest.
+        // Rewrite-only dry-run skips.
         if spec.bootstrap {
             try Self.validateProgramNotOpen(dict)
             try Self.validateProgramNotOsascript(dict)
@@ -318,6 +326,7 @@ public actor LaunchAgentInstaller {
             try Self.validateEnvironmentHome(dict, fileManager: fileManager)
             try Self.validateEnvironmentPath(dict)
             try Self.validateEnvironmentPaidKeys(dict)
+            try Self.validateEnvironmentDyldKeys(dict)
         }
 
         let destinationDirectory = destination.deletingLastPathComponent()
@@ -837,6 +846,29 @@ public actor LaunchAgentInstaller {
         let keys = paidEnvironmentKeys(from: dict)
         guard keys.isEmpty else {
             throw InstallError.environmentPaidApiKey(keys.joined(separator: ", "))
+        }
+    }
+
+    /// True when an EnvironmentVariables key is a dyld injection / search-path
+    /// override (HAB-690). Prefix match so DYLD_INSERT_LIBRARIES,
+    /// DYLD_LIBRARY_PATH, DYLD_FRAMEWORK_PATH, fallbacks, and ROOT_PATH
+    /// are all refused.
+    public static func isDyldEnvironmentKey(_ key: String) -> Bool {
+        key.uppercased().hasPrefix("DYLD_")
+    }
+
+    /// DYLD_* keys present in EnvironmentVariables after rewrite.
+    public static func dyldEnvironmentKeys(from dict: [String: Any]) -> [String] {
+        guard let env = dict["EnvironmentVariables"] as? [String: Any] else { return [] }
+        return env.keys.filter(isDyldEnvironmentKey).sorted()
+    }
+
+    /// Fail-closed DYLD_* check used only when bootstrapping (HAB-690).
+    /// Missing EnvironmentVariables dict / HOME / PATH / LANG allowed.
+    public static func validateEnvironmentDyldKeys(_ dict: [String: Any]) throws {
+        let keys = dyldEnvironmentKeys(from: dict)
+        guard keys.isEmpty else {
+            throw InstallError.environmentDyldInjection(keys.joined(separator: ", "))
         }
     }
 
