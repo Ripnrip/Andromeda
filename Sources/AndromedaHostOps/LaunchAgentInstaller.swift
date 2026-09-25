@@ -31,10 +31,14 @@ import Foundation
 /// absolute existing executable before dest is parked (HAB-676). If that
 /// Program is a Mach-O, it must also pass `codesign --verify --strict`
 /// (HAB-677): unsigned Mach-O is Taskgated SIGKILL (HAB-606) and KeepAlive
-/// (mcp-hub) hammers. Scripts/shebangs are not Mach-O and stay allowed.
-/// Signature check uses `/usr/bin/codesign` directly — not the injected
-/// `ShellExecuting` (that mock is for launchctl). Rewrite-only
-/// (`bootstrap` false) stays a dry-run and does not require the binary.
+/// (mcp-hub) hammers. Required `@rpath` / `@loader_path` / `@executable_path`
+/// dylibs (and nested adjacent names) must exist next to Program (HAB-678):
+/// a signed Mach-O with a missing companion still dyld-fails after a
+/// successful bootstrap. Scripts/shebangs are not Mach-O and stay allowed.
+/// Signature + `otool -L` use `/usr/bin/codesign` and `/usr/bin/otool`
+/// directly — not the injected `ShellExecuting` (that mock is for launchctl).
+/// Rewrite-only (`bootstrap` false) stays a dry-run and does not require
+/// the binary or its dylibs.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -105,6 +109,8 @@ public actor LaunchAgentInstaller {
         case programNotAbsolute(String)
         case programNotExecutable(String)
         case programNotSigned(String)
+        case programLibraryInspectionFailed(String)
+        case programMissingLibraries(String)
 
         public var description: String {
             switch self {
@@ -138,6 +144,10 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent Program is not executable (destination untouched): \(path)"
             case .programNotSigned(let path):
                 "LaunchAgent Program failed codesign --verify --strict (destination untouched): \(path)"
+            case .programLibraryInspectionFailed(let detail):
+                "Could not inspect LaunchAgent Program linked libraries (destination untouched): \(detail)"
+            case .programMissingLibraries(let detail):
+                "LaunchAgent Program is missing a required non-system dylib (destination untouched): \(detail)"
             }
         }
     }
@@ -209,9 +219,10 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677: bootstrap can succeed with a missing or unsigned
-        // Mach-O Program. Require the rendered exec path (and signature
-        // if Mach-O) before parking dest. Rewrite-only dry-run skips.
+        // HAB-676/677/678: bootstrap can succeed with a missing, unsigned,
+        // or dylib-incomplete Mach-O Program. Require the rendered exec
+        // path (signature + adjacent rpath dylibs if Mach-O) before
+        // parking dest. Rewrite-only dry-run skips.
         if spec.bootstrap {
             try Self.validateProgram(dict, fileManager: fileManager)
         }
@@ -362,7 +373,7 @@ public actor LaunchAgentInstaller {
         return nil
     }
 
-    /// Fail-closed Program check used only when bootstrapping (HAB-676 / HAB-677).
+    /// Fail-closed Program check used only when bootstrapping (HAB-676 / HAB-677 / HAB-678).
     public static func validateProgram(
         _ dict: [String: Any],
         fileManager: FileManager
@@ -384,6 +395,10 @@ public actor LaunchAgentInstaller {
         // bootstrap. Scripts/shebangs are not Mach-O — leave them alone.
         if isMachO(at: path) {
             try verifyCodeSignature(at: path)
+            // HAB-678: signed Mach-O with a missing @loader_path dylib still
+            // dyld-fails after bootstrap. Inspect Program + nested adjacent
+            // companions; dest stays parked-until-valid (here: untouched).
+            try verifyRequiredLibraries(at: path, fileManager: fileManager)
         }
     }
 
@@ -426,6 +441,79 @@ public actor LaunchAgentInstaller {
             let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let detail = output.isEmpty ? path : "\(path): \(output)"
             throw InstallError.programNotSigned(detail)
+        }
+    }
+
+    /// Live `/usr/bin/otool -L` — not the injected shell (HAB-678).
+    public static func loadLinkedLibraries(at path: String) throws -> [BinaryInstaller.LinkedLibrary] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/otool")
+        process.arguments = ["-L", path]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            throw InstallError.programLibraryInspectionFailed("\(path): \(error.localizedDescription)")
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        guard process.terminationStatus == 0 else {
+            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail = trimmed.isEmpty ? path : "\(path): \(trimmed)"
+            throw InstallError.programLibraryInspectionFailed(detail)
+        }
+        return BinaryInstaller.parseOtoolL(output)
+    }
+
+    /// Walk Program-adjacent companions and union their load commands.
+    public static func expandLinkedLibraries(
+        at path: String,
+        fileManager: FileManager
+    ) throws -> [BinaryInstaller.LinkedLibrary] {
+        var all = try loadLinkedLibraries(at: path)
+        var seen: Set<String> = []
+        var queue: [String] = []
+        func enqueue(_ libraries: [BinaryInstaller.LinkedLibrary]) {
+            for library in libraries {
+                if library.isWeak { continue }
+                guard let name = library.adjacentFileName else { continue }
+                if seen.insert(name).inserted {
+                    queue.append(name)
+                }
+            }
+        }
+        enqueue(all)
+        let directory = URL(fileURLWithPath: path).deletingLastPathComponent()
+        var index = 0
+        while index < queue.count {
+            let name = queue[index]
+            index += 1
+            let nestedURL = directory.appendingPathComponent(name)
+            guard fileManager.fileExists(atPath: nestedURL.path) else { continue }
+            let nested = try loadLinkedLibraries(at: nestedURL.path)
+            all.append(contentsOf: nested)
+            enqueue(nested)
+        }
+        return all
+    }
+
+    /// Fail-closed if a required non-system / runtime-relative dylib would
+    /// not resolve next to Program (HAB-678).
+    public static func verifyRequiredLibraries(at path: String, fileManager: FileManager) throws {
+        let libraries = try expandLinkedLibraries(at: path, fileManager: fileManager)
+        let directory = URL(fileURLWithPath: path).deletingLastPathComponent()
+        let gaps = BinaryInstaller.requiredLibraryGaps(
+            libraries,
+            adjacentDirectory: directory,
+            sourceDirectory: directory,
+            fileExists: { fileManager.fileExists(atPath: $0) }
+        )
+        guard gaps.isEmpty else {
+            let detail = gaps.map(\.installName).joined(separator: ", ")
+            throw InstallError.programMissingLibraries("\(path): \(detail)")
         }
     }
 
