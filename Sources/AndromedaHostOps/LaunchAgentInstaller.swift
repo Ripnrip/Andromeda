@@ -52,9 +52,14 @@ import Foundation
 /// directory (HAB-683): bootstrap can return 0 when HOME is relative
 /// (launchd does not expand `$HOME`/`~`), missing, or a file; the job
 /// then runs with a broken HOME and KeepAlive (mcp-hub) hammers. Missing
-/// key allowed. Rewrite-only (`bootstrap` false) stays a dry-run and does
-/// not require the binary, its dylibs, WorkingDirectory, log paths, or
-/// HOME.
+/// key allowed. If `EnvironmentVariables.PATH` is present, every
+/// colon-separated component must be an absolute path (HAB-684): bootstrap
+/// can return 0 when PATH contains relative, empty, `$HOME`, or `~`
+/// components (launchd does not expand them); child lookups then fail and
+/// KeepAlive (mcp-hub) hammers. Components are not required to exist
+/// (Homebrew / isolated homes). Missing key allowed. Rewrite-only
+/// (`bootstrap` false) stays a dry-run and does not require the binary,
+/// its dylibs, WorkingDirectory, log paths, HOME, or PATH.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -136,6 +141,7 @@ public actor LaunchAgentInstaller {
         case environmentHomeNotAbsolute(String)
         case environmentHomeMissing(String)
         case environmentHomeNotDirectory(String)
+        case environmentPathNotAbsolute(String)
 
         public var description: String {
             switch self {
@@ -191,6 +197,8 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent EnvironmentVariables.HOME does not exist (destination untouched): \(path)"
             case .environmentHomeNotDirectory(let path):
                 "LaunchAgent EnvironmentVariables.HOME is not a directory (destination untouched): \(path)"
+            case .environmentPathNotAbsolute(let path):
+                "LaunchAgent EnvironmentVariables.PATH component must be an absolute path (launchd does not expand $HOME/~): \(path)"
             }
         }
     }
@@ -262,20 +270,22 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678/680/681/682/683: bootstrap can succeed with a
+        // HAB-676/677/678/680/681/682/683/684: bootstrap can succeed with a
         // missing, unsigned, dylib-incomplete, or unsigned-companion
         // Mach-O Program, a WorkingDirectory that cannot be chdir'd, a
-        // log path launchd cannot open, or EnvironmentVariables.HOME
-        // that is relative/missing/not a directory. Require the rendered
+        // log path launchd cannot open, EnvironmentVariables.HOME
+        // that is relative/missing/not a directory, or PATH with
+        // relative/empty/$HOME/~ components. Require the rendered
         // exec path (signature + adjacent rpath dylibs + companion
         // signatures if Mach-O), WorkingDirectory (if present), log
-        // paths (if present), and HOME (if present) before parking dest.
-        // Rewrite-only dry-run skips.
+        // paths (if present), HOME (if present), and PATH (if present)
+        // before parking dest. Rewrite-only dry-run skips.
         if spec.bootstrap {
             try Self.validateProgram(dict, fileManager: fileManager)
             try Self.validateWorkingDirectory(dict, fileManager: fileManager)
             try Self.validateLogPaths(dict, fileManager: fileManager)
             try Self.validateEnvironmentHome(dict, fileManager: fileManager)
+            try Self.validateEnvironmentPath(dict)
         }
 
         let destinationDirectory = destination.deletingLastPathComponent()
@@ -685,6 +695,32 @@ public actor LaunchAgentInstaller {
         }
         guard isDirectory.boolValue else {
             throw InstallError.environmentHomeNotDirectory(path)
+        }
+    }
+
+    /// EnvironmentVariables.PATH colon components after HOME rewrite.
+    /// Nil when the dict, key, or value is absent/blank.
+    public static func environmentPathComponents(from dict: [String: Any]) -> [String]? {
+        guard let env = dict["EnvironmentVariables"] as? [String: Any] else { return nil }
+        guard let value = env["PATH"] as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        return trimmed.split(separator: ":", omittingEmptySubsequences: false).map {
+            String($0).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    /// Fail-closed EnvironmentVariables.PATH check used only when
+    /// bootstrapping (HAB-684). Missing key is allowed. Components are
+    /// not required to exist.
+    public static func validateEnvironmentPath(_ dict: [String: Any]) throws {
+        guard let components = environmentPathComponents(from: dict) else { return }
+        for component in components {
+            if component.isEmpty || !component.hasPrefix("/") {
+                throw InstallError.environmentPathNotAbsolute(
+                    component.isEmpty ? "(empty)" : component
+                )
+            }
         }
     }
 
