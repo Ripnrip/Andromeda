@@ -39,9 +39,13 @@ import Foundation
 /// library-validation / Taskgated-fails after bootstrap. Scripts/shebangs
 /// are not Mach-O and stay allowed. Signature + `otool -L` use
 /// `/usr/bin/codesign` and `/usr/bin/otool` directly — not the injected
-/// `ShellExecuting` (that mock is for launchctl). Rewrite-only
-/// (`bootstrap` false) stays a dry-run and does not require the binary
-/// or its dylibs.
+/// `ShellExecuting` (that mock is for launchctl). If the rendered plist
+/// has `WorkingDirectory`, that path must be an absolute existing
+/// directory before dest is parked (HAB-681): bootstrap can still return 0
+/// when chdir would fail, then KeepAlive (mcp-hub) hammers. Missing key
+/// is allowed (launchd defaults to `/`). Rewrite-only (`bootstrap` false)
+/// stays a dry-run and does not require the binary, its dylibs, or
+/// WorkingDirectory.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -115,6 +119,9 @@ public actor LaunchAgentInstaller {
         case programLibraryInspectionFailed(String)
         case programMissingLibraries(String)
         case programUnsignedLibraries(String)
+        case workingDirectoryNotAbsolute(String)
+        case workingDirectoryMissing(String)
+        case workingDirectoryNotDirectory(String)
 
         public var description: String {
             switch self {
@@ -154,6 +161,12 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent Program is missing a required non-system dylib (destination untouched): \(detail)"
             case .programUnsignedLibraries(let detail):
                 "LaunchAgent Program companion dylib failed codesign --verify --strict (destination untouched): \(detail)"
+            case .workingDirectoryNotAbsolute(let path):
+                "LaunchAgent WorkingDirectory must be an absolute path (launchd does not expand $HOME/~): \(path)"
+            case .workingDirectoryMissing(let path):
+                "LaunchAgent WorkingDirectory does not exist (destination untouched): \(path)"
+            case .workingDirectoryNotDirectory(let path):
+                "LaunchAgent WorkingDirectory is not a directory (destination untouched): \(path)"
             }
         }
     }
@@ -225,13 +238,15 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678/680: bootstrap can succeed with a missing,
+        // HAB-676/677/678/680/681: bootstrap can succeed with a missing,
         // unsigned, dylib-incomplete, or unsigned-companion Mach-O
-        // Program. Require the rendered exec path (signature + adjacent
-        // rpath dylibs + companion signatures if Mach-O) before parking
-        // dest. Rewrite-only dry-run skips.
+        // Program, or a WorkingDirectory that cannot be chdir'd.
+        // Require the rendered exec path (signature + adjacent rpath
+        // dylibs + companion signatures if Mach-O) and WorkingDirectory
+        // (if present) before parking dest. Rewrite-only dry-run skips.
         if spec.bootstrap {
             try Self.validateProgram(dict, fileManager: fileManager)
+            try Self.validateWorkingDirectory(dict, fileManager: fileManager)
         }
 
         let destinationDirectory = destination.deletingLastPathComponent()
@@ -547,6 +562,33 @@ public actor LaunchAgentInstaller {
         }
         guard unsigned.isEmpty else {
             throw InstallError.programUnsignedLibraries(unsigned.sorted().joined(separator: ", "))
+        }
+    }
+
+    /// WorkingDirectory after HOME rewrite. Nil when the key is absent or blank.
+    public static func workingDirectoryPath(from dict: [String: Any]) -> String? {
+        guard let value = dict["WorkingDirectory"] as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        return trimmed
+    }
+
+    /// Fail-closed WorkingDirectory check used only when bootstrapping (HAB-681).
+    /// Missing key is allowed (launchd defaults to `/`).
+    public static func validateWorkingDirectory(
+        _ dict: [String: Any],
+        fileManager: FileManager
+    ) throws {
+        guard let path = workingDirectoryPath(from: dict) else { return }
+        guard path.hasPrefix("/") else {
+            throw InstallError.workingDirectoryNotAbsolute(path)
+        }
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
+            throw InstallError.workingDirectoryMissing(path)
+        }
+        guard isDirectory.boolValue else {
+            throw InstallError.workingDirectoryNotDirectory(path)
         }
     }
 
