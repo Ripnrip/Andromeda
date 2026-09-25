@@ -85,6 +85,47 @@ struct LaunchAgentInstallerTests {
         return url
     }
 
+    /// Bare Mach-O at `home/bin/Fixture` (not inside a `.app` — codesign
+    /// would otherwise walk up the bundle). Linker-signed by default;
+    /// `--remove-signature` then optional ad-hoc re-sign (HAB-677).
+    @discardableResult
+    private func plantBareMachO(home: String, signed: Bool) async throws -> URL {
+        let url = URL(fileURLWithPath: home).appendingPathComponent("bin/Fixture")
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let mainC = url.deletingLastPathComponent().appendingPathComponent("main.c")
+        try "int main(void) { return 0; }\n".write(to: mainC, atomically: true, encoding: .utf8)
+        let clang = LiveShell()
+        let build = try await clang.execute(["/usr/bin/clang", "-o", url.path, mainC.path])
+        guard build.success else {
+            throw LaunchAgentInstaller.InstallError.programMissing("clang: \(build.output)")
+        }
+        try FileManager.default.removeItem(at: mainC)
+        _ = try await clang.execute(["/usr/bin/codesign", "--remove-signature", url.path])
+        if signed {
+            let sign = try await clang.execute([
+                "/usr/bin/codesign", "--force", "--sign", "-", url.path,
+            ])
+            guard sign.success else {
+                throw LaunchAgentInstaller.InstallError.programNotSigned("sign: \(sign.output)")
+            }
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url
+    }
+
+    /// Studio-template plist whose Program is the planted bare Mach-O.
+    /// Other paths still contain the studio HOME so rewrite stays honest.
+    private func machOPlist(program: String) -> String {
+        let studio = LaunchAgentInstaller.studioHomeTemplate
+        return fixturePlist().replacingOccurrences(
+            of: "\(studio)/Applications/Fixture.app/Contents/MacOS/Fixture",
+            with: program
+        )
+    }
+
     private actor RecordingShell: ShellExecuting {
         private(set) var calls: [[String]] = []
         var failIfContains: [String] = []
@@ -538,5 +579,104 @@ struct LaunchAgentInstallerTests {
         let rendered = try String(contentsOf: destination, encoding: .utf8)
         #expect(rendered.contains("\(otherHome)/.local/bin/andromeda"))
         #expect(!rendered.contains(LaunchAgentInstaller.studioHomeTemplate))
+    }
+
+    // MARK: - HAB-677 unsigned Mach-O Program
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func bootstrapUnsignedMachOFailsClosedBeforeLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let previous = "keep-me\n"
+        try previous.write(to: destination, atomically: true, encoding: .utf8)
+        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let home = isolatedHome(in: dir)
+        let program = try await plantBareMachO(home: home, signed: false)
+        #expect(LaunchAgentInstaller.isMachO(at: program.path))
+        let source = writePlist(dir, name: "src.plist", body: machOPlist(program: program.path))
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+        let restored = try String(contentsOf: destination, encoding: .utf8)
+        #expect(restored == previous)
+        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        #expect(restoredInode == oldInode)
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.contains(".install-") || $0.contains(".rollback-") || $0.contains(".orphan-") }
+        #expect(leftovers.isEmpty)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func bootstrapUnsignedMachOLeavesFreshDestAbsent() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let program = try await plantBareMachO(home: home, signed: false)
+        let source = writePlist(dir, name: "src.plist", body: machOPlist(program: program.path))
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func bootstrapSignedMachOProceedsToLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let program = try await plantBareMachO(home: home, signed: true)
+        #expect(LaunchAgentInstaller.isMachO(at: program.path))
+        let source = writePlist(dir, name: "src.plist", body: machOPlist(program: program.path))
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+        )
+        #expect(report.bootstrapped)
+        #expect(!report.kickstarted)
+        let calls = await shell.recorded()
+        #expect(!calls.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func rewriteOnlyDoesNotRequireMachOSignature() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let program = try await plantBareMachO(home: home, signed: false)
+        let source = writePlist(dir, name: "src.plist", body: machOPlist(program: program.path))
+        let installer = LaunchAgentInstaller(shell: RecordingShell())
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: false)
+        )
+        #expect(report.rewritten)
+        #expect(!report.bootstrapped)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
     }
 }
