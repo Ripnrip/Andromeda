@@ -274,7 +274,7 @@ struct InstallLaunchAgent: AsyncParsableCommand {
         commandName: "install-launch-agent",
         abstract: "Render a LaunchAgent plist (HOME rewrite) and optionally bootstrap it.",
         discussion: """
-        Fail-closed LaunchAgent install (HAB-622 / HAB-632 / HAB-676 / HAB-677 / HAB-678 / HAB-680 / HAB-681 / HAB-682 / HAB-683 / HAB-684 / HAB-686 / HAB-687, BIN-101 leftover).
+        Fail-closed LaunchAgent install (HAB-622 / HAB-632 / HAB-676 / HAB-677 / HAB-678 / HAB-680 / HAB-681 / HAB-682 / HAB-683 / HAB-684 / HAB-686 / HAB-687 / HAB-688, BIN-101 leftover).
 
         launchd does not expand $HOME/~. ops/*.plist bake the Studio home
         template /Users/admin; this command rewrites that string to --home
@@ -306,7 +306,9 @@ struct InstallLaunchAgent: AsyncParsableCommand {
         --bootstrap (HAB-686): LaunchServices open -a can inherit
         Aqua/agent-shell env (paid API keys). /usr/bin/osascript is
         refused on --bootstrap (HAB-687): osascript inherits the same
-        Aqua/agent-shell env. Scripts/shebangs stay allowed.
+        Aqua/agent-shell env. HAB-688 also refuses those binaries in
+        any ProgramArguments slot (arch/env trampolines). Scripts/shebangs
+        stay allowed.
         Rewrite-only (no --bootstrap) stays a dry-run.
         --bootstrap runs bootout then bootstrap (legacy load fallback).
         --kickstart is opt-in and refused without --bootstrap. Cron must
