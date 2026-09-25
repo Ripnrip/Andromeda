@@ -116,6 +116,80 @@ struct LaunchAgentInstallerTests {
         return url
     }
 
+
+    /// Signed Mach-O at `home/bin/Fixture` linked to adjacent
+    /// `@loader_path` dylibs (HAB-678). Companion/nested files can be
+    /// deleted after link so otool still lists them as missing.
+    @discardableResult
+    private func plantSignedMachOWithLoaderPathDylibs(
+        home: String,
+        keepCompanion: Bool,
+        keepNested: Bool
+    ) async throws -> URL {
+        let binDir = URL(fileURLWithPath: home).appendingPathComponent("bin")
+        try FileManager.default.createDirectory(at: binDir, withIntermediateDirectories: true)
+        let clang = LiveShell()
+
+        let nestedC = binDir.appendingPathComponent("nested.c")
+        try "void nested(void) {}\n".write(to: nestedC, atomically: true, encoding: .utf8)
+        let nested = binDir.appendingPathComponent("libnested.dylib")
+        let nestedBuild = try await clang.execute([
+            "/usr/bin/clang", "-dynamiclib",
+            "-install_name", "@loader_path/libnested.dylib",
+            "-o", nested.path, nestedC.path,
+        ])
+        guard nestedBuild.success else {
+            throw LaunchAgentInstaller.InstallError.programMissing("clang nested: \(nestedBuild.output)")
+        }
+
+        let companionC = binDir.appendingPathComponent("companion.c")
+        try "void nested(void); void dummy(void) { nested(); }\n".write(
+            to: companionC, atomically: true, encoding: .utf8
+        )
+        let companion = binDir.appendingPathComponent("libcompanion.dylib")
+        let companionBuild = try await clang.execute([
+            "/usr/bin/clang", "-dynamiclib",
+            "-install_name", "@loader_path/libcompanion.dylib",
+            "-o", companion.path, companionC.path, nested.path,
+            "-Wl,-rpath,@loader_path",
+        ])
+        guard companionBuild.success else {
+            throw LaunchAgentInstaller.InstallError.programMissing("clang companion: \(companionBuild.output)")
+        }
+
+        let mainC = binDir.appendingPathComponent("main.c")
+        try "int main(void) { return 0; }\n".write(to: mainC, atomically: true, encoding: .utf8)
+        let program = binDir.appendingPathComponent("Fixture")
+        let link = try await clang.execute([
+            "/usr/bin/clang", "-o", program.path, mainC.path, companion.path,
+            "-Wl,-rpath,@loader_path",
+        ])
+        guard link.success else {
+            throw LaunchAgentInstaller.InstallError.programMissing("clang fixture: \(link.output)")
+        }
+
+        for url in [nested, companion, program] {
+            _ = try await clang.execute(["/usr/bin/codesign", "--remove-signature", url.path])
+            let sign = try await clang.execute([
+                "/usr/bin/codesign", "--force", "--sign", "-", url.path,
+            ])
+            guard sign.success else {
+                throw LaunchAgentInstaller.InstallError.programNotSigned("sign \(url.lastPathComponent): \(sign.output)")
+            }
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        }
+        try? FileManager.default.removeItem(at: nestedC)
+        try? FileManager.default.removeItem(at: companionC)
+        try? FileManager.default.removeItem(at: mainC)
+        if !keepNested {
+            try FileManager.default.removeItem(at: nested)
+        }
+        if !keepCompanion {
+            try FileManager.default.removeItem(at: companion)
+        }
+        return program
+    }
+
     /// Studio-template plist whose Program is the planted bare Mach-O.
     /// Other paths still contain the studio HOME so rewrite stays honest.
     private func machOPlist(program: String) -> String {
@@ -679,4 +753,139 @@ struct LaunchAgentInstallerTests {
         #expect(!report.bootstrapped)
         #expect(FileManager.default.fileExists(atPath: destination.path))
     }
+
+    // MARK: - HAB-678 missing Program rpath dylibs
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func bootstrapMachOMissingCompanionFailsClosedBeforeLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let previous = "keep-me\n"
+        try previous.write(to: destination, atomically: true, encoding: .utf8)
+        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let home = isolatedHome(in: dir)
+        let program = try await plantSignedMachOWithLoaderPathDylibs(
+            home: home, keepCompanion: false, keepNested: false
+        )
+        #expect(LaunchAgentInstaller.isMachO(at: program.path))
+        let source = writePlist(dir, name: "src.plist", body: machOPlist(program: program.path))
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+        let restored = try String(contentsOf: destination, encoding: .utf8)
+        #expect(restored == previous)
+        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        #expect(restoredInode == oldInode)
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.contains(".install-") || $0.contains(".rollback-") || $0.contains(".orphan-") }
+        #expect(leftovers.isEmpty)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func bootstrapMachOMissingCompanionLeavesFreshDestAbsent() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let program = try await plantSignedMachOWithLoaderPathDylibs(
+            home: home, keepCompanion: false, keepNested: false
+        )
+        let source = writePlist(dir, name: "src.plist", body: machOPlist(program: program.path))
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func bootstrapMachOWithCompanionProceedsToLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let program = try await plantSignedMachOWithLoaderPathDylibs(
+            home: home, keepCompanion: true, keepNested: true
+        )
+        let source = writePlist(dir, name: "src.plist", body: machOPlist(program: program.path))
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+        )
+        #expect(report.bootstrapped)
+        #expect(!report.kickstarted)
+        let calls = await shell.recorded()
+        #expect(!calls.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func bootstrapMachOMissingNestedCompanionFailsClosed() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let previous = "keep-me\n"
+        try previous.write(to: destination, atomically: true, encoding: .utf8)
+        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let home = isolatedHome(in: dir)
+        let program = try await plantSignedMachOWithLoaderPathDylibs(
+            home: home, keepCompanion: true, keepNested: false
+        )
+        let source = writePlist(dir, name: "src.plist", body: machOPlist(program: program.path))
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        #expect(restoredInode == oldInode)
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func rewriteOnlyDoesNotRequireCompanionDylibs() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let program = try await plantSignedMachOWithLoaderPathDylibs(
+            home: home, keepCompanion: false, keepNested: false
+        )
+        let source = writePlist(dir, name: "src.plist", body: machOPlist(program: program.path))
+        let installer = LaunchAgentInstaller(shell: RecordingShell())
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: false)
+        )
+        #expect(report.rewritten)
+        #expect(!report.bootstrapped)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+    }
+
 }
