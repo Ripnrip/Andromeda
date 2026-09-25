@@ -1407,4 +1407,196 @@ struct LaunchAgentInstallerTests {
         #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("relative").path))
     }
 
+    // MARK: - HAB-683 EnvironmentVariables.HOME
+
+    /// Studio-template plist with optional EnvironmentVariables.HOME.
+    /// Nil omits the EnvironmentVariables dict entirely.
+    private func environmentHomePlist(
+        program: String,
+        environmentHome: String?,
+        home: String = LaunchAgentInstaller.studioHomeTemplate
+    ) -> String {
+        let env: String
+        if let environmentHome {
+            env = """
+                <key>EnvironmentVariables</key>
+                <dict>
+                    <key>HOME</key>
+                    <string>\(environmentHome)</string>
+                </dict>
+            """
+        } else {
+            env = ""
+        }
+        return """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>Label</key>
+            <string>com.andromeda.fixture.agent</string>
+            <key>ProgramArguments</key>
+            <array>
+                <string>\(program)</string>
+            </array>
+            <key>WorkingDirectory</key>
+            <string>\(home)</string>
+            <key>RunAtLoad</key>
+            <true/>
+            <key>KeepAlive</key>
+            <false/>
+            <key>StandardOutPath</key>
+            <string>\(home)/.multibrain/logs/fixture.launchd.log</string>
+            <key>StandardErrorPath</key>
+            <string>\(home)/.multibrain/logs/fixture.launchd.log</string>
+            \(env)
+        </dict>
+        </plist>
+        """
+    }
+
+    @Test
+    func bootstrapRelativeEnvironmentHomeFailsClosedBeforeLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let previous = "keep-me\n"
+        try previous.write(to: destination, atomically: true, encoding: .utf8)
+        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: environmentHomePlist(
+                program: program.path,
+                environmentHome: "relative-home"
+            )
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+        let restored = try String(contentsOf: destination, encoding: .utf8)
+        #expect(restored == previous)
+        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        #expect(restoredInode == oldInode)
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.contains(".install-") || $0.contains(".rollback-") || $0.contains(".orphan-") }
+        #expect(leftovers.isEmpty)
+    }
+
+    @Test
+    func bootstrapMissingEnvironmentHomeLeavesFreshDestAbsent() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let missing = URL(fileURLWithPath: home).appendingPathComponent("missing-env-home").path
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: environmentHomePlist(program: program.path, environmentHome: missing)
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test
+    func bootstrapEnvironmentHomeIsFileFailsClosed() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let fileHome = URL(fileURLWithPath: home).appendingPathComponent("home-file")
+        FileManager.default.createFile(atPath: fileHome.path, contents: Data("not-a-dir".utf8))
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: environmentHomePlist(program: program.path, environmentHome: fileHome.path)
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test
+    func bootstrapWithoutEnvironmentHomeKeyProceedsToLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: environmentHomePlist(program: program.path, environmentHome: nil)
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+        )
+        #expect(report.bootstrapped)
+        let calls = await shell.recorded()
+        #expect(!calls.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+    }
+
+    @Test
+    func rewriteOnlyDoesNotRequireEnvironmentHome() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: environmentHomePlist(
+                program: "\(LaunchAgentInstaller.studioHomeTemplate)/Applications/Fixture.app/Contents/MacOS/Fixture",
+                environmentHome: "relative-home"
+            )
+        )
+        let installer = LaunchAgentInstaller(shell: RecordingShell())
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: false)
+        )
+        #expect(report.rewritten)
+        #expect(!report.bootstrapped)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+    }
+
 }

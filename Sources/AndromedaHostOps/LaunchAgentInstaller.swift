@@ -47,9 +47,14 @@ import Foundation
 /// `StandardErrorPath` is present it must be absolute and must not be an
 /// existing directory (HAB-682): bootstrap can return 0 when launchd
 /// cannot open the log file (relative path — launchd does not expand
-/// `$HOME`/`~` — or a directory). Missing keys allowed. Rewrite-only
-/// (`bootstrap` false) stays a dry-run and does not require the binary,
-/// its dylibs, WorkingDirectory, or log paths.
+/// `$HOME`/`~` — or a directory). Missing keys allowed. If
+/// `EnvironmentVariables.HOME` is present it must be an absolute existing
+/// directory (HAB-683): bootstrap can return 0 when HOME is relative
+/// (launchd does not expand `$HOME`/`~`), missing, or a file; the job
+/// then runs with a broken HOME and KeepAlive (mcp-hub) hammers. Missing
+/// key allowed. Rewrite-only (`bootstrap` false) stays a dry-run and does
+/// not require the binary, its dylibs, WorkingDirectory, log paths, or
+/// HOME.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -128,6 +133,9 @@ public actor LaunchAgentInstaller {
         case workingDirectoryNotDirectory(String)
         case logPathNotAbsolute(String)
         case logPathIsDirectory(String)
+        case environmentHomeNotAbsolute(String)
+        case environmentHomeMissing(String)
+        case environmentHomeNotDirectory(String)
 
         public var description: String {
             switch self {
@@ -177,6 +185,12 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent StandardOutPath/StandardErrorPath must be an absolute path (launchd does not expand $HOME/~): \(path)"
             case .logPathIsDirectory(let path):
                 "LaunchAgent StandardOutPath/StandardErrorPath is a directory (destination untouched): \(path)"
+            case .environmentHomeNotAbsolute(let path):
+                "LaunchAgent EnvironmentVariables.HOME must be an absolute path (launchd does not expand $HOME/~): \(path)"
+            case .environmentHomeMissing(let path):
+                "LaunchAgent EnvironmentVariables.HOME does not exist (destination untouched): \(path)"
+            case .environmentHomeNotDirectory(let path):
+                "LaunchAgent EnvironmentVariables.HOME is not a directory (destination untouched): \(path)"
             }
         }
     }
@@ -248,17 +262,20 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678/680/681/682: bootstrap can succeed with a missing,
-        // unsigned, dylib-incomplete, or unsigned-companion Mach-O
-        // Program, a WorkingDirectory that cannot be chdir'd, or a log
-        // path launchd cannot open. Require the rendered exec path
-        // (signature + adjacent rpath dylibs + companion signatures if
-        // Mach-O), WorkingDirectory (if present), and log paths (if
-        // present) before parking dest. Rewrite-only dry-run skips.
+        // HAB-676/677/678/680/681/682/683: bootstrap can succeed with a
+        // missing, unsigned, dylib-incomplete, or unsigned-companion
+        // Mach-O Program, a WorkingDirectory that cannot be chdir'd, a
+        // log path launchd cannot open, or EnvironmentVariables.HOME
+        // that is relative/missing/not a directory. Require the rendered
+        // exec path (signature + adjacent rpath dylibs + companion
+        // signatures if Mach-O), WorkingDirectory (if present), log
+        // paths (if present), and HOME (if present) before parking dest.
+        // Rewrite-only dry-run skips.
         if spec.bootstrap {
             try Self.validateProgram(dict, fileManager: fileManager)
             try Self.validateWorkingDirectory(dict, fileManager: fileManager)
             try Self.validateLogPaths(dict, fileManager: fileManager)
+            try Self.validateEnvironmentHome(dict, fileManager: fileManager)
         }
 
         let destinationDirectory = destination.deletingLastPathComponent()
@@ -639,6 +656,35 @@ public actor LaunchAgentInstaller {
             if fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
                 throw InstallError.logPathIsDirectory(path)
             }
+        }
+    }
+
+    /// EnvironmentVariables.HOME after HOME rewrite. Nil when the dict,
+    /// key, or value is absent/blank.
+    public static func environmentHomePath(from dict: [String: Any]) -> String? {
+        guard let env = dict["EnvironmentVariables"] as? [String: Any] else { return nil }
+        guard let value = env["HOME"] as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        return trimmed
+    }
+
+    /// Fail-closed EnvironmentVariables.HOME check used only when
+    /// bootstrapping (HAB-683). Missing key is allowed.
+    public static func validateEnvironmentHome(
+        _ dict: [String: Any],
+        fileManager: FileManager
+    ) throws {
+        guard let path = environmentHomePath(from: dict) else { return }
+        guard path.hasPrefix("/") else {
+            throw InstallError.environmentHomeNotAbsolute(path)
+        }
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
+            throw InstallError.environmentHomeMissing(path)
+        }
+        guard isDirectory.boolValue else {
+            throw InstallError.environmentHomeNotDirectory(path)
         }
     }
 
