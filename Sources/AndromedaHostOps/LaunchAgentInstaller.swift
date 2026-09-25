@@ -28,7 +28,12 @@ import Foundation
 /// is missing; launchd then exec-fails (KeepAlive hammers). HAB-632 does
 /// not cover that — it only restores on bootstrap+load *command* failure.
 /// When `Spec.bootstrap` is true, the rendered Program path must be an
-/// absolute existing executable before dest is parked (HAB-676). Rewrite-only
+/// absolute existing executable before dest is parked (HAB-676). If that
+/// Program is a Mach-O, it must also pass `codesign --verify --strict`
+/// (HAB-677): unsigned Mach-O is Taskgated SIGKILL (HAB-606) and KeepAlive
+/// (mcp-hub) hammers. Scripts/shebangs are not Mach-O and stay allowed.
+/// Signature check uses `/usr/bin/codesign` directly — not the injected
+/// `ShellExecuting` (that mock is for launchctl). Rewrite-only
 /// (`bootstrap` false) stays a dry-run and does not require the binary.
 public actor LaunchAgentInstaller {
 
@@ -99,6 +104,7 @@ public actor LaunchAgentInstaller {
         case programMissing(String)
         case programNotAbsolute(String)
         case programNotExecutable(String)
+        case programNotSigned(String)
 
         public var description: String {
             switch self {
@@ -130,6 +136,8 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent Program must be an absolute path (launchd does not expand $HOME/~): \(path)"
             case .programNotExecutable(let path):
                 "LaunchAgent Program is not executable (destination untouched): \(path)"
+            case .programNotSigned(let path):
+                "LaunchAgent Program failed codesign --verify --strict (destination untouched): \(path)"
             }
         }
     }
@@ -201,8 +209,9 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676: bootstrap can succeed with a missing Program. Require the
-        // rendered exec path before parking dest. Rewrite-only dry-run skips.
+        // HAB-676/677: bootstrap can succeed with a missing or unsigned
+        // Mach-O Program. Require the rendered exec path (and signature
+        // if Mach-O) before parking dest. Rewrite-only dry-run skips.
         if spec.bootstrap {
             try Self.validateProgram(dict, fileManager: fileManager)
         }
@@ -353,7 +362,7 @@ public actor LaunchAgentInstaller {
         return nil
     }
 
-    /// Fail-closed Program check used only when bootstrapping (HAB-676).
+    /// Fail-closed Program check used only when bootstrapping (HAB-676 / HAB-677).
     public static func validateProgram(
         _ dict: [String: Any],
         fileManager: FileManager
@@ -370,6 +379,53 @@ public actor LaunchAgentInstaller {
         }
         guard fileManager.isExecutableFile(atPath: path) else {
             throw InstallError.programNotExecutable(path)
+        }
+        // HAB-677: unsigned Mach-O is Taskgated SIGKILL after a successful
+        // bootstrap. Scripts/shebangs are not Mach-O — leave them alone.
+        if isMachO(at: path) {
+            try verifyCodeSignature(at: path)
+        }
+    }
+
+    /// Mach-O / fat magics in either endianness (on-disk bytes).
+    public static func isMachO(at path: String) -> Bool {
+        guard let handle = FileHandle(forReadingAtPath: path) else { return false }
+        defer { try? handle.close() }
+        let data = handle.readData(ofLength: 4)
+        guard data.count == 4 else { return false }
+        let bytes = [UInt8](data)
+        let magics: Set<[UInt8]> = [
+            [0xFE, 0xED, 0xFA, 0xCE],
+            [0xCE, 0xFA, 0xED, 0xFE],
+            [0xFE, 0xED, 0xFA, 0xCF],
+            [0xCF, 0xFA, 0xED, 0xFE],
+            [0xCA, 0xFE, 0xBA, 0xBE],
+            [0xBE, 0xBA, 0xFE, 0xCA],
+            [0xCA, 0xFE, 0xBA, 0xBF],
+            [0xBF, 0xBA, 0xFE, 0xCA],
+        ]
+        return magics.contains(bytes)
+    }
+
+    /// Live `/usr/bin/codesign --verify --strict` — not the injected shell.
+    public static func verifyCodeSignature(at path: String) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        process.arguments = ["--verify", "--strict", path]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            throw InstallError.programNotSigned("\(path): \(error.localizedDescription)")
+        }
+        guard process.terminationStatus == 0 else {
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let detail = output.isEmpty ? path : "\(path): \(output)"
+            throw InstallError.programNotSigned(detail)
         }
     }
 
