@@ -65,7 +65,9 @@ import Foundation
 /// Mach-O (system dylibs only) and inherits Aqua/agent-shell env to run
 /// AppleScript. Rewrite-only (`bootstrap` false) stays a dry-run and does
 /// not require the binary, its dylibs, WorkingDirectory, log paths, HOME,
-/// PATH, or reject `open`/`osascript`.
+/// PATH, or reject `open`/`osascript`. HAB-688 also refuses those
+/// binaries in any ProgramArguments slot (and a separate Program key),
+/// so `/usr/bin/arch` / `/usr/bin/env` trampolines cannot wrap them.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -208,9 +210,9 @@ public actor LaunchAgentInstaller {
             case .environmentPathNotAbsolute(let path):
                 "LaunchAgent EnvironmentVariables.PATH component must be an absolute path (launchd does not expand $HOME/~): \(path)"
             case .programUsesOpen(let path):
-                "LaunchAgent Program must not be /usr/bin/open (LaunchServices open -a inherits Aqua/agent-shell env): \(path)"
+                "LaunchAgent Program/ProgramArguments must not include /usr/bin/open (LaunchServices open -a inherits Aqua/agent-shell env): \(path)"
             case .programUsesOsascript(let path):
-                "LaunchAgent Program must not be /usr/bin/osascript (osascript inherits Aqua/agent-shell env): \(path)"
+                "LaunchAgent Program/ProgramArguments must not include /usr/bin/osascript (osascript inherits Aqua/agent-shell env): \(path)"
             }
         }
     }
@@ -282,15 +284,17 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678/680/681/682/683/684/686/687: bootstrap can succeed
-        // with a missing, unsigned, dylib-incomplete, or unsigned-companion
-        // Mach-O Program, a WorkingDirectory that cannot be chdir'd, a
-        // log path launchd cannot open, EnvironmentVariables.HOME
-        // that is relative/missing/not a directory, PATH with
-        // relative/empty/$HOME/~ components, or Program=/usr/bin/open
-        // or /usr/bin/osascript (LaunchServices/osascript inherit
-        // Aqua/agent-shell env). Require the rendered exec path (not
-        // open/osascript; signature + adjacent rpath dylibs + companion
+        // HAB-676/677/678/680/681/682/683/684/686/687/688: bootstrap can
+        // succeed with a missing, unsigned, dylib-incomplete, or
+        // unsigned-companion Mach-O Program, a WorkingDirectory that
+        // cannot be chdir'd, a log path launchd cannot open,
+        // EnvironmentVariables.HOME that is relative/missing/not a
+        // directory, PATH with relative/empty/$HOME/~ components, or
+        // Program/ProgramArguments containing /usr/bin/open or
+        // /usr/bin/osascript (LaunchServices/osascript inherit
+        // Aqua/agent-shell env, including via arch/env trampolines).
+        // Require the rendered exec path (not open/osascript in any
+        // argv slot; signature + adjacent rpath dylibs + companion
         // signatures if Mach-O), WorkingDirectory (if present), log
         // paths (if present), HOME (if present), and PATH (if present)
         // before parking dest. Rewrite-only dry-run skips.
@@ -740,31 +744,49 @@ public actor LaunchAgentInstaller {
         }
     }
 
-    /// True when Program/ProgramArguments[0] is LaunchServices `open`.
+    /// Program key plus every ProgramArguments entry. launchd can exec
+    /// `Program` while argv still contains wrappers' targets.
+    public static func programInvocationPaths(from dict: [String: Any]) -> [String] {
+        var paths: [String] = []
+        if let program = dict["Program"] as? String {
+            paths.append(program)
+        }
+        if let args = dict["ProgramArguments"] as? [String] {
+            paths.append(contentsOf: args)
+        }
+        return paths
+    }
+
+    /// True when the path standardizes to LaunchServices `open`.
     public static func isLaunchServicesOpen(_ path: String) -> Bool {
         URL(fileURLWithPath: path).standardizedFileURL.path == "/usr/bin/open"
     }
 
-    /// Fail-closed `/usr/bin/open` check used only when bootstrapping (HAB-686).
-    /// Missing Program is left to `validateProgram`.
+    /// Fail-closed `/usr/bin/open` check used only when bootstrapping
+    /// (HAB-686 / HAB-688). Scans Program and every ProgramArguments
+    /// slot so `/usr/bin/arch -arm64 /usr/bin/open` cannot bypass
+    /// argv[0]-only inspection. Missing Program is left to
+    /// `validateProgram`.
     public static func validateProgramNotOpen(_ dict: [String: Any]) throws {
-        guard let path = programPath(from: dict) else { return }
-        if isLaunchServicesOpen(path) {
-            throw InstallError.programUsesOpen(path)
+        for path in programInvocationPaths(from: dict) {
+            if isLaunchServicesOpen(path) {
+                throw InstallError.programUsesOpen(path)
+            }
         }
     }
 
-    /// True when Program/ProgramArguments[0] is `/usr/bin/osascript`.
+    /// True when the path standardizes to `/usr/bin/osascript`.
     public static func isOsascript(_ path: String) -> Bool {
         URL(fileURLWithPath: path).standardizedFileURL.path == "/usr/bin/osascript"
     }
 
-    /// Fail-closed `/usr/bin/osascript` check used only when bootstrapping (HAB-687).
-    /// Missing Program is left to `validateProgram`.
+    /// Fail-closed `/usr/bin/osascript` check used only when bootstrapping
+    /// (HAB-687 / HAB-688). Same argv-wide scan as `validateProgramNotOpen`.
     public static func validateProgramNotOsascript(_ dict: [String: Any]) throws {
-        guard let path = programPath(from: dict) else { return }
-        if isOsascript(path) {
-            throw InstallError.programUsesOsascript(path)
+        for path in programInvocationPaths(from: dict) {
+            if isOsascript(path) {
+                throw InstallError.programUsesOsascript(path)
+            }
         }
     }
 
