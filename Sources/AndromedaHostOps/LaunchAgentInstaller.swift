@@ -43,9 +43,13 @@ import Foundation
 /// has `WorkingDirectory`, that path must be an absolute existing
 /// directory before dest is parked (HAB-681): bootstrap can still return 0
 /// when chdir would fail, then KeepAlive (mcp-hub) hammers. Missing key
-/// is allowed (launchd defaults to `/`). Rewrite-only (`bootstrap` false)
-/// stays a dry-run and does not require the binary, its dylibs, or
-/// WorkingDirectory.
+/// is allowed (launchd defaults to `/`). If `StandardOutPath` /
+/// `StandardErrorPath` is present it must be absolute and must not be an
+/// existing directory (HAB-682): bootstrap can return 0 when launchd
+/// cannot open the log file (relative path — launchd does not expand
+/// `$HOME`/`~` — or a directory). Missing keys allowed. Rewrite-only
+/// (`bootstrap` false) stays a dry-run and does not require the binary,
+/// its dylibs, WorkingDirectory, or log paths.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -122,6 +126,8 @@ public actor LaunchAgentInstaller {
         case workingDirectoryNotAbsolute(String)
         case workingDirectoryMissing(String)
         case workingDirectoryNotDirectory(String)
+        case logPathNotAbsolute(String)
+        case logPathIsDirectory(String)
 
         public var description: String {
             switch self {
@@ -167,6 +173,10 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent WorkingDirectory does not exist (destination untouched): \(path)"
             case .workingDirectoryNotDirectory(let path):
                 "LaunchAgent WorkingDirectory is not a directory (destination untouched): \(path)"
+            case .logPathNotAbsolute(let path):
+                "LaunchAgent StandardOutPath/StandardErrorPath must be an absolute path (launchd does not expand $HOME/~): \(path)"
+            case .logPathIsDirectory(let path):
+                "LaunchAgent StandardOutPath/StandardErrorPath is a directory (destination untouched): \(path)"
             }
         }
     }
@@ -238,15 +248,17 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678/680/681: bootstrap can succeed with a missing,
+        // HAB-676/677/678/680/681/682: bootstrap can succeed with a missing,
         // unsigned, dylib-incomplete, or unsigned-companion Mach-O
-        // Program, or a WorkingDirectory that cannot be chdir'd.
-        // Require the rendered exec path (signature + adjacent rpath
-        // dylibs + companion signatures if Mach-O) and WorkingDirectory
-        // (if present) before parking dest. Rewrite-only dry-run skips.
+        // Program, a WorkingDirectory that cannot be chdir'd, or a log
+        // path launchd cannot open. Require the rendered exec path
+        // (signature + adjacent rpath dylibs + companion signatures if
+        // Mach-O), WorkingDirectory (if present), and log paths (if
+        // present) before parking dest. Rewrite-only dry-run skips.
         if spec.bootstrap {
             try Self.validateProgram(dict, fileManager: fileManager)
             try Self.validateWorkingDirectory(dict, fileManager: fileManager)
+            try Self.validateLogPaths(dict, fileManager: fileManager)
         }
 
         let destinationDirectory = destination.deletingLastPathComponent()
@@ -259,6 +271,10 @@ public actor LaunchAgentInstaller {
         }
 
         func ensureParentDirectory(of path: String) throws {
+            // Relative log paths are not rewritten; mkdir would land in
+            // the installer CWD. Bootstrap already fail-closed them
+            // (HAB-682). Rewrite-only skips.
+            guard path.hasPrefix("/") else { return }
             let parent = URL(fileURLWithPath: path).deletingLastPathComponent()
             try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
         }
@@ -589,6 +605,40 @@ public actor LaunchAgentInstaller {
         }
         guard isDirectory.boolValue else {
             throw InstallError.workingDirectoryNotDirectory(path)
+        }
+    }
+
+    /// StandardOutPath / StandardErrorPath after HOME rewrite.
+    /// Blank or missing keys are omitted (launchd inherits stdout/stderr).
+    public static func logPaths(from dict: [String: Any]) -> [String] {
+        var paths: [String] = []
+        var seen: Set<String> = []
+        for key in ["StandardOutPath", "StandardErrorPath"] {
+            guard let value = dict[key] as? String else { continue }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+            if seen.insert(trimmed).inserted {
+                paths.append(trimmed)
+            }
+        }
+        return paths
+    }
+
+    /// Fail-closed log path check used only when bootstrapping (HAB-682).
+    /// Missing keys are allowed. Relative paths and existing directories
+    /// fail before dest is parked.
+    public static func validateLogPaths(
+        _ dict: [String: Any],
+        fileManager: FileManager
+    ) throws {
+        for path in logPaths(from: dict) {
+            guard path.hasPrefix("/") else {
+                throw InstallError.logPathNotAbsolute(path)
+            }
+            var isDirectory: ObjCBool = false
+            if fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
+                throw InstallError.logPathIsDirectory(path)
+            }
         }
     }
 
