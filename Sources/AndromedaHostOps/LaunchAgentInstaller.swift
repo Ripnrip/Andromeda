@@ -65,9 +65,14 @@ import Foundation
 /// Mach-O (system dylibs only) and inherits Aqua/agent-shell env to run
 /// AppleScript. Rewrite-only (`bootstrap` false) stays a dry-run and does
 /// not require the binary, its dylibs, WorkingDirectory, log paths, HOME,
-/// PATH, or reject `open`/`osascript`. HAB-688 also refuses those
+/// PATH, reject `open`/`osascript`, or reject paid API keys. HAB-688 also refuses those
 /// binaries in any ProgramArguments slot (and a separate Program key),
 /// so `/usr/bin/arch` / `/usr/bin/env` trampolines cannot wrap them.
+/// Paid provider API keys in EnvironmentVariables are refused on
+/// bootstrap (HAB-689): `ops/com.andromeda.hud.plist` is local-only
+/// (`OPENROUTER_*`, `ANTHROPIC_*`, paid keys). `launchctl bootstrap`
+/// can return 0 while injecting those keys into the job env (spend +
+/// leak). HOME/PATH/LANG stay allowed. Rewrite-only unchanged.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -152,6 +157,7 @@ public actor LaunchAgentInstaller {
         case environmentPathNotAbsolute(String)
         case programUsesOpen(String)
         case programUsesOsascript(String)
+        case environmentPaidApiKey(String)
 
         public var description: String {
             switch self {
@@ -213,6 +219,8 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent Program/ProgramArguments must not include /usr/bin/open (LaunchServices open -a inherits Aqua/agent-shell env): \(path)"
             case .programUsesOsascript(let path):
                 "LaunchAgent Program/ProgramArguments must not include /usr/bin/osascript (osascript inherits Aqua/agent-shell env): \(path)"
+            case .environmentPaidApiKey(let keys):
+                "LaunchAgent EnvironmentVariables must not include paid provider API keys (destination untouched): \(keys)"
             }
         }
     }
@@ -284,20 +292,23 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678/680/681/682/683/684/686/687/688: bootstrap can
-        // succeed with a missing, unsigned, dylib-incomplete, or
+        // HAB-676/677/678/680/681/682/683/684/686/687/688/689: bootstrap
+        // can succeed with a missing, unsigned, dylib-incomplete, or
         // unsigned-companion Mach-O Program, a WorkingDirectory that
         // cannot be chdir'd, a log path launchd cannot open,
         // EnvironmentVariables.HOME that is relative/missing/not a
-        // directory, PATH with relative/empty/$HOME/~ components, or
+        // directory, PATH with relative/empty/$HOME/~ components,
         // Program/ProgramArguments containing /usr/bin/open or
         // /usr/bin/osascript (LaunchServices/osascript inherit
-        // Aqua/agent-shell env, including via arch/env trampolines).
+        // Aqua/agent-shell env, including via arch/env trampolines),
+        // or paid provider API keys in EnvironmentVariables (HUD
+        // local-only contract; KeepAlive then spend+leak).
         // Require the rendered exec path (not open/osascript in any
         // argv slot; signature + adjacent rpath dylibs + companion
         // signatures if Mach-O), WorkingDirectory (if present), log
-        // paths (if present), HOME (if present), and PATH (if present)
-        // before parking dest. Rewrite-only dry-run skips.
+        // paths (if present), HOME (if present), PATH (if present),
+        // and no paid API keys before parking dest. Rewrite-only
+        // dry-run skips.
         if spec.bootstrap {
             try Self.validateProgramNotOpen(dict)
             try Self.validateProgramNotOsascript(dict)
@@ -306,6 +317,7 @@ public actor LaunchAgentInstaller {
             try Self.validateLogPaths(dict, fileManager: fileManager)
             try Self.validateEnvironmentHome(dict, fileManager: fileManager)
             try Self.validateEnvironmentPath(dict)
+            try Self.validateEnvironmentPaidKeys(dict)
         }
 
         let destinationDirectory = destination.deletingLastPathComponent()
@@ -787,6 +799,44 @@ public actor LaunchAgentInstaller {
             if isOsascript(path) {
                 throw InstallError.programUsesOsascript(path)
             }
+        }
+    }
+
+    /// Prefixes refused in EnvironmentVariables on bootstrap (HAB-689).
+    /// HUD plist: no OPENROUTER_*, ANTHROPIC_*, or paid API keys.
+    public static let paidEnvironmentKeyPrefixes: [String] = [
+        "OPENROUTER_",
+        "ANTHROPIC_",
+        "OPENAI_",
+        "XAI_",
+        "GROQ_",
+    ]
+
+    /// Exact keys refused in addition to prefixes (HAB-689).
+    public static let paidEnvironmentExactKeys: Set<String> = [
+        "GOOGLE_API_KEY",
+        "GEMINI_API_KEY",
+    ]
+
+    /// True when an EnvironmentVariables key is a paid provider secret.
+    public static func isPaidEnvironmentKey(_ key: String) -> Bool {
+        let upper = key.uppercased()
+        if Self.paidEnvironmentExactKeys.contains(upper) { return true }
+        return Self.paidEnvironmentKeyPrefixes.contains { upper.hasPrefix($0) }
+    }
+
+    /// Paid-provider keys present in EnvironmentVariables after rewrite.
+    public static func paidEnvironmentKeys(from dict: [String: Any]) -> [String] {
+        guard let env = dict["EnvironmentVariables"] as? [String: Any] else { return [] }
+        return env.keys.filter(isPaidEnvironmentKey).sorted()
+    }
+
+    /// Fail-closed paid API key check used only when bootstrapping (HAB-689).
+    /// Missing EnvironmentVariables dict / HOME / PATH / LANG allowed.
+    public static func validateEnvironmentPaidKeys(_ dict: [String: Any]) throws {
+        let keys = paidEnvironmentKeys(from: dict)
+        guard keys.isEmpty else {
+            throw InstallError.environmentPaidApiKey(keys.joined(separator: ", "))
         }
     }
 
