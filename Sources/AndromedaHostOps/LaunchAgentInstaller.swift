@@ -57,9 +57,12 @@ import Foundation
 /// can return 0 when PATH contains relative, empty, `$HOME`, or `~`
 /// components (launchd does not expand them); child lookups then fail and
 /// KeepAlive (mcp-hub) hammers. Components are not required to exist
-/// (Homebrew / isolated homes). Missing key allowed. Rewrite-only
+/// (Homebrew / isolated homes). Missing key allowed. `/usr/bin/open` is
+/// refused on bootstrap (HAB-686): LaunchServices `open -a` can inherit
+/// Aqua/agent-shell env (paid API keys). ops/*.plist forbid it; a signed
+/// system `open` would otherwise pass HAB-676/677/678/680. Rewrite-only
 /// (`bootstrap` false) stays a dry-run and does not require the binary,
-/// its dylibs, WorkingDirectory, log paths, HOME, or PATH.
+/// its dylibs, WorkingDirectory, log paths, HOME, PATH, or reject `open`.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -142,6 +145,7 @@ public actor LaunchAgentInstaller {
         case environmentHomeMissing(String)
         case environmentHomeNotDirectory(String)
         case environmentPathNotAbsolute(String)
+        case programUsesOpen(String)
 
         public var description: String {
             switch self {
@@ -199,6 +203,8 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent EnvironmentVariables.HOME is not a directory (destination untouched): \(path)"
             case .environmentPathNotAbsolute(let path):
                 "LaunchAgent EnvironmentVariables.PATH component must be an absolute path (launchd does not expand $HOME/~): \(path)"
+            case .programUsesOpen(let path):
+                "LaunchAgent Program must not be /usr/bin/open (LaunchServices open -a inherits Aqua/agent-shell env): \(path)"
             }
         }
     }
@@ -270,17 +276,20 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678/680/681/682/683/684: bootstrap can succeed with a
-        // missing, unsigned, dylib-incomplete, or unsigned-companion
+        // HAB-676/677/678/680/681/682/683/684/686: bootstrap can succeed
+        // with a missing, unsigned, dylib-incomplete, or unsigned-companion
         // Mach-O Program, a WorkingDirectory that cannot be chdir'd, a
         // log path launchd cannot open, EnvironmentVariables.HOME
-        // that is relative/missing/not a directory, or PATH with
-        // relative/empty/$HOME/~ components. Require the rendered
-        // exec path (signature + adjacent rpath dylibs + companion
-        // signatures if Mach-O), WorkingDirectory (if present), log
-        // paths (if present), HOME (if present), and PATH (if present)
-        // before parking dest. Rewrite-only dry-run skips.
+        // that is relative/missing/not a directory, PATH with
+        // relative/empty/$HOME/~ components, or Program=/usr/bin/open
+        // (LaunchServices inherits Aqua/agent-shell env). Require the
+        // rendered exec path (not open; signature + adjacent rpath
+        // dylibs + companion signatures if Mach-O), WorkingDirectory
+        // (if present), log paths (if present), HOME (if present), and
+        // PATH (if present) before parking dest. Rewrite-only dry-run
+        // skips.
         if spec.bootstrap {
+            try Self.validateProgramNotOpen(dict)
             try Self.validateProgram(dict, fileManager: fileManager)
             try Self.validateWorkingDirectory(dict, fileManager: fileManager)
             try Self.validateLogPaths(dict, fileManager: fileManager)
@@ -438,7 +447,7 @@ public actor LaunchAgentInstaller {
         return nil
     }
 
-    /// Fail-closed Program check used only when bootstrapping (HAB-676 / HAB-677 / HAB-678 / HAB-680).
+    /// Fail-closed Program check used only when bootstrapping (HAB-676 / HAB-677 / HAB-678 / HAB-680 / HAB-686).
     public static func validateProgram(
         _ dict: [String: Any],
         fileManager: FileManager
@@ -721,6 +730,20 @@ public actor LaunchAgentInstaller {
                     component.isEmpty ? "(empty)" : component
                 )
             }
+        }
+    }
+
+    /// True when Program/ProgramArguments[0] is LaunchServices `open`.
+    public static func isLaunchServicesOpen(_ path: String) -> Bool {
+        URL(fileURLWithPath: path).standardizedFileURL.path == "/usr/bin/open"
+    }
+
+    /// Fail-closed `/usr/bin/open` check used only when bootstrapping (HAB-686).
+    /// Missing Program is left to `validateProgram`.
+    public static func validateProgramNotOpen(_ dict: [String: Any]) throws {
+        guard let path = programPath(from: dict) else { return }
+        if isLaunchServicesOpen(path) {
+            throw InstallError.programUsesOpen(path)
         }
     }
 
