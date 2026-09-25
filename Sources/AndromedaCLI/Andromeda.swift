@@ -274,7 +274,7 @@ struct InstallLaunchAgent: AsyncParsableCommand {
         commandName: "install-launch-agent",
         abstract: "Render a LaunchAgent plist (HOME rewrite) and optionally bootstrap it.",
         discussion: """
-        Fail-closed LaunchAgent install (HAB-622 / HAB-632 / HAB-676 / HAB-677 / HAB-678, BIN-101 leftover).
+        Fail-closed LaunchAgent install (HAB-622 / HAB-632 / HAB-676 / HAB-677 / HAB-678 / HAB-680, BIN-101 leftover).
 
         launchd does not expand $HOME/~. ops/*.plist bake the Studio home
         template /Users/admin; this command rewrites that string to --home
@@ -285,11 +285,12 @@ struct InstallLaunchAgent: AsyncParsableCommand {
         fresh install). --bootstrap requires the rendered Program path to
         exist and be executable before dest is parked (HAB-676). If that
         Program is Mach-O it must also pass codesign --verify --strict
-        (HAB-677) and have required adjacent rpath dylibs present
-        (HAB-678) — unsigned Mach-O is Taskgated SIGKILL (HAB-606) and
-        a missing companion dyld-fails; both KeepAlive-hammer.
-        Scripts/shebangs stay allowed. Rewrite-only (no --bootstrap)
-        stays a dry-run.
+        (HAB-677), have required adjacent rpath dylibs present (HAB-678),
+        and those companions must themselves pass codesign --verify
+        --strict (HAB-680) — unsigned Mach-O is Taskgated SIGKILL
+        (HAB-606) and a missing or unsigned companion dyld-fails; both
+        KeepAlive-hammer. Scripts/shebangs stay allowed. Rewrite-only
+        (no --bootstrap) stays a dry-run.
         --bootstrap runs bootout then bootstrap (legacy load fallback).
         --kickstart is opt-in and refused without --bootstrap. Cron must
         not kickstart live HUD.

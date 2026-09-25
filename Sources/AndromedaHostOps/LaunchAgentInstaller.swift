@@ -34,11 +34,14 @@ import Foundation
 /// (mcp-hub) hammers. Required `@rpath` / `@loader_path` / `@executable_path`
 /// dylibs (and nested adjacent names) must exist next to Program (HAB-678):
 /// a signed Mach-O with a missing companion still dyld-fails after a
-/// successful bootstrap. Scripts/shebangs are not Mach-O and stay allowed.
-/// Signature + `otool -L` use `/usr/bin/codesign` and `/usr/bin/otool`
-/// directly — not the injected `ShellExecuting` (that mock is for launchctl).
-/// Rewrite-only (`bootstrap` false) stays a dry-run and does not require
-/// the binary or its dylibs.
+/// successful bootstrap. Those companions must themselves pass
+/// `codesign --verify --strict` (HAB-680): an unsigned adjacent dylib still
+/// library-validation / Taskgated-fails after bootstrap. Scripts/shebangs
+/// are not Mach-O and stay allowed. Signature + `otool -L` use
+/// `/usr/bin/codesign` and `/usr/bin/otool` directly — not the injected
+/// `ShellExecuting` (that mock is for launchctl). Rewrite-only
+/// (`bootstrap` false) stays a dry-run and does not require the binary
+/// or its dylibs.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -111,6 +114,7 @@ public actor LaunchAgentInstaller {
         case programNotSigned(String)
         case programLibraryInspectionFailed(String)
         case programMissingLibraries(String)
+        case programUnsignedLibraries(String)
 
         public var description: String {
             switch self {
@@ -148,6 +152,8 @@ public actor LaunchAgentInstaller {
                 "Could not inspect LaunchAgent Program linked libraries (destination untouched): \(detail)"
             case .programMissingLibraries(let detail):
                 "LaunchAgent Program is missing a required non-system dylib (destination untouched): \(detail)"
+            case .programUnsignedLibraries(let detail):
+                "LaunchAgent Program companion dylib failed codesign --verify --strict (destination untouched): \(detail)"
             }
         }
     }
@@ -219,10 +225,11 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678: bootstrap can succeed with a missing, unsigned,
-        // or dylib-incomplete Mach-O Program. Require the rendered exec
-        // path (signature + adjacent rpath dylibs if Mach-O) before
-        // parking dest. Rewrite-only dry-run skips.
+        // HAB-676/677/678/680: bootstrap can succeed with a missing,
+        // unsigned, dylib-incomplete, or unsigned-companion Mach-O
+        // Program. Require the rendered exec path (signature + adjacent
+        // rpath dylibs + companion signatures if Mach-O) before parking
+        // dest. Rewrite-only dry-run skips.
         if spec.bootstrap {
             try Self.validateProgram(dict, fileManager: fileManager)
         }
@@ -373,7 +380,7 @@ public actor LaunchAgentInstaller {
         return nil
     }
 
-    /// Fail-closed Program check used only when bootstrapping (HAB-676 / HAB-677 / HAB-678).
+    /// Fail-closed Program check used only when bootstrapping (HAB-676 / HAB-677 / HAB-678 / HAB-680).
     public static func validateProgram(
         _ dict: [String: Any],
         fileManager: FileManager
@@ -398,6 +405,7 @@ public actor LaunchAgentInstaller {
             // HAB-678: signed Mach-O with a missing @loader_path dylib still
             // dyld-fails after bootstrap. Inspect Program + nested adjacent
             // companions; dest stays parked-until-valid (here: untouched).
+            // HAB-680: those companions must also be signed.
             try verifyRequiredLibraries(at: path, fileManager: fileManager)
         }
     }
@@ -514,6 +522,31 @@ public actor LaunchAgentInstaller {
         guard gaps.isEmpty else {
             let detail = gaps.map(\.installName).joined(separator: ", ")
             throw InstallError.programMissingLibraries("\(path): \(detail)")
+        }
+        try verifyCompanionSignatures(libraries, adjacentDirectory: directory)
+    }
+
+    /// Fail-closed if an adjacent required companion fails
+    /// `codesign --verify --strict` (HAB-680).
+    public static func verifyCompanionSignatures(
+        _ libraries: [BinaryInstaller.LinkedLibrary],
+        adjacentDirectory: URL
+    ) throws {
+        var seen: Set<String> = []
+        var unsigned: [String] = []
+        for library in libraries {
+            if library.isWeak { continue }
+            guard let name = library.adjacentFileName else { continue }
+            guard seen.insert(name).inserted else { continue }
+            let companion = adjacentDirectory.appendingPathComponent(name).path
+            do {
+                try verifyCodeSignature(at: companion)
+            } catch {
+                unsigned.append(name)
+            }
+        }
+        guard unsigned.isEmpty else {
+            throw InstallError.programUnsignedLibraries(unsigned.sorted().joined(separator: ", "))
         }
     }
 

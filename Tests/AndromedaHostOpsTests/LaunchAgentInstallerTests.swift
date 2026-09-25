@@ -888,4 +888,127 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
     }
 
+    // MARK: - HAB-680 unsigned companion dylibs
+
+    /// Strip ad-hoc signature from a planted companion (HAB-680).
+    private func stripSignature(at url: URL) async throws {
+        let clang = LiveShell()
+        _ = try await clang.execute(["/usr/bin/codesign", "--remove-signature", url.path])
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func bootstrapMachOUnsignedCompanionFailsClosedBeforeLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let previous = "keep-me\n"
+        try previous.write(to: destination, atomically: true, encoding: .utf8)
+        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let home = isolatedHome(in: dir)
+        let program = try await plantSignedMachOWithLoaderPathDylibs(
+            home: home, keepCompanion: true, keepNested: true
+        )
+        let companion = program.deletingLastPathComponent().appendingPathComponent("libcompanion.dylib")
+        try await stripSignature(at: companion)
+        let source = writePlist(dir, name: "src.plist", body: machOPlist(program: program.path))
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+        let restored = try String(contentsOf: destination, encoding: .utf8)
+        #expect(restored == previous)
+        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        #expect(restoredInode == oldInode)
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.contains(".install-") || $0.contains(".rollback-") || $0.contains(".orphan-") }
+        #expect(leftovers.isEmpty)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func bootstrapMachOUnsignedCompanionLeavesFreshDestAbsent() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let program = try await plantSignedMachOWithLoaderPathDylibs(
+            home: home, keepCompanion: true, keepNested: true
+        )
+        let companion = program.deletingLastPathComponent().appendingPathComponent("libcompanion.dylib")
+        try await stripSignature(at: companion)
+        let source = writePlist(dir, name: "src.plist", body: machOPlist(program: program.path))
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func bootstrapMachOUnsignedNestedCompanionFailsClosed() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let previous = "keep-me\n"
+        try previous.write(to: destination, atomically: true, encoding: .utf8)
+        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let home = isolatedHome(in: dir)
+        let program = try await plantSignedMachOWithLoaderPathDylibs(
+            home: home, keepCompanion: true, keepNested: true
+        )
+        let nested = program.deletingLastPathComponent().appendingPathComponent("libnested.dylib")
+        try await stripSignature(at: nested)
+        let source = writePlist(dir, name: "src.plist", body: machOPlist(program: program.path))
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        #expect(restoredInode == oldInode)
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func rewriteOnlyDoesNotRequireCompanionSignatures() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let program = try await plantSignedMachOWithLoaderPathDylibs(
+            home: home, keepCompanion: true, keepNested: true
+        )
+        let companion = program.deletingLastPathComponent().appendingPathComponent("libcompanion.dylib")
+        try await stripSignature(at: companion)
+        let source = writePlist(dir, name: "src.plist", body: machOPlist(program: program.path))
+        let installer = LaunchAgentInstaller(shell: RecordingShell())
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: false)
+        )
+        #expect(report.rewritten)
+        #expect(!report.bootstrapped)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+    }
+
 }
