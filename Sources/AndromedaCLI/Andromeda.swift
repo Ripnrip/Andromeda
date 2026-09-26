@@ -274,7 +274,7 @@ struct InstallLaunchAgent: AsyncParsableCommand {
         commandName: "install-launch-agent",
         abstract: "Render a LaunchAgent plist (HOME rewrite) and optionally bootstrap it.",
         discussion: """
-        Fail-closed LaunchAgent install (HAB-622 / HAB-632 / HAB-676 / HAB-677 / HAB-678 / HAB-680 / HAB-681 / HAB-682 / HAB-683 / HAB-684 / HAB-686 / HAB-687 / HAB-688 / HAB-689 / HAB-690 / HAB-692 / HAB-693, BIN-101 leftover).
+        Fail-closed LaunchAgent install (HAB-622 / HAB-632 / HAB-676 / HAB-677 / HAB-678 / HAB-680 / HAB-681 / HAB-682 / HAB-683 / HAB-684 / HAB-686 / HAB-687 / HAB-688 / HAB-689 / HAB-690 / HAB-692 / HAB-693 / HAB-695, BIN-101 leftover).
 
         launchd does not expand $HOME/~. ops/*.plist bake the Studio home
         template /Users/admin; this command rewrites that string to --home
@@ -305,7 +305,11 @@ struct InstallLaunchAgent: AsyncParsableCommand {
         EnvironmentVariables.HOME is present it must be an absolute
         existing directory (HAB-683): bootstrap can return 0 when HOME
         is relative, missing, or a file, then KeepAlive hammers.
-        Missing key allowed. If EnvironmentVariables.PATH is present,
+        Missing key allowed. If EnvironmentVariables.TMPDIR is present
+        it must be an absolute existing directory (HAB-695): bootstrap
+        can return 0 when TMPDIR is relative, missing, or a file, then
+        libc tempfile fails and KeepAlive hammers. Missing key allowed.
+        If EnvironmentVariables.PATH is present,
         every colon-component must be absolute (HAB-684): bootstrap can
         return 0 when PATH contains relative, empty, $HOME, or ~
         components (launchd does not expand them). Components need not

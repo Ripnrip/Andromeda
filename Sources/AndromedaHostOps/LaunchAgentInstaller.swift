@@ -84,7 +84,12 @@ import Foundation
 /// If `RootDirectory` is present it must be an absolute existing
 /// directory (HAB-693): bootstrap can return 0 when chroot would fail
 /// (relative path — launchd does not expand `$HOME`/`~` — missing, or
-/// a file). Missing key allowed (no chroot). Rewrite-only unchanged.
+/// a file). Missing key allowed (no chroot). If
+/// `EnvironmentVariables.TMPDIR` is present it must be an absolute
+/// existing directory (HAB-695): bootstrap can return 0 when TMPDIR is
+/// relative (launchd does not expand `$HOME`/`~`), missing, or a file;
+/// libc tempfile then fails and KeepAlive (mcp-hub) hammers. Missing
+/// key allowed (OS default). Rewrite-only unchanged.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -172,6 +177,9 @@ public actor LaunchAgentInstaller {
         case environmentHomeNotAbsolute(String)
         case environmentHomeMissing(String)
         case environmentHomeNotDirectory(String)
+        case environmentTmpdirNotAbsolute(String)
+        case environmentTmpdirMissing(String)
+        case environmentTmpdirNotDirectory(String)
         case environmentPathNotAbsolute(String)
         case programUsesOpen(String)
         case programUsesOsascript(String)
@@ -244,6 +252,12 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent EnvironmentVariables.HOME does not exist (destination untouched): \(path)"
             case .environmentHomeNotDirectory(let path):
                 "LaunchAgent EnvironmentVariables.HOME is not a directory (destination untouched): \(path)"
+            case .environmentTmpdirNotAbsolute(let path):
+                "LaunchAgent EnvironmentVariables.TMPDIR must be an absolute path (launchd does not expand $HOME/~): \(path)"
+            case .environmentTmpdirMissing(let path):
+                "LaunchAgent EnvironmentVariables.TMPDIR does not exist (destination untouched): \(path)"
+            case .environmentTmpdirNotDirectory(let path):
+                "LaunchAgent EnvironmentVariables.TMPDIR is not a directory (destination untouched): \(path)"
             case .environmentPathNotAbsolute(let path):
                 "LaunchAgent EnvironmentVariables.PATH component must be an absolute path (launchd does not expand $HOME/~): \(path)"
             case .programUsesOpen(let path):
@@ -325,13 +339,15 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678/680/681/682/683/684/686/687/688/689/690/692/693: bootstrap
+        // HAB-676/677/678/680/681/682/683/684/686/687/688/689/690/692/693/695: bootstrap
         // can succeed with a missing, unsigned, dylib-incomplete, or
         // unsigned-companion Mach-O Program, a WorkingDirectory that
         // cannot be chdir'd, a RootDirectory that cannot be chroot'd
         // (HAB-693), a log path launchd cannot open,
         // EnvironmentVariables.HOME that is relative/missing/not a
-        // directory, PATH with relative/empty/$HOME/~ components,
+        // directory, TMPDIR that is relative/missing/not a directory
+        // (HAB-695; libc tempfile then KeepAlive-hammers), PATH with
+        // relative/empty/$HOME/~ components,
         // Program/ProgramArguments containing /usr/bin/open or
         // /usr/bin/osascript (LaunchServices/osascript inherit
         // Aqua/agent-shell env, including via arch/env trampolines),
@@ -344,8 +360,8 @@ public actor LaunchAgentInstaller {
         // signatures if Mach-O), WorkingDirectory (if present),
         // RootDirectory (if present), log
         // paths (if present), StandardInPath (if present), HOME (if
-        // present), PATH (if present), no paid API keys, and no DYLD_*
-        // keys before parking dest.
+        // present), TMPDIR (if present), PATH (if present), no paid
+        // API keys, and no DYLD_* keys before parking dest.
         // Rewrite-only dry-run skips.
         if spec.bootstrap {
             try Self.validateProgramNotOpen(dict)
@@ -356,6 +372,7 @@ public actor LaunchAgentInstaller {
             try Self.validateLogPaths(dict, fileManager: fileManager)
             try Self.validateStandardInPath(dict, fileManager: fileManager)
             try Self.validateEnvironmentHome(dict, fileManager: fileManager)
+            try Self.validateEnvironmentTmpdir(dict, fileManager: fileManager)
             try Self.validateEnvironmentPath(dict)
             try Self.validateEnvironmentPaidKeys(dict)
             try Self.validateEnvironmentDyldKeys(dict)
@@ -825,6 +842,37 @@ public actor LaunchAgentInstaller {
         }
         guard isDirectory.boolValue else {
             throw InstallError.environmentHomeNotDirectory(path)
+        }
+    }
+
+    /// EnvironmentVariables.TMPDIR after HOME rewrite. Nil when the dict,
+    /// key, or value is absent/blank.
+    public static func environmentTmpdirPath(from dict: [String: Any]) -> String? {
+        guard let env = dict["EnvironmentVariables"] as? [String: Any] else { return nil }
+        guard let value = env["TMPDIR"] as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        return trimmed
+    }
+
+    /// Fail-closed EnvironmentVariables.TMPDIR check used only when
+    /// bootstrapping (HAB-695). Missing key is allowed (OS default).
+    /// Relative paths, missing directories, and files fail before dest
+    /// is parked — libc tempfile then KeepAlive-hammers.
+    public static func validateEnvironmentTmpdir(
+        _ dict: [String: Any],
+        fileManager: FileManager
+    ) throws {
+        guard let path = environmentTmpdirPath(from: dict) else { return }
+        guard path.hasPrefix("/") else {
+            throw InstallError.environmentTmpdirNotAbsolute(path)
+        }
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
+            throw InstallError.environmentTmpdirMissing(path)
+        }
+        guard isDirectory.boolValue else {
+            throw InstallError.environmentTmpdirNotDirectory(path)
         }
     }
 
