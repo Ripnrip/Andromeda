@@ -81,7 +81,10 @@ import Foundation
 /// companions (HAB-677/680) are not restricted, so
 /// `DYLD_INSERT_LIBRARIES` / search-path keys hijack the image after
 /// codesign passed. StandardInPath is checked on bootstrap (HAB-692).
-/// Rewrite-only unchanged.
+/// If `RootDirectory` is present it must be an absolute existing
+/// directory (HAB-693): bootstrap can return 0 when chroot would fail
+/// (relative path — launchd does not expand `$HOME`/`~` — missing, or
+/// a file). Missing key allowed (no chroot). Rewrite-only unchanged.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -158,6 +161,9 @@ public actor LaunchAgentInstaller {
         case workingDirectoryNotAbsolute(String)
         case workingDirectoryMissing(String)
         case workingDirectoryNotDirectory(String)
+        case rootDirectoryNotAbsolute(String)
+        case rootDirectoryMissing(String)
+        case rootDirectoryNotDirectory(String)
         case logPathNotAbsolute(String)
         case logPathIsDirectory(String)
         case standardInPathNotAbsolute(String)
@@ -216,6 +222,12 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent WorkingDirectory does not exist (destination untouched): \(path)"
             case .workingDirectoryNotDirectory(let path):
                 "LaunchAgent WorkingDirectory is not a directory (destination untouched): \(path)"
+            case .rootDirectoryNotAbsolute(let path):
+                "LaunchAgent RootDirectory must be an absolute path (launchd does not expand $HOME/~): \(path)"
+            case .rootDirectoryMissing(let path):
+                "LaunchAgent RootDirectory does not exist (destination untouched): \(path)"
+            case .rootDirectoryNotDirectory(let path):
+                "LaunchAgent RootDirectory is not a directory (destination untouched): \(path)"
             case .logPathNotAbsolute(let path):
                 "LaunchAgent StandardOutPath/StandardErrorPath must be an absolute path (launchd does not expand $HOME/~): \(path)"
             case .logPathIsDirectory(let path):
@@ -313,10 +325,11 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678/680/681/682/683/684/686/687/688/689/690/692: bootstrap
+        // HAB-676/677/678/680/681/682/683/684/686/687/688/689/690/692/693: bootstrap
         // can succeed with a missing, unsigned, dylib-incomplete, or
         // unsigned-companion Mach-O Program, a WorkingDirectory that
-        // cannot be chdir'd, a log path launchd cannot open,
+        // cannot be chdir'd, a RootDirectory that cannot be chroot'd
+        // (HAB-693), a log path launchd cannot open,
         // EnvironmentVariables.HOME that is relative/missing/not a
         // directory, PATH with relative/empty/$HOME/~ components,
         // Program/ProgramArguments containing /usr/bin/open or
@@ -328,7 +341,8 @@ public actor LaunchAgentInstaller {
         // or a StandardInPath launchd cannot open (HAB-692).
         // Require the rendered exec path (not open/osascript in any
         // argv slot; signature + adjacent rpath dylibs + companion
-        // signatures if Mach-O), WorkingDirectory (if present), log
+        // signatures if Mach-O), WorkingDirectory (if present),
+        // RootDirectory (if present), log
         // paths (if present), StandardInPath (if present), HOME (if
         // present), PATH (if present), no paid API keys, and no DYLD_*
         // keys before parking dest.
@@ -338,6 +352,7 @@ public actor LaunchAgentInstaller {
             try Self.validateProgramNotOsascript(dict)
             try Self.validateProgram(dict, fileManager: fileManager)
             try Self.validateWorkingDirectory(dict, fileManager: fileManager)
+            try Self.validateRootDirectory(dict, fileManager: fileManager)
             try Self.validateLogPaths(dict, fileManager: fileManager)
             try Self.validateStandardInPath(dict, fileManager: fileManager)
             try Self.validateEnvironmentHome(dict, fileManager: fileManager)
@@ -690,6 +705,34 @@ public actor LaunchAgentInstaller {
         }
         guard isDirectory.boolValue else {
             throw InstallError.workingDirectoryNotDirectory(path)
+        }
+    }
+
+    /// RootDirectory after HOME rewrite. Nil when the key is absent or blank.
+    public static func rootDirectoryPath(from dict: [String: Any]) -> String? {
+        guard let value = dict["RootDirectory"] as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        return trimmed
+    }
+
+    /// Fail-closed RootDirectory check used only when bootstrapping (HAB-693).
+    /// Missing key is allowed (launchd does not chroot). Relative paths,
+    /// missing directories, and files fail before dest is parked.
+    public static func validateRootDirectory(
+        _ dict: [String: Any],
+        fileManager: FileManager
+    ) throws {
+        guard let path = rootDirectoryPath(from: dict) else { return }
+        guard path.hasPrefix("/") else {
+            throw InstallError.rootDirectoryNotAbsolute(path)
+        }
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
+            throw InstallError.rootDirectoryMissing(path)
+        }
+        guard isDirectory.boolValue else {
+            throw InstallError.rootDirectoryNotDirectory(path)
         }
     }
 
