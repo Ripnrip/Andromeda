@@ -3157,4 +3157,298 @@ struct LaunchAgentInstallerTests {
         #expect(!rendered.contains(LaunchAgentInstaller.studioHomeTemplate))
     }
 
+    // MARK: - HAB-702 WatchPaths / QueueDirectories
+
+    /// Studio-template plist with optional WatchPaths / QueueDirectories.
+    /// Nil omits the key.
+    private func watchQueuePlist(
+        program: String,
+        watchPaths: [String]? = nil,
+        queueDirectories: [String]? = nil,
+        home: String = LaunchAgentInstaller.studioHomeTemplate
+    ) -> String {
+        let watch: String
+        if let watchPaths {
+            let items = watchPaths.map { "                <string>\($0)</string>" }.joined(separator: "\n")
+            watch = "                <key>WatchPaths</key>\n                <array>\n\(items)\n                </array>"
+        } else {
+            watch = ""
+        }
+        let queue: String
+        if let queueDirectories {
+            let items = queueDirectories.map { "                <string>\($0)</string>" }.joined(separator: "\n")
+            queue = "                <key>QueueDirectories</key>\n                <array>\n\(items)\n                </array>"
+        } else {
+            queue = ""
+        }
+        return """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>Label</key>
+            <string>com.andromeda.fixture.agent</string>
+            <key>ProgramArguments</key>
+            <array>
+                <string>\(program)</string>
+            </array>
+            \(watch)
+            \(queue)
+            <key>RunAtLoad</key>
+            <true/>
+            <key>KeepAlive</key>
+            <false/>
+            <key>StandardOutPath</key>
+            <string>\(home)/.multibrain/logs/fixture.launchd.log</string>
+            <key>StandardErrorPath</key>
+            <string>\(home)/.multibrain/logs/fixture.launchd.log</string>
+            <key>EnvironmentVariables</key>
+            <dict>
+                <key>HOME</key>
+                <string>\(home)</string>
+            </dict>
+        </dict>
+        </plist>
+        """
+    }
+
+    @Test
+    func bootstrapRelativeWatchPathFailsClosedBeforeLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let previous = "keep-me\n"
+        try previous.write(to: destination, atomically: true, encoding: .utf8)
+        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: watchQueuePlist(program: program.path, watchPaths: ["relative/watch"])
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+        let restored = try String(contentsOf: destination, encoding: .utf8)
+        #expect(restored == previous)
+        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        #expect(restoredInode == oldInode)
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.contains(".install-") || $0.contains(".rollback-") || $0.contains(".orphan-") }
+        #expect(leftovers.isEmpty)
+    }
+
+    @Test
+    func bootstrapMissingWatchPathLeavesFreshDestAbsent() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let missing = URL(fileURLWithPath: home).appendingPathComponent("missing-watch").path
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: watchQueuePlist(program: program.path, watchPaths: [missing])
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test
+    func bootstrapRelativeQueueDirectoryFailsClosedBeforeLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let previous = "keep-me\n"
+        try previous.write(to: destination, atomically: true, encoding: .utf8)
+        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: watchQueuePlist(program: program.path, queueDirectories: ["relative/queue"])
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+        let restored = try String(contentsOf: destination, encoding: .utf8)
+        #expect(restored == previous)
+        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        #expect(restoredInode == oldInode)
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test
+    func bootstrapMissingQueueDirectoryLeavesFreshDestAbsent() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let missing = URL(fileURLWithPath: home).appendingPathComponent("missing-queue").path
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: watchQueuePlist(program: program.path, queueDirectories: [missing])
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test
+    func bootstrapQueueDirectoryIsFileFailsClosed() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let fileQueue = URL(fileURLWithPath: home).appendingPathComponent("queue-file")
+        FileManager.default.createFile(atPath: fileQueue.path, contents: Data("not-a-dir".utf8))
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: watchQueuePlist(program: program.path, queueDirectories: [fileQueue.path])
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test
+    func bootstrapWithoutWatchQueueKeysProceedsToLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: watchQueuePlist(program: program.path)
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+        )
+        #expect(report.bootstrapped)
+        let calls = await shell.recorded()
+        #expect(!calls.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+    }
+
+    @Test
+    func bootstrapValidWatchPathAndQueueDirectoryProceedsToLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let watchFile = URL(fileURLWithPath: home).appendingPathComponent("watch.txt")
+        FileManager.default.createFile(atPath: watchFile.path, contents: Data("watch".utf8))
+        let queueDir = URL(fileURLWithPath: home).appendingPathComponent("queue")
+        try FileManager.default.createDirectory(at: queueDir, withIntermediateDirectories: true)
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: watchQueuePlist(
+                program: program.path,
+                watchPaths: [watchFile.path],
+                queueDirectories: [queueDir.path]
+            )
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+        )
+        #expect(report.bootstrapped)
+        let calls = await shell.recorded()
+        #expect(!calls.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+    }
+
+    @Test
+    func rewriteOnlyDoesNotRequireWatchPathsOrQueueDirectories() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: watchQueuePlist(
+                program: "\(LaunchAgentInstaller.studioHomeTemplate)/Applications/Fixture.app/Contents/MacOS/Fixture",
+                watchPaths: ["relative/watch"],
+                queueDirectories: ["relative/queue"]
+            )
+        )
+        let installer = LaunchAgentInstaller(shell: RecordingShell())
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: false)
+        )
+        #expect(report.rewritten)
+        #expect(!report.bootstrapped)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+        let rendered = try String(contentsOf: destination, encoding: .utf8)
+        #expect(rendered.contains("relative/watch"))
+        #expect(rendered.contains("relative/queue"))
+        #expect(!rendered.contains(LaunchAgentInstaller.studioHomeTemplate))
+    }
+
 }
