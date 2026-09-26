@@ -1,8 +1,7 @@
-import AndromedaHostOps
-import Foundation
-import Testing
 
 @testable import AndromedaHostOps
+import Foundation
+import Testing
 
 /// LaunchAgentInstaller tests.
 ///
@@ -11,7 +10,6 @@ import Testing
 /// coverage is mocked.
 @Suite(.serialized)
 struct LaunchAgentInstallerTests {
-
     private func makeTempDir() -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("launch-agent-installer-tests-\(UUID().uuidString)")
@@ -71,7 +69,6 @@ struct LaunchAgentInstallerTests {
         """
     }
 
-
     @discardableResult
     private func plantFixtureProgram(home: String) -> URL {
         let url = URL(fileURLWithPath: home)
@@ -115,7 +112,6 @@ struct LaunchAgentInstallerTests {
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return url
     }
-
 
     /// Signed Mach-O at `home/bin/Fixture` linked to adjacent
     /// `@loader_path` dylibs (HAB-678). Companion/nested files can be
@@ -217,7 +213,9 @@ struct LaunchAgentInstallerTests {
             return ShellResult(success: true, output: "")
         }
 
-        func recorded() -> [[String]] { calls }
+        func recorded() -> [[String]] {
+            calls
+        }
     }
 
     // MARK: - Rewrite
@@ -432,7 +430,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "previous-plist-inode-marker\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         _ = plantFixtureProgram(home: home)
         let shell = RecordingShell()
@@ -448,7 +446,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
             .filter { $0.contains(".install-") || $0.contains(".rollback-") || $0.contains(".orphan-") }
@@ -508,7 +506,6 @@ struct LaunchAgentInstallerTests {
         #expect(joined.contains("launchctl kickstart gui/501/com.andromeda.fixture.agent"))
     }
 
-
     @Test
     func bootstrapMissingProgramFailsClosedBeforeLaunchctl() async throws {
         let dir = makeTempDir()
@@ -517,7 +514,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         // Intentionally do not plant Program.
         let shell = RecordingShell()
@@ -532,7 +529,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -664,7 +661,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = try await plantBareMachO(home: home, signed: false)
         #expect(LaunchAgentInstaller.isMachO(at: program.path))
@@ -681,7 +678,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -763,7 +760,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = try await plantSignedMachOWithLoaderPathDylibs(
             home: home, keepCompanion: false, keepNested: false
@@ -782,7 +779,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -846,7 +843,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = try await plantSignedMachOWithLoaderPathDylibs(
             home: home, keepCompanion: true, keepNested: false
@@ -861,7 +858,7 @@ struct LaunchAgentInstallerTests {
                 spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
             )
         }
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -903,7 +900,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = try await plantSignedMachOWithLoaderPathDylibs(
             home: home, keepCompanion: true, keepNested: true
@@ -923,7 +920,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -965,7 +962,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = try await plantSignedMachOWithLoaderPathDylibs(
             home: home, keepCompanion: true, keepNested: true
@@ -982,7 +979,7 @@ struct LaunchAgentInstallerTests {
                 spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
             )
         }
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -1020,14 +1017,13 @@ struct LaunchAgentInstallerTests {
         workingDirectory: String?,
         home: String = LaunchAgentInstaller.studioHomeTemplate
     ) -> String {
-        let cwd: String
-        if let workingDirectory {
-            cwd = """
+        let cwd = if let workingDirectory {
+            """
                 <key>WorkingDirectory</key>
                 <string>\(workingDirectory)</string>
             """
         } else {
-            cwd = ""
+            ""
         }
         return """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -1066,7 +1062,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let missing = URL(fileURLWithPath: home).appendingPathComponent("missing-cwd").path
@@ -1087,7 +1083,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -1256,7 +1252,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let source = writePlist(
@@ -1280,7 +1276,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -1418,9 +1414,8 @@ struct LaunchAgentInstallerTests {
         environmentHome: String?,
         home: String = LaunchAgentInstaller.studioHomeTemplate
     ) -> String {
-        let env: String
-        if let environmentHome {
-            env = """
+        let env = if let environmentHome {
+            """
                 <key>EnvironmentVariables</key>
                 <dict>
                     <key>HOME</key>
@@ -1428,7 +1423,7 @@ struct LaunchAgentInstallerTests {
                 </dict>
             """
         } else {
-            env = ""
+            ""
         }
         return """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -1464,7 +1459,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let source = writePlist(
@@ -1487,7 +1482,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -1610,9 +1605,8 @@ struct LaunchAgentInstallerTests {
         path: String?,
         home: String = LaunchAgentInstaller.studioHomeTemplate
     ) -> String {
-        let env: String
-        if let path {
-            env = """
+        let env = if let path {
+            """
                 <key>EnvironmentVariables</key>
                 <dict>
                     <key>PATH</key>
@@ -1620,7 +1614,7 @@ struct LaunchAgentInstallerTests {
                 </dict>
             """
         } else {
-            env = ""
+            ""
         }
         return """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -1656,7 +1650,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let source = writePlist(
@@ -1679,7 +1673,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -1841,7 +1835,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let source = writePlist(dir, name: "src.plist", body: openProgramPlist())
         let shell = RecordingShell()
@@ -1856,7 +1850,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -1932,8 +1926,6 @@ struct LaunchAgentInstallerTests {
         #expect(!rendered.contains(LaunchAgentInstaller.studioHomeTemplate))
     }
 
-
-
     // MARK: - HAB-687 /usr/bin/osascript
 
     /// Studio-template plist whose Program is `/usr/bin/osascript`.
@@ -1982,7 +1974,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let source = writePlist(dir, name: "src.plist", body: osascriptProgramPlist())
         let shell = RecordingShell()
@@ -1997,7 +1989,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -2082,7 +2074,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let source = writePlist(
             dir,
@@ -2109,7 +2101,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -2271,7 +2263,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let source = writePlist(
@@ -2294,7 +2286,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -2417,7 +2409,6 @@ struct LaunchAgentInstallerTests {
         #expect(!rendered.contains(LaunchAgentInstaller.studioHomeTemplate))
     }
 
-
     // MARK: - HAB-690 DYLD_* EnvironmentVariables
 
     @Test
@@ -2427,7 +2418,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let source = writePlist(
@@ -2450,7 +2441,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -2583,7 +2574,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let source = writePlist(
@@ -2608,7 +2599,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -2752,14 +2743,13 @@ struct LaunchAgentInstallerTests {
         rootDirectory: String?,
         home: String = LaunchAgentInstaller.studioHomeTemplate
     ) -> String {
-        let root: String
-        if let rootDirectory {
-            root = """
+        let root = if let rootDirectory {
+            """
                 <key>RootDirectory</key>
                 <string>\(rootDirectory)</string>
             """
         } else {
-            root = ""
+            ""
         }
         return """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -2798,7 +2788,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let source = writePlist(
@@ -2818,7 +2808,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -2944,9 +2934,8 @@ struct LaunchAgentInstallerTests {
         environmentTmpdir: String?,
         home: String = LaunchAgentInstaller.studioHomeTemplate
     ) -> String {
-        let env: String
-        if let environmentTmpdir {
-            env = """
+        let env = if let environmentTmpdir {
+            """
                 <key>EnvironmentVariables</key>
                 <dict>
                     <key>TMPDIR</key>
@@ -2954,7 +2943,7 @@ struct LaunchAgentInstallerTests {
                 </dict>
             """
         } else {
-            env = ""
+            ""
         }
         return """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -2990,7 +2979,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let source = writePlist(
@@ -3013,7 +3002,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -3219,7 +3208,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let source = writePlist(
@@ -3239,7 +3228,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -3282,7 +3271,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let source = writePlist(
@@ -3302,7 +3291,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -3519,7 +3508,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let source = writePlist(
@@ -3539,7 +3528,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -3680,7 +3669,6 @@ struct LaunchAgentInstallerTests {
         #expect(!rendered.contains(LaunchAgentInstaller.studioHomeTemplate))
     }
 
-
     // MARK: - HAB-705 Sockets.SockPathName
 
     /// Studio-template plist with optional Unix SockPathName or TCP-only sockets.
@@ -3691,9 +3679,8 @@ struct LaunchAgentInstallerTests {
         tcpOnly: Bool = false,
         home: String = LaunchAgentInstaller.studioHomeTemplate
     ) -> String {
-        let sockets: String
-        if let sockPath {
-            sockets = """
+        let sockets = if let sockPath {
+            """
                             <key>Sockets</key>
                             <dict>
                                 <key>Listener</key>
@@ -3706,7 +3693,7 @@ struct LaunchAgentInstallerTests {
                             </dict>
             """
         } else if tcpOnly {
-            sockets = """
+            """
                             <key>Sockets</key>
                             <dict>
                                 <key>Listener</key>
@@ -3717,7 +3704,7 @@ struct LaunchAgentInstallerTests {
                             </dict>
             """
         } else {
-            sockets = ""
+            ""
         }
         return """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -3754,7 +3741,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let source = writePlist(
@@ -3774,7 +3761,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -3843,7 +3830,7 @@ struct LaunchAgentInstallerTests {
         let destination = dir.appendingPathComponent("out.plist")
         let previous = "keep-me\n"
         try previous.write(to: destination, atomically: true, encoding: .utf8)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         let home = isolatedHome(in: dir)
         let program = plantFixtureProgram(home: home)
         let sockDir = URL(fileURLWithPath: home).appendingPathComponent("sock-dir")
@@ -3865,7 +3852,7 @@ struct LaunchAgentInstallerTests {
         #expect(FileManager.default.fileExists(atPath: destination.path))
         let restored = try String(contentsOf: destination, encoding: .utf8)
         #expect(restored == previous)
-        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(restoredInode == oldInode)
         let calls = await shell.recorded()
         #expect(calls.isEmpty)
@@ -3951,5 +3938,4 @@ struct LaunchAgentInstallerTests {
         #expect(rendered.contains("relative/hub.sock"))
         #expect(!rendered.contains(LaunchAgentInstaller.studioHomeTemplate))
     }
-
 }

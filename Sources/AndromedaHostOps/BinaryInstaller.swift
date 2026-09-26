@@ -44,7 +44,6 @@ import Foundation
 /// dest + companions (HAB-629 / HAB-631). Bundles that ship a tree
 /// of rpath dylibs use `codesign --deep` on the `.app` (`AppBundleInstaller`).
 public actor BinaryInstaller {
-
     /// Outcome of a successful install transaction.
     public struct Report: Sendable, CustomStringConvertible {
         /// The built artifact that was installed.
@@ -71,15 +70,15 @@ public actor BinaryInstaller {
             let companions =
                 companionDylibs.isEmpty ? "(none)" : companionDylibs.joined(separator: ", ")
             return """
-                install-cli report
-                  source:          \(source)
-                  destination:     \(destination)
-                  signed inode:    \(signedInode)
-                  previous inode:  \(previous)
-                  published inode: \(publishedInode)  (atomic rename, fresh inode)
-                  size:            \(bytes) bytes
-                  companions:      \(companions)
-                """
+            install-cli report
+              source:          \(source)
+              destination:     \(destination)
+              signed inode:    \(signedInode)
+              previous inode:  \(previous)
+              published inode: \(publishedInode)  (atomic rename, fresh inode)
+              size:            \(bytes) bytes
+              companions:      \(companions)
+            """
         }
     }
 
@@ -106,27 +105,27 @@ public actor BinaryInstaller {
 
         public var description: String {
             switch self {
-            case .sourceMissing(let path):
+            case let .sourceMissing(path):
                 "Source executable not found: \(path)"
-            case .sourceNotExecutable(let path):
+            case let .sourceNotExecutable(path):
                 "Source is not an executable file: \(path)"
-            case .destinationIsDirectory(let path):
+            case let .destinationIsDirectory(path):
                 "Destination exists and is a directory: \(path)"
-            case .stagingFailed(let detail):
+            case let .stagingFailed(detail):
                 "Failed to stage fresh copy: \(detail)"
-            case .chmodFailed(let detail):
+            case let .chmodFailed(detail):
                 "Failed to make staged copy executable: \(detail)"
-            case .signingFailed(let detail):
+            case let .signingFailed(detail):
                 "Ad-hoc signing of staged copy failed (destination untouched): \(detail)"
-            case .verificationFailed(let detail):
+            case let .verificationFailed(detail):
                 "Strict signature verification of staged copy failed (destination untouched): \(detail)"
-            case .publishFailed(let detail):
+            case let .publishFailed(detail):
                 "Atomic rename into destination failed (destination untouched): \(detail)"
-            case .postPublishVerificationFailed(let detail):
+            case let .postPublishVerificationFailed(detail):
                 "Published artifact failed post-publish verification (destination restored): \(detail)"
-            case .linkedLibraryInspectionFailed(let detail):
+            case let .linkedLibraryInspectionFailed(detail):
                 "Could not inspect staged linked libraries (destination untouched): \(detail)"
-            case .missingRequiredLinkedLibrary(let detail):
+            case let .missingRequiredLinkedLibrary(detail):
                 "Staged copy is missing a required non-system dylib (destination untouched): \(detail)"
             }
         }
@@ -154,7 +153,9 @@ public actor BinaryInstaller {
             for prefix in ["@rpath/", "@loader_path/", "@executable_path/"] {
                 guard installName.hasPrefix(prefix) else { continue }
                 let rest = String(installName.dropFirst(prefix.count))
-                if rest.isEmpty || rest.contains("/") { return nil }
+                if rest.isEmpty || rest.contains("/") {
+                    return nil
+                }
                 return rest
             }
             return nil
@@ -221,7 +222,7 @@ public actor BinaryInstaller {
         }
 
         var stagedURLs: [URL] = [stagingURL]
-        // Fail-closed helper: never leak staging files.
+        /// Fail-closed helper: never leak staging files.
         func cleanupAndThrow(_ error: InstallError) -> InstallError {
             for url in stagedURLs.reversed() {
                 try? fileManager.removeItem(at: url)
@@ -356,7 +357,7 @@ public actor BinaryInstaller {
             throw cleanupAndThrow(
                 .postPublishVerificationFailed(
                     "publish sanity failed (verify.success=\(postVerify.success), " +
-                    "published=\(publishedInode.map(String.init) ?? "nil") signed=\(signedInode.map(String.init) ?? "nil")): \(postVerify.output)"
+                        "published=\(publishedInode.map(String.init) ?? "nil") signed=\(signedInode.map(String.init) ?? "nil")): \(postVerify.output)"
                 )
             )
         }
@@ -415,7 +416,9 @@ public actor BinaryInstaller {
         var queue: [String] = []
         func enqueue(_ libraries: [LinkedLibrary]) {
             for library in libraries {
-                if library.isWeak { continue }
+                if library.isWeak {
+                    continue
+                }
                 guard let name = library.adjacentFileName else { continue }
                 if seen.insert(name).inserted {
                     queue.append(name)
@@ -445,7 +448,9 @@ public actor BinaryInstaller {
         var planned: [PlannedCompanion] = []
         var seen: Set<String> = []
         for library in libraries {
-            if library.isWeak { continue }
+            if library.isWeak {
+                continue
+            }
             guard let name = library.adjacentFileName else { continue }
             guard seen.insert(name).inserted else { continue }
             let sourceURL = sourceDirectory.appendingPathComponent(name)
@@ -580,8 +585,12 @@ public actor BinaryInstaller {
         var libraries: [LinkedLibrary] = []
         for raw in output.split(whereSeparator: \.isNewline) {
             let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty { continue }
-            if line.hasSuffix(":") { continue }
+            if line.isEmpty {
+                continue
+            }
+            if line.hasSuffix(":") {
+                continue
+            }
             guard let paren = line.firstIndex(of: "(") else { continue }
             let name = line[..<paren].trimmingCharacters(in: .whitespaces)
             guard !name.isEmpty else { continue }
@@ -603,12 +612,18 @@ public actor BinaryInstaller {
         fileExists: (String) -> Bool
     ) -> [LinkedLibrary] {
         libraries.filter { library in
-            if library.isWeak { return false }
-            if library.isSystem { return false }
+            if library.isWeak {
+                return false
+            }
+            if library.isSystem {
+                return false
+            }
             if let name = library.adjacentFileName {
                 if let sourceDirectory {
                     let sourceAdjacent = sourceDirectory.appendingPathComponent(name)
-                    if fileExists(sourceAdjacent.path) { return false }
+                    if fileExists(sourceAdjacent.path) {
+                        return false
+                    }
                 }
                 let adjacent = adjacentDirectory.appendingPathComponent(name)
                 return !fileExists(adjacent.path)

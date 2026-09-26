@@ -1,8 +1,7 @@
-import AndromedaHostOps
-import Foundation
-import Testing
 
 @testable import AndromedaHostOps
+import Foundation
+import Testing
 
 /// AppBundleInstaller transaction tests.
 ///
@@ -12,7 +11,6 @@ import Testing
 ///    untouched and remove the staging tree.
 @Suite(.serialized)
 struct AppBundleInstallerTests {
-
     private func makeTempDir() -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("app-bundle-installer-tests-\(UUID().uuidString)")
@@ -86,7 +84,7 @@ struct AppBundleInstallerTests {
 
         let plistURL = destination.appendingPathComponent("Contents/Info.plist")
         let plistData = try Data(contentsOf: plistURL)
-        let plist = try PropertyListSerialization.propertyList(from: plistData, format: nil) as! [String: Any]
+        let plist = try #require(PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any])
         #expect(plist["CFBundleIdentifier"] as? String == "com.andromeda.fixture.home")
         #expect(plist["CFBundleExecutable"] as? String == "FixtureHome")
         #expect(plist["LSUIElement"] as? Bool == false)

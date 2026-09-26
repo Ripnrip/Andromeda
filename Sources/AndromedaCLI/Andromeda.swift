@@ -100,9 +100,15 @@ struct Serve: AsyncParsableCommand {
 
     func run() async throws {
         var config = try GatewayConfig.loadFromEnvironment()
-        if let host { config.host = host }
-        if let port { config.port = port }
-        if let strategy { config.cacheStrategy = strategy }
+        if let host {
+            config.host = host
+        }
+        if let port {
+            config.port = port
+        }
+        if let strategy {
+            config.cacheStrategy = strategy
+        }
         try config.validate()
         let resolvedLogLevel = Self.logLevel(from: config.logLevel)
 
@@ -185,7 +191,6 @@ struct InstallCLI: AsyncParsableCommand {
     }
 }
 
-
 /// BIN-101 slice · HAB-621: fail-closed atomic install of a minimal `.app`
 /// bundle (stage tree → strip leftover sigs → `codesign --force --deep` →
 /// `--verify --deep --strict` → atomic replace).
@@ -260,7 +265,6 @@ struct InstallApp: AsyncParsableCommand {
         print(report)
     }
 }
-
 
 /// BIN-101 leftover · HAB-622: rewrite Studio HOME template in a LaunchAgent
 /// plist, write it to an explicit destination, optionally bootstrap.
@@ -389,4 +393,3 @@ struct InstallLaunchAgent: AsyncParsableCommand {
         print(report)
     }
 }
-
