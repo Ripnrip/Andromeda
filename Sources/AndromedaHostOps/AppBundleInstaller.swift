@@ -45,7 +45,6 @@ import Foundation
 /// Out of scope: LaunchAgent plist rewrite/bootstrap, `open -a`, writing
 /// `~/Applications` (callers choose the destination).
 public actor AppBundleInstaller {
-
     /// Identity written into `Contents/Info.plist`.
     public struct Spec: Sendable {
         public var productName: String
@@ -117,31 +116,31 @@ public actor AppBundleInstaller {
 
         public var description: String {
             switch self {
-            case .sourceMissing(let path):
+            case let .sourceMissing(path):
                 "Source executable not found: \(path)"
-            case .sourceNotExecutable(let path):
+            case let .sourceNotExecutable(path):
                 "Source is not an executable file: \(path)"
-            case .destinationNotBundle(let path):
+            case let .destinationNotBundle(path):
                 "Destination must be an .app bundle path: \(path)"
-            case .destinationIsFile(let path):
+            case let .destinationIsFile(path):
                 "Destination exists and is a file, not a bundle: \(path)"
-            case .stagingFailed(let detail):
+            case let .stagingFailed(detail):
                 "Failed to stage .app bundle: \(detail)"
-            case .plistFailed(let detail):
+            case let .plistFailed(detail):
                 "Failed to write Info.plist: \(detail)"
-            case .chmodFailed(let detail):
+            case let .chmodFailed(detail):
                 "Failed to make inner executable executable: \(detail)"
-            case .signingFailed(let detail):
+            case let .signingFailed(detail):
                 "Ad-hoc deep-sign of staged bundle failed (destination untouched): \(detail)"
-            case .verificationFailed(let detail):
+            case let .verificationFailed(detail):
                 "Strict deep verification of staged bundle failed (destination untouched): \(detail)"
-            case .publishFailed(let detail):
+            case let .publishFailed(detail):
                 "Atomic publish into destination failed (destination untouched): \(detail)"
-            case .postPublishVerificationFailed(let detail):
+            case let .postPublishVerificationFailed(detail):
                 "Published bundle or companion failed post-publish verification (destination restored): \(detail)"
-            case .linkedLibraryInspectionFailed(let detail):
+            case let .linkedLibraryInspectionFailed(detail):
                 "Could not inspect linked libraries of staged inner executable (destination untouched): \(detail)"
-            case .missingRequiredLinkedLibrary(let detail):
+            case let .missingRequiredLinkedLibrary(detail):
                 "Staged bundle is missing a required non-system dylib (destination untouched): \(detail)"
             }
         }
@@ -419,7 +418,9 @@ public actor AppBundleInstaller {
         var queue: [String] = []
         func enqueue(_ libraries: [BinaryInstaller.LinkedLibrary]) {
             for library in libraries {
-                if library.isWeak { continue }
+                if library.isWeak {
+                    continue
+                }
                 guard let name = library.adjacentFileName else { continue }
                 if seen.insert(name).inserted {
                     queue.append(name)
@@ -450,13 +451,17 @@ public actor AppBundleInstaller {
         var names: [String] = []
         var seen: Set<String> = []
         for library in libraries {
-            if library.isWeak { continue }
+            if library.isWeak {
+                continue
+            }
             guard let name = library.adjacentFileName else { continue }
             guard seen.insert(name).inserted else { continue }
             let sourceURL = sourceDirectory.appendingPathComponent(name)
             guard fileManager.fileExists(atPath: sourceURL.path) else { continue }
             let destURL = macosDirectory.appendingPathComponent(name)
-            if fileManager.fileExists(atPath: destURL.path) { continue }
+            if fileManager.fileExists(atPath: destURL.path) {
+                continue
+            }
             do {
                 try fileManager.copyItem(at: sourceURL, to: destURL)
             } catch {

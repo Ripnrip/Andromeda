@@ -1,9 +1,8 @@
-import AndromedaHostOps
+
+@testable import AndromedaHostOps
 import Darwin
 import Foundation
 import Testing
-
-@testable import AndromedaHostOps
 
 /// BinaryInstaller transaction tests.
 ///
@@ -14,7 +13,6 @@ import Testing
 ///    real Mach-O source are both present (macOS runners).
 @Suite(.serialized)
 struct BinaryInstallerTests {
-
     private func makeTempDir() -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("binary-installer-tests-\(UUID().uuidString)")
@@ -42,7 +40,7 @@ struct BinaryInstallerTests {
 
         // Pre-existing old artifact at the destination (different inode).
         try FileManager.default.copyItem(at: source, to: destination)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
 
         let installer = BinaryInstaller()
         let report = try await installer.install(source: source, destination: destination)
@@ -89,8 +87,8 @@ struct BinaryInstallerTests {
 
         // Old artifact exists — must survive the failed install untouched.
         try FileManager.default.copyItem(at: source, to: destination)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
-        let oldSize = try FileManager.default.attributesOfItem(atPath: destination.path)[.size] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
+        let oldSize = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.size] as? Int)
 
         let installer = BinaryInstaller(shell: MockShell(failOn: "--sign"))
         await #expect(throws: BinaryInstaller.InstallError.self) {
@@ -98,8 +96,8 @@ struct BinaryInstallerTests {
         }
 
         // Destination untouched: same inode, same size.
-        let newInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
-        let newSize = try FileManager.default.attributesOfItem(atPath: destination.path)[.size] as! Int
+        let newInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
+        let newSize = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.size] as? Int)
         #expect(newInode == oldInode)
         #expect(newSize == oldSize)
 
@@ -116,14 +114,14 @@ struct BinaryInstallerTests {
         let source = makeSource(dir)
         let destination = dir.appendingPathComponent("dest-bin")
         try FileManager.default.copyItem(at: source, to: destination)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
 
         let installer = BinaryInstaller(shell: MockShell(failOn: "--verify"))
         await #expect(throws: BinaryInstaller.InstallError.self) {
             _ = try await installer.install(source: source, destination: destination)
         }
 
-        let newInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let newInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(newInode == oldInode)
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
             .filter { $0.contains(".install-") }
@@ -225,20 +223,19 @@ struct BinaryInstallerTests {
 
         let destination = dir.appendingPathComponent("dest-bin")
         try FileManager.default.copyItem(at: source, to: destination)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
 
         let installer = BinaryInstaller()
         await #expect(throws: BinaryInstaller.InstallError.self) {
             _ = try await installer.install(source: source, destination: destination)
         }
 
-        let newInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let newInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(newInode == oldInode)
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
             .filter { $0.contains(".install-") }
         #expect(leftovers.isEmpty)
     }
-
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
     func adjacentLoaderPathDylibIsCopiedSignedAndPublished() async throws {
@@ -272,7 +269,7 @@ struct BinaryInstallerTests {
 
         let destination = destDir.appendingPathComponent("dest-bin")
         try FileManager.default.copyItem(at: source, to: destination)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
 
         let installer = BinaryInstaller()
         let report = try await installer.install(source: source, destination: destination)
@@ -328,11 +325,11 @@ struct BinaryInstallerTests {
 
         let destination = destDir.appendingPathComponent("dest-bin")
         try FileManager.default.copyItem(at: source, to: destination)
-        let oldBinInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldBinInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
 
         let oldDylib = destDir.appendingPathComponent("libcompanion.dylib")
         try FileManager.default.copyItem(at: dylib, to: oldDylib)
-        let oldDylibInode = try FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as! Int
+        let oldDylibInode = try #require(FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as? Int)
 
         let destPath = destination.path
         let installer = BinaryInstaller(renamePaths: { old, new in
@@ -348,11 +345,11 @@ struct BinaryInstallerTests {
             _ = try await installer.install(source: source, destination: destination)
         }
 
-        let newBinInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let newBinInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(newBinInode == oldBinInode)
 
         #expect(FileManager.default.fileExists(atPath: oldDylib.path))
-        let restoredDylibInode = try FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as! Int
+        let restoredDylibInode = try #require(FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as? Int)
         #expect(restoredDylibInode == oldDylibInode)
 
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: destDir.path)
@@ -410,22 +407,22 @@ struct BinaryInstallerTests {
 
         let destination = destDir.appendingPathComponent("dest-bin")
         try FileManager.default.copyItem(at: source, to: destination)
-        let oldBinInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldBinInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
 
         let oldDylib = destDir.appendingPathComponent("libcompanion.dylib")
         try FileManager.default.copyItem(at: dylib, to: oldDylib)
-        let oldDylibInode = try FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as! Int
+        let oldDylibInode = try #require(FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as? Int)
 
         let installer = BinaryInstaller(shell: PostPublishFailingShell(destPath: destination.path))
         await #expect(throws: BinaryInstaller.InstallError.self) {
             _ = try await installer.install(source: source, destination: destination)
         }
 
-        let newBinInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let newBinInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(newBinInode == oldBinInode)
 
         #expect(FileManager.default.fileExists(atPath: oldDylib.path))
-        let restoredDylibInode = try FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as! Int
+        let restoredDylibInode = try #require(FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as? Int)
         #expect(restoredDylibInode == oldDylibInode)
 
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: destDir.path)
@@ -483,22 +480,22 @@ struct BinaryInstallerTests {
 
         let destination = destDir.appendingPathComponent("dest-bin")
         try FileManager.default.copyItem(at: source, to: destination)
-        let oldBinInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldBinInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
 
         let oldDylib = destDir.appendingPathComponent("libcompanion.dylib")
         try FileManager.default.copyItem(at: dylib, to: oldDylib)
-        let oldDylibInode = try FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as! Int
+        let oldDylibInode = try #require(FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as? Int)
 
         let installer = BinaryInstaller(shell: PostPublishCompanionFailingShell(companionPath: oldDylib.path))
         await #expect(throws: BinaryInstaller.InstallError.self) {
             _ = try await installer.install(source: source, destination: destination)
         }
 
-        let newBinInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let newBinInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(newBinInode == oldBinInode)
 
         #expect(FileManager.default.fileExists(atPath: oldDylib.path))
-        let restoredDylibInode = try FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as! Int
+        let restoredDylibInode = try #require(FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as? Int)
         #expect(restoredDylibInode == oldDylibInode)
 
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: destDir.path)
@@ -554,14 +551,14 @@ struct BinaryInstallerTests {
 
         let destination = destDir.appendingPathComponent("dest-bin")
         try FileManager.default.copyItem(at: source, to: destination)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
 
         let installer = BinaryInstaller()
         await #expect(throws: BinaryInstaller.InstallError.self) {
             _ = try await installer.install(source: source, destination: destination)
         }
 
-        let newInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let newInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(newInode == oldInode)
         #expect(!FileManager.default.fileExists(atPath: destDir.appendingPathComponent("libcompanion.dylib").path))
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: destDir.path)
@@ -614,7 +611,7 @@ struct BinaryInstallerTests {
 
         let destination = destDir.appendingPathComponent("dest-bin")
         try FileManager.default.copyItem(at: source, to: destination)
-        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
 
         let installer = BinaryInstaller()
         let report = try await installer.install(source: source, destination: destination)
@@ -641,5 +638,4 @@ struct BinaryInstallerTests {
             .filter { $0.contains(".install-") || $0.contains(".rollback-") || $0.contains(".orphan-") }
         #expect(leftovers.isEmpty)
     }
-
 }

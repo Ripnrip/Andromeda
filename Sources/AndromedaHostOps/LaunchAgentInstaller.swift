@@ -114,7 +114,6 @@ import Foundation
 /// SockPathName, missing Sockets, and empty Sockets allowed.
 /// Rewrite-only unchanged.
 public actor LaunchAgentInstaller {
-
     /// Studio SoT template home baked into `ops/*.plist`.
     public static let studioHomeTemplate = "/Users/admin"
 
@@ -222,107 +221,107 @@ public actor LaunchAgentInstaller {
 
         public var description: String {
             switch self {
-            case .sourceMissing(let path):
+            case let .sourceMissing(path):
                 "Source plist not found: \(path)"
-            case .homeNotAbsolute(let home):
+            case let .homeNotAbsolute(home):
                 "HOME must be an absolute path (launchd does not expand $HOME/~): \(home)"
-            case .templateMissing(let studio, let source):
+            case let .templateMissing(studio, source):
                 "Plist missing studio HOME template \(studio): \(source)"
-            case .plistUnreadable(let detail):
+            case let .plistUnreadable(detail):
                 "Could not parse rendered plist: \(detail)"
             case .labelMissing:
                 "Rendered plist has no Label"
-            case .labelMismatch(let expected, let found):
+            case let .labelMismatch(expected, found):
                 "Plist Label \(found) does not match requested label \(expected)"
-            case .destinationIsDirectory(let path):
+            case let .destinationIsDirectory(path):
                 "Destination exists and is a directory: \(path)"
-            case .writeFailed(let detail):
+            case let .writeFailed(detail):
                 "Failed to write rendered plist (destination restored): \(detail)"
-            case .logDirectoryFailed(let detail):
+            case let .logDirectoryFailed(detail):
                 "Failed to create log directory: \(detail)"
             case .kickstartWithoutBootstrap:
                 "kickstart requires bootstrap (refusing to kickstart an unregistered job)"
-            case .bootstrapFailed(let detail):
+            case let .bootstrapFailed(detail):
                 "launchctl bootstrap/load failed (destination restored): \(detail)"
-            case .programMissing(let path):
+            case let .programMissing(path):
                 "LaunchAgent Program does not exist (destination untouched): \(path)"
-            case .programNotAbsolute(let path):
+            case let .programNotAbsolute(path):
                 "LaunchAgent Program must be an absolute path (launchd does not expand $HOME/~): \(path)"
-            case .programNotExecutable(let path):
+            case let .programNotExecutable(path):
                 "LaunchAgent Program is not executable (destination untouched): \(path)"
-            case .programNotSigned(let path):
+            case let .programNotSigned(path):
                 "LaunchAgent Program failed codesign --verify --strict (destination untouched): \(path)"
-            case .programLibraryInspectionFailed(let detail):
+            case let .programLibraryInspectionFailed(detail):
                 "Could not inspect LaunchAgent Program linked libraries (destination untouched): \(detail)"
-            case .programMissingLibraries(let detail):
+            case let .programMissingLibraries(detail):
                 "LaunchAgent Program is missing a required non-system dylib (destination untouched): \(detail)"
-            case .programUnsignedLibraries(let detail):
+            case let .programUnsignedLibraries(detail):
                 "LaunchAgent Program companion dylib failed codesign --verify --strict (destination untouched): \(detail)"
-            case .workingDirectoryNotAbsolute(let path):
+            case let .workingDirectoryNotAbsolute(path):
                 "LaunchAgent WorkingDirectory must be an absolute path (launchd does not expand $HOME/~): \(path)"
-            case .workingDirectoryMissing(let path):
+            case let .workingDirectoryMissing(path):
                 "LaunchAgent WorkingDirectory does not exist (destination untouched): \(path)"
-            case .workingDirectoryNotDirectory(let path):
+            case let .workingDirectoryNotDirectory(path):
                 "LaunchAgent WorkingDirectory is not a directory (destination untouched): \(path)"
-            case .rootDirectoryNotAbsolute(let path):
+            case let .rootDirectoryNotAbsolute(path):
                 "LaunchAgent RootDirectory must be an absolute path (launchd does not expand $HOME/~): \(path)"
-            case .rootDirectoryMissing(let path):
+            case let .rootDirectoryMissing(path):
                 "LaunchAgent RootDirectory does not exist (destination untouched): \(path)"
-            case .rootDirectoryNotDirectory(let path):
+            case let .rootDirectoryNotDirectory(path):
                 "LaunchAgent RootDirectory is not a directory (destination untouched): \(path)"
-            case .logPathNotAbsolute(let path):
+            case let .logPathNotAbsolute(path):
                 "LaunchAgent StandardOutPath/StandardErrorPath must be an absolute path (launchd does not expand $HOME/~): \(path)"
-            case .logPathIsDirectory(let path):
+            case let .logPathIsDirectory(path):
                 "LaunchAgent StandardOutPath/StandardErrorPath is a directory (destination untouched): \(path)"
-            case .standardInPathNotAbsolute(let path):
+            case let .standardInPathNotAbsolute(path):
                 "LaunchAgent StandardInPath must be an absolute path (launchd does not expand $HOME/~): \(path)"
-            case .standardInPathMissing(let path):
+            case let .standardInPathMissing(path):
                 "LaunchAgent StandardInPath does not exist (destination untouched): \(path)"
-            case .standardInPathIsDirectory(let path):
+            case let .standardInPathIsDirectory(path):
                 "LaunchAgent StandardInPath is a directory (destination untouched): \(path)"
-            case .environmentHomeNotAbsolute(let path):
+            case let .environmentHomeNotAbsolute(path):
                 "LaunchAgent EnvironmentVariables.HOME must be an absolute path (launchd does not expand $HOME/~): \(path)"
-            case .environmentHomeMissing(let path):
+            case let .environmentHomeMissing(path):
                 "LaunchAgent EnvironmentVariables.HOME does not exist (destination untouched): \(path)"
-            case .environmentHomeNotDirectory(let path):
+            case let .environmentHomeNotDirectory(path):
                 "LaunchAgent EnvironmentVariables.HOME is not a directory (destination untouched): \(path)"
-            case .environmentTmpdirNotAbsolute(let path):
+            case let .environmentTmpdirNotAbsolute(path):
                 "LaunchAgent EnvironmentVariables.TMPDIR must be an absolute path (launchd does not expand $HOME/~): \(path)"
-            case .environmentTmpdirMissing(let path):
+            case let .environmentTmpdirMissing(path):
                 "LaunchAgent EnvironmentVariables.TMPDIR does not exist (destination untouched): \(path)"
-            case .environmentTmpdirNotDirectory(let path):
+            case let .environmentTmpdirNotDirectory(path):
                 "LaunchAgent EnvironmentVariables.TMPDIR is not a directory (destination untouched): \(path)"
-            case .watchPathNotAbsolute(let path):
+            case let .watchPathNotAbsolute(path):
                 "LaunchAgent WatchPaths entry must be an absolute path (launchd does not expand $HOME/~): \(path)"
-            case .watchPathMissing(let path):
+            case let .watchPathMissing(path):
                 "LaunchAgent WatchPaths entry does not exist (destination untouched): \(path)"
-            case .queueDirectoryNotAbsolute(let path):
+            case let .queueDirectoryNotAbsolute(path):
                 "LaunchAgent QueueDirectories entry must be an absolute path (launchd does not expand $HOME/~): \(path)"
-            case .queueDirectoryMissing(let path):
+            case let .queueDirectoryMissing(path):
                 "LaunchAgent QueueDirectories entry does not exist (destination untouched): \(path)"
-            case .queueDirectoryNotDirectory(let path):
+            case let .queueDirectoryNotDirectory(path):
                 "LaunchAgent QueueDirectories entry is not a directory (destination untouched): \(path)"
-            case .keepAlivePathStateNotAbsolute(let path):
+            case let .keepAlivePathStateNotAbsolute(path):
                 "LaunchAgent KeepAlive.PathState key must be an absolute path (launchd does not expand $HOME/~): \(path)"
-            case .keepAlivePathStateInvalid(let detail):
+            case let .keepAlivePathStateInvalid(detail):
                 "LaunchAgent KeepAlive.PathState is invalid (destination untouched): \(detail)"
-            case .socketPathNotAbsolute(let path):
+            case let .socketPathNotAbsolute(path):
                 "LaunchAgent Sockets SockPathName must be an absolute path (launchd does not expand $HOME/~): \(path)"
-            case .socketPathParentMissing(let path):
+            case let .socketPathParentMissing(path):
                 "LaunchAgent Sockets SockPathName parent directory does not exist (destination untouched): \(path)"
-            case .socketPathIsDirectory(let path):
+            case let .socketPathIsDirectory(path):
                 "LaunchAgent Sockets SockPathName is a directory (destination untouched): \(path)"
-            case .socketPathInvalid(let detail):
+            case let .socketPathInvalid(detail):
                 "LaunchAgent Sockets is invalid (destination untouched): \(detail)"
-            case .environmentPathNotAbsolute(let path):
+            case let .environmentPathNotAbsolute(path):
                 "LaunchAgent EnvironmentVariables.PATH component must be an absolute path (launchd does not expand $HOME/~): \(path)"
-            case .programUsesOpen(let path):
+            case let .programUsesOpen(path):
                 "LaunchAgent Program/ProgramArguments must not include /usr/bin/open (LaunchServices open -a inherits Aqua/agent-shell env): \(path)"
-            case .programUsesOsascript(let path):
+            case let .programUsesOsascript(path):
                 "LaunchAgent Program/ProgramArguments must not include /usr/bin/osascript (osascript inherits Aqua/agent-shell env): \(path)"
-            case .environmentPaidApiKey(let keys):
+            case let .environmentPaidApiKey(keys):
                 "LaunchAgent EnvironmentVariables must not include paid provider API keys (destination untouched): \(keys)"
-            case .environmentDyldInjection(let keys):
+            case let .environmentDyldInjection(keys):
                 "LaunchAgent EnvironmentVariables must not include DYLD_* keys (destination untouched): \(keys)"
             }
         }
@@ -344,7 +343,7 @@ public actor LaunchAgentInstaller {
         guard spec.home.hasPrefix("/") else {
             throw InstallError.homeNotAbsolute(spec.home)
         }
-        if spec.kickstart && !spec.bootstrap {
+        if spec.kickstart, !spec.bootstrap {
             throw InstallError.kickstartWithoutBootstrap
         }
         guard fileManager.fileExists(atPath: source.path) else {
@@ -466,7 +465,7 @@ public actor LaunchAgentInstaller {
             }
         }
         if let errPath = dict["StandardErrorPath"] as? String,
-            errPath != (dict["StandardOutPath"] as? String)
+           errPath != (dict["StandardOutPath"] as? String)
         {
             do {
                 try ensureParentDirectory(of: errPath)
@@ -578,15 +577,20 @@ public actor LaunchAgentInstaller {
             kickstarted: kickstarted
         )
     }
+
     /// Program or ProgramArguments[0] after HOME rewrite.
     public static func programPath(from dict: [String: Any]) -> String? {
         if let program = dict["Program"] as? String {
             let trimmed = program.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
+            if !trimmed.isEmpty {
+                return trimmed
+            }
         }
         if let args = dict["ProgramArguments"] as? [String], let first = args.first {
             let trimmed = first.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
+            if !trimmed.isEmpty {
+                return trimmed
+            }
         }
         return nil
     }
@@ -697,7 +701,9 @@ public actor LaunchAgentInstaller {
         var queue: [String] = []
         func enqueue(_ libraries: [BinaryInstaller.LinkedLibrary]) {
             for library in libraries {
-                if library.isWeak { continue }
+                if library.isWeak {
+                    continue
+                }
                 guard let name = library.adjacentFileName else { continue }
                 if seen.insert(name).inserted {
                     queue.append(name)
@@ -746,7 +752,9 @@ public actor LaunchAgentInstaller {
         var seen: Set<String> = []
         var unsigned: [String] = []
         for library in libraries {
-            if library.isWeak { continue }
+            if library.isWeak {
+                continue
+            }
             guard let name = library.adjacentFileName else { continue }
             guard seen.insert(name).inserted else { continue }
             let companion = adjacentDirectory.appendingPathComponent(name).path
@@ -765,7 +773,9 @@ public actor LaunchAgentInstaller {
     public static func workingDirectoryPath(from dict: [String: Any]) -> String? {
         guard let value = dict["WorkingDirectory"] as? String else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return nil }
+        if trimmed.isEmpty {
+            return nil
+        }
         return trimmed
     }
 
@@ -792,7 +802,9 @@ public actor LaunchAgentInstaller {
     public static func rootDirectoryPath(from dict: [String: Any]) -> String? {
         guard let value = dict["RootDirectory"] as? String else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return nil }
+        if trimmed.isEmpty {
+            return nil
+        }
         return trimmed
     }
 
@@ -824,7 +836,9 @@ public actor LaunchAgentInstaller {
         for value in values {
             guard let raw = value as? String else { continue }
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty { continue }
+            if trimmed.isEmpty {
+                continue
+            }
             if seen.insert(trimmed).inserted {
                 paths.append(trimmed)
             }
@@ -857,7 +871,9 @@ public actor LaunchAgentInstaller {
         for value in values {
             guard let raw = value as? String else { continue }
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty { continue }
+            if trimmed.isEmpty {
+                continue
+            }
             if seen.insert(trimmed).inserted {
                 paths.append(trimmed)
             }
@@ -891,8 +907,12 @@ public actor LaunchAgentInstaller {
     /// yields []. Blank keys omitted.
     public static func keepAlivePathStatePaths(from dict: [String: Any]) throws -> [String]? {
         guard let keepAlive = dict["KeepAlive"] else { return nil }
-        if keepAlive is Bool { return nil }
-        if keepAlive is NSNumber { return nil }
+        if keepAlive is Bool {
+            return nil
+        }
+        if keepAlive is NSNumber {
+            return nil
+        }
         guard let keepAliveDict = keepAlive as? [String: Any] else {
             return nil
         }
@@ -904,7 +924,9 @@ public actor LaunchAgentInstaller {
         var seen: Set<String> = []
         for raw in pathStateDict.keys {
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty { continue }
+            if trimmed.isEmpty {
+                continue
+            }
             if seen.insert(trimmed).inserted {
                 paths.append(trimmed)
             }
@@ -939,7 +961,9 @@ public actor LaunchAgentInstaller {
 
         func add(_ raw: String) {
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty { return }
+            if trimmed.isEmpty {
+                return
+            }
             if seen.insert(trimmed).inserted {
                 paths.append(trimmed)
             }
@@ -984,14 +1008,14 @@ public actor LaunchAgentInstaller {
             }
             var isDirectory: ObjCBool = false
             if fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
-                isDirectory.boolValue
+               isDirectory.boolValue
             {
                 throw InstallError.socketPathIsDirectory(path)
             }
             let parent = URL(fileURLWithPath: path).deletingLastPathComponent().path
             var parentIsDir: ObjCBool = false
             guard fileManager.fileExists(atPath: parent, isDirectory: &parentIsDir),
-                parentIsDir.boolValue
+                  parentIsDir.boolValue
             else {
                 throw InstallError.socketPathParentMissing(path)
             }
@@ -1006,7 +1030,9 @@ public actor LaunchAgentInstaller {
         for key in ["StandardOutPath", "StandardErrorPath"] {
             guard let value = dict[key] as? String else { continue }
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty { continue }
+            if trimmed.isEmpty {
+                continue
+            }
             if seen.insert(trimmed).inserted {
                 paths.append(trimmed)
             }
@@ -1036,7 +1062,9 @@ public actor LaunchAgentInstaller {
     public static func standardInPath(from dict: [String: Any]) -> String? {
         guard let value = dict["StandardInPath"] as? String else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return nil }
+        if trimmed.isEmpty {
+            return nil
+        }
         return trimmed
     }
 
@@ -1067,7 +1095,9 @@ public actor LaunchAgentInstaller {
         guard let env = dict["EnvironmentVariables"] as? [String: Any] else { return nil }
         guard let value = env["HOME"] as? String else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return nil }
+        if trimmed.isEmpty {
+            return nil
+        }
         return trimmed
     }
 
@@ -1096,7 +1126,9 @@ public actor LaunchAgentInstaller {
         guard let env = dict["EnvironmentVariables"] as? [String: Any] else { return nil }
         guard let value = env["TMPDIR"] as? String else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return nil }
+        if trimmed.isEmpty {
+            return nil
+        }
         return trimmed
     }
 
@@ -1127,7 +1159,9 @@ public actor LaunchAgentInstaller {
         guard let env = dict["EnvironmentVariables"] as? [String: Any] else { return nil }
         guard let value = env["PATH"] as? String else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return nil }
+        if trimmed.isEmpty {
+            return nil
+        }
         return trimmed.split(separator: ":", omittingEmptySubsequences: false).map {
             String($0).trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -1212,7 +1246,9 @@ public actor LaunchAgentInstaller {
     /// True when an EnvironmentVariables key is a paid provider secret.
     public static func isPaidEnvironmentKey(_ key: String) -> Bool {
         let upper = key.uppercased()
-        if Self.paidEnvironmentExactKeys.contains(upper) { return true }
+        if Self.paidEnvironmentExactKeys.contains(upper) {
+            return true
+        }
         return Self.paidEnvironmentKeyPrefixes.contains { upper.hasPrefix($0) }
     }
 
@@ -1253,5 +1289,4 @@ public actor LaunchAgentInstaller {
             throw InstallError.environmentDyldInjection(keys.joined(separator: ", "))
         }
     }
-
 }
