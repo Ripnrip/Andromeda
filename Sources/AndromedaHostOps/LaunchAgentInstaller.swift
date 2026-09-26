@@ -104,7 +104,15 @@ import Foundation
 /// expand `$HOME`/`~`); KeepAlive then hammers on the wrong path.
 /// Boolean KeepAlive, missing PathState, and empty PathState
 /// allowed. Existence is not required (`PathState` false means
-/// keep-alive while the path is missing). Rewrite-only unchanged.
+/// keep-alive while the path is missing). If `Sockets` is present,
+/// each `SockPathName` must be an absolute path whose parent is an
+/// existing directory and which is not itself a directory (HAB-705):
+/// bootstrap can return 0 when a Unix socket path is relative
+/// (launchd does not expand `$HOME`/`~`), a directory, or has a
+/// missing parent; the socket then binds in the wrong place or
+/// fails and KeepAlive (mcp-hub) hammers. TCP sockets without
+/// SockPathName, missing Sockets, and empty Sockets allowed.
+/// Rewrite-only unchanged.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -202,6 +210,10 @@ public actor LaunchAgentInstaller {
         case queueDirectoryNotDirectory(String)
         case keepAlivePathStateNotAbsolute(String)
         case keepAlivePathStateInvalid(String)
+        case socketPathNotAbsolute(String)
+        case socketPathParentMissing(String)
+        case socketPathIsDirectory(String)
+        case socketPathInvalid(String)
         case environmentPathNotAbsolute(String)
         case programUsesOpen(String)
         case programUsesOsascript(String)
@@ -294,6 +306,14 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent KeepAlive.PathState key must be an absolute path (launchd does not expand $HOME/~): \(path)"
             case .keepAlivePathStateInvalid(let detail):
                 "LaunchAgent KeepAlive.PathState is invalid (destination untouched): \(detail)"
+            case .socketPathNotAbsolute(let path):
+                "LaunchAgent Sockets SockPathName must be an absolute path (launchd does not expand $HOME/~): \(path)"
+            case .socketPathParentMissing(let path):
+                "LaunchAgent Sockets SockPathName parent directory does not exist (destination untouched): \(path)"
+            case .socketPathIsDirectory(let path):
+                "LaunchAgent Sockets SockPathName is a directory (destination untouched): \(path)"
+            case .socketPathInvalid(let detail):
+                "LaunchAgent Sockets is invalid (destination untouched): \(detail)"
             case .environmentPathNotAbsolute(let path):
                 "LaunchAgent EnvironmentVariables.PATH component must be an absolute path (launchd does not expand $HOME/~): \(path)"
             case .programUsesOpen(let path):
@@ -398,7 +418,8 @@ public actor LaunchAgentInstaller {
         // paths (if present), StandardInPath (if present), HOME (if
         // present), TMPDIR (if present), PATH (if present), WatchPaths
         // (if present), QueueDirectories (if present), KeepAlive.PathState
-        // keys (if KeepAlive is a dict and PathState is present), no paid
+        // keys (if KeepAlive is a dict and PathState is present), Sockets
+        // SockPathName (if present), no paid
         // API keys, and no DYLD_* keys before parking dest.
         // Rewrite-only dry-run skips.
         if spec.bootstrap {
@@ -410,6 +431,7 @@ public actor LaunchAgentInstaller {
             try Self.validateWatchPaths(dict, fileManager: fileManager)
             try Self.validateQueueDirectories(dict, fileManager: fileManager)
             try Self.validateKeepAlivePathState(dict)
+            try Self.validateSocketPaths(dict, fileManager: fileManager)
             try Self.validateLogPaths(dict, fileManager: fileManager)
             try Self.validateStandardInPath(dict, fileManager: fileManager)
             try Self.validateEnvironmentHome(dict, fileManager: fileManager)
@@ -899,6 +921,79 @@ public actor LaunchAgentInstaller {
         for path in paths {
             guard path.hasPrefix("/") else {
                 throw InstallError.keepAlivePathStateNotAbsolute(path)
+            }
+        }
+    }
+
+    /// SockPathName values after HOME rewrite. Missing Sockets / empty
+    /// dict / TCP sockets without SockPathName yield []. Blank names
+    /// omitted. Sockets must be a dictionary of socket dicts or arrays
+    /// of socket dicts (launchd.plist).
+    public static func socketPathNames(from dict: [String: Any]) throws -> [String] {
+        guard let sockets = dict["Sockets"] else { return [] }
+        guard let socketsDict = sockets as? [String: Any] else {
+            throw InstallError.socketPathInvalid("Sockets must be a dictionary")
+        }
+        var paths: [String] = []
+        var seen: Set<String> = []
+
+        func add(_ raw: String) {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { return }
+            if seen.insert(trimmed).inserted {
+                paths.append(trimmed)
+            }
+        }
+
+        func collect(from socket: Any) throws {
+            if let socketDict = socket as? [String: Any] {
+                if let path = socketDict["SockPathName"] as? String {
+                    add(path)
+                }
+                return
+            }
+            if let array = socket as? [Any] {
+                for item in array {
+                    try collect(from: item)
+                }
+                return
+            }
+            throw InstallError.socketPathInvalid(
+                "Sockets entries must be dictionaries or arrays of dictionaries"
+            )
+        }
+
+        for value in socketsDict.values {
+            try collect(from: value)
+        }
+        return paths
+    }
+
+    /// Fail-closed Sockets.SockPathName check used only when
+    /// bootstrapping (HAB-705). Missing Sockets / empty dict / TCP
+    /// sockets without SockPathName allowed. Relative paths, missing
+    /// parents, and directory targets fail before dest is parked.
+    /// The socket file itself is not required (launchd creates it).
+    public static func validateSocketPaths(
+        _ dict: [String: Any],
+        fileManager: FileManager
+    ) throws {
+        for path in try socketPathNames(from: dict) {
+            guard path.hasPrefix("/") else {
+                throw InstallError.socketPathNotAbsolute(path)
+            }
+            var isDirectory: ObjCBool = false
+            if fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
+                isDirectory.boolValue
+            {
+                throw InstallError.socketPathIsDirectory(path)
+            }
+            let parent = URL(fileURLWithPath: path).deletingLastPathComponent().path
+            var parentIsDir: ObjCBool = false
+            guard fileManager.fileExists(atPath: parent, isDirectory: &parentIsDir),
+                parentIsDir.boolValue
+            else {
+                throw InstallError.socketPathParentMissing(path)
             }
         }
     }
