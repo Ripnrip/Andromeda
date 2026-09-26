@@ -1209,6 +1209,7 @@ struct LaunchAgentInstallerTests {
         program: String,
         standardOutPath: String?,
         standardErrorPath: String?,
+        standardInPath: String? = nil,
         home: String = LaunchAgentInstaller.studioHomeTemplate
     ) -> String {
         func key(_ name: String, _ value: String?) -> String {
@@ -1235,6 +1236,7 @@ struct LaunchAgentInstallerTests {
             <true/>
             <key>KeepAlive</key>
             <false/>
+            \(key("StandardInPath", standardInPath))
             \(key("StandardOutPath", standardOutPath))
             \(key("StandardErrorPath", standardErrorPath))
             <key>EnvironmentVariables</key>
@@ -2572,4 +2574,173 @@ struct LaunchAgentInstallerTests {
         #expect(!rendered.contains(LaunchAgentInstaller.studioHomeTemplate))
     }
 
+    // MARK: - HAB-692 StandardInPath
+
+    @Test
+    func bootstrapRelativeStandardInPathFailsClosedBeforeLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let previous = "keep-me\n"
+        try previous.write(to: destination, atomically: true, encoding: .utf8)
+        let oldInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: logPathPlist(
+                program: program.path,
+                standardOutPath: "\(LaunchAgentInstaller.studioHomeTemplate)/.multibrain/logs/fixture.launchd.log",
+                standardErrorPath: "\(LaunchAgentInstaller.studioHomeTemplate)/.multibrain/logs/fixture.launchd.log",
+                standardInPath: "relative/stdin"
+            )
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+        let restored = try String(contentsOf: destination, encoding: .utf8)
+        #expect(restored == previous)
+        let restoredInode = try FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as! Int
+        #expect(restoredInode == oldInode)
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.contains(".install-") || $0.contains(".rollback-") || $0.contains(".orphan-") }
+        #expect(leftovers.isEmpty)
+    }
+
+    @Test
+    func bootstrapMissingStandardInPathLeavesFreshDestAbsent() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let missing = "\(LaunchAgentInstaller.studioHomeTemplate)/.multibrain/missing-stdin"
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: logPathPlist(
+                program: program.path,
+                standardOutPath: "\(LaunchAgentInstaller.studioHomeTemplate)/.multibrain/logs/fixture.launchd.log",
+                standardErrorPath: "\(LaunchAgentInstaller.studioHomeTemplate)/.multibrain/logs/fixture.launchd.log",
+                standardInPath: missing
+            )
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: URL(fileURLWithPath: home).appendingPathComponent(".multibrain/missing-stdin").path))
+    }
+
+    @Test
+    func bootstrapStandardInPathIsDirectoryFailsClosed() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let stdinDir = URL(fileURLWithPath: home).appendingPathComponent("stdin-dir")
+        try FileManager.default.createDirectory(at: stdinDir, withIntermediateDirectories: true)
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: logPathPlist(
+                program: program.path,
+                standardOutPath: "\(LaunchAgentInstaller.studioHomeTemplate)/.multibrain/logs/fixture.launchd.log",
+                standardErrorPath: "\(LaunchAgentInstaller.studioHomeTemplate)/.multibrain/logs/fixture.launchd.log",
+                standardInPath: stdinDir.path
+            )
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test
+    func bootstrapValidStandardInPathProceedsToLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let stdin = URL(fileURLWithPath: home).appendingPathComponent(".multibrain/stdin")
+        try FileManager.default.createDirectory(at: stdin.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: stdin)
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: logPathPlist(
+                program: program.path,
+                standardOutPath: "\(LaunchAgentInstaller.studioHomeTemplate)/.multibrain/logs/fixture.launchd.log",
+                standardErrorPath: "\(LaunchAgentInstaller.studioHomeTemplate)/.multibrain/logs/fixture.launchd.log",
+                standardInPath: stdin.path
+            )
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+        )
+        #expect(report.bootstrapped)
+        let calls = await shell.recorded()
+        #expect(!calls.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+    }
+
+    @Test
+    func rewriteOnlyDoesNotRequireStandardInPath() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: logPathPlist(
+                program: "\(LaunchAgentInstaller.studioHomeTemplate)/Applications/Fixture.app/Contents/MacOS/Fixture",
+                standardOutPath: "\(LaunchAgentInstaller.studioHomeTemplate)/.multibrain/logs/fixture.launchd.log",
+                standardErrorPath: "\(LaunchAgentInstaller.studioHomeTemplate)/.multibrain/logs/fixture.launchd.log",
+                standardInPath: "relative/stdin"
+            )
+        )
+        let installer = LaunchAgentInstaller(shell: RecordingShell())
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: false)
+        )
+        #expect(report.rewritten)
+        #expect(!report.bootstrapped)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+        #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("relative").path))
+    }
 }
