@@ -274,7 +274,7 @@ struct InstallLaunchAgent: AsyncParsableCommand {
         commandName: "install-launch-agent",
         abstract: "Render a LaunchAgent plist (HOME rewrite) and optionally bootstrap it.",
         discussion: """
-        Fail-closed LaunchAgent install (HAB-622 / HAB-632 / HAB-676 / HAB-677 / HAB-678 / HAB-680 / HAB-681 / HAB-682 / HAB-683 / HAB-684 / HAB-686 / HAB-687 / HAB-688 / HAB-689 / HAB-690 / HAB-692 / HAB-693 / HAB-695 / HAB-702, BIN-101 leftover).
+        Fail-closed LaunchAgent install (HAB-622 / HAB-632 / HAB-676 / HAB-677 / HAB-678 / HAB-680 / HAB-681 / HAB-682 / HAB-683 / HAB-684 / HAB-686 / HAB-687 / HAB-688 / HAB-689 / HAB-690 / HAB-692 / HAB-693 / HAB-695 / HAB-702 / HAB-703, BIN-101 leftover).
 
         launchd does not expand $HOME/~. ops/*.plist bake the Studio home
         template /Users/admin; this command rewrites that string to --home
@@ -331,7 +331,12 @@ struct InstallLaunchAgent: AsyncParsableCommand {
         present, each entry must be an absolute existing directory
         (HAB-702): bootstrap can return 0 when a queue directory is
         relative, missing, or a file. Missing keys / empty arrays
-        allowed. Rewrite-only does not inspect those keys or
+        allowed. If KeepAlive is a dictionary and PathState is
+        present, each PathState key must be an absolute path
+        (HAB-703): bootstrap can return 0 when a PathState key is
+        relative (launchd does not expand $HOME/~). Boolean KeepAlive
+        and missing PathState allowed. Existence is not required.
+        Rewrite-only does not inspect those keys or
         StandardInPath. Rewrite-only (no --bootstrap) stays a dry-run.
         --bootstrap runs bootout then bootstrap (legacy load fallback).
         --kickstart is opt-in and refused without --bootstrap. Cron must

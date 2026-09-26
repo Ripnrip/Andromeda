@@ -97,8 +97,14 @@ import Foundation
 /// `QueueDirectories` is present, each entry must be an absolute
 /// existing directory (HAB-702): bootstrap can return 0 when a queue
 /// directory is relative, missing, or a file; launchd then never
-/// drains the queue. Missing key / empty array allowed. Rewrite-only
-/// unchanged.
+/// drains the queue. Missing key / empty array allowed. If
+/// `KeepAlive` is a dictionary and `PathState` is present, each
+/// PathState key must be an absolute path (HAB-703): bootstrap can
+/// return 0 when a PathState key is relative (launchd does not
+/// expand `$HOME`/`~`); KeepAlive then hammers on the wrong path.
+/// Boolean KeepAlive, missing PathState, and empty PathState
+/// allowed. Existence is not required (`PathState` false means
+/// keep-alive while the path is missing). Rewrite-only unchanged.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -194,6 +200,8 @@ public actor LaunchAgentInstaller {
         case queueDirectoryNotAbsolute(String)
         case queueDirectoryMissing(String)
         case queueDirectoryNotDirectory(String)
+        case keepAlivePathStateNotAbsolute(String)
+        case keepAlivePathStateInvalid(String)
         case environmentPathNotAbsolute(String)
         case programUsesOpen(String)
         case programUsesOsascript(String)
@@ -282,6 +290,10 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent QueueDirectories entry does not exist (destination untouched): \(path)"
             case .queueDirectoryNotDirectory(let path):
                 "LaunchAgent QueueDirectories entry is not a directory (destination untouched): \(path)"
+            case .keepAlivePathStateNotAbsolute(let path):
+                "LaunchAgent KeepAlive.PathState key must be an absolute path (launchd does not expand $HOME/~): \(path)"
+            case .keepAlivePathStateInvalid(let detail):
+                "LaunchAgent KeepAlive.PathState is invalid (destination untouched): \(detail)"
             case .environmentPathNotAbsolute(let path):
                 "LaunchAgent EnvironmentVariables.PATH component must be an absolute path (launchd does not expand $HOME/~): \(path)"
             case .programUsesOpen(let path):
@@ -363,7 +375,7 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678/680/681/682/683/684/686/687/688/689/690/692/693/695/702: bootstrap
+        // HAB-676/677/678/680/681/682/683/684/686/687/688/689/690/692/693/695/702/703: bootstrap
         // can succeed with a missing, unsigned, dylib-incomplete, or
         // unsigned-companion Mach-O Program, a WorkingDirectory that
         // cannot be chdir'd, a RootDirectory that cannot be chroot'd
@@ -385,7 +397,8 @@ public actor LaunchAgentInstaller {
         // RootDirectory (if present), log
         // paths (if present), StandardInPath (if present), HOME (if
         // present), TMPDIR (if present), PATH (if present), WatchPaths
-        // (if present), QueueDirectories (if present), no paid
+        // (if present), QueueDirectories (if present), KeepAlive.PathState
+        // keys (if KeepAlive is a dict and PathState is present), no paid
         // API keys, and no DYLD_* keys before parking dest.
         // Rewrite-only dry-run skips.
         if spec.bootstrap {
@@ -396,6 +409,7 @@ public actor LaunchAgentInstaller {
             try Self.validateRootDirectory(dict, fileManager: fileManager)
             try Self.validateWatchPaths(dict, fileManager: fileManager)
             try Self.validateQueueDirectories(dict, fileManager: fileManager)
+            try Self.validateKeepAlivePathState(dict)
             try Self.validateLogPaths(dict, fileManager: fileManager)
             try Self.validateStandardInPath(dict, fileManager: fileManager)
             try Self.validateEnvironmentHome(dict, fileManager: fileManager)
@@ -846,6 +860,45 @@ public actor LaunchAgentInstaller {
             }
             guard isDirectory.boolValue else {
                 throw InstallError.queueDirectoryNotDirectory(path)
+            }
+        }
+    }
+
+    /// KeepAlive.PathState keys after HOME rewrite. Nil when KeepAlive is
+    /// missing, a boolean, or a dict without PathState. Empty PathState
+    /// yields []. Blank keys omitted.
+    public static func keepAlivePathStatePaths(from dict: [String: Any]) throws -> [String]? {
+        guard let keepAlive = dict["KeepAlive"] else { return nil }
+        if keepAlive is Bool { return nil }
+        if keepAlive is NSNumber { return nil }
+        guard let keepAliveDict = keepAlive as? [String: Any] else {
+            return nil
+        }
+        guard let pathState = keepAliveDict["PathState"] else { return nil }
+        guard let pathStateDict = pathState as? [String: Any] else {
+            throw InstallError.keepAlivePathStateInvalid("PathState must be a dictionary of path keys")
+        }
+        var paths: [String] = []
+        var seen: Set<String> = []
+        for raw in pathStateDict.keys {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+            if seen.insert(trimmed).inserted {
+                paths.append(trimmed)
+            }
+        }
+        return paths
+    }
+
+    /// Fail-closed KeepAlive.PathState check used only when bootstrapping
+    /// (HAB-703). Boolean KeepAlive / missing PathState / empty PathState
+    /// allowed. Relative keys fail before dest is parked. Existence is
+    /// not required (false means keep-alive while missing).
+    public static func validateKeepAlivePathState(_ dict: [String: Any]) throws {
+        guard let paths = try keepAlivePathStatePaths(from: dict) else { return }
+        for path in paths {
+            guard path.hasPrefix("/") else {
+                throw InstallError.keepAlivePathStateNotAbsolute(path)
             }
         }
     }
