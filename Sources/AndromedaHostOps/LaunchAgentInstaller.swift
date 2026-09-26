@@ -89,7 +89,16 @@ import Foundation
 /// existing directory (HAB-695): bootstrap can return 0 when TMPDIR is
 /// relative (launchd does not expand `$HOME`/`~`), missing, or a file;
 /// libc tempfile then fails and KeepAlive (mcp-hub) hammers. Missing
-/// key allowed (OS default). Rewrite-only unchanged.
+/// key allowed (OS default). If `WatchPaths` is present, each entry
+/// must be an absolute existing path (HAB-702): bootstrap can return 0
+/// when a watch path is relative (launchd does not expand `$HOME`/`~`)
+/// or missing, so the job never fires on the intended path. Files and
+/// directories are allowed. Missing key / empty array allowed. If
+/// `QueueDirectories` is present, each entry must be an absolute
+/// existing directory (HAB-702): bootstrap can return 0 when a queue
+/// directory is relative, missing, or a file; launchd then never
+/// drains the queue. Missing key / empty array allowed. Rewrite-only
+/// unchanged.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -180,6 +189,11 @@ public actor LaunchAgentInstaller {
         case environmentTmpdirNotAbsolute(String)
         case environmentTmpdirMissing(String)
         case environmentTmpdirNotDirectory(String)
+        case watchPathNotAbsolute(String)
+        case watchPathMissing(String)
+        case queueDirectoryNotAbsolute(String)
+        case queueDirectoryMissing(String)
+        case queueDirectoryNotDirectory(String)
         case environmentPathNotAbsolute(String)
         case programUsesOpen(String)
         case programUsesOsascript(String)
@@ -258,6 +272,16 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent EnvironmentVariables.TMPDIR does not exist (destination untouched): \(path)"
             case .environmentTmpdirNotDirectory(let path):
                 "LaunchAgent EnvironmentVariables.TMPDIR is not a directory (destination untouched): \(path)"
+            case .watchPathNotAbsolute(let path):
+                "LaunchAgent WatchPaths entry must be an absolute path (launchd does not expand $HOME/~): \(path)"
+            case .watchPathMissing(let path):
+                "LaunchAgent WatchPaths entry does not exist (destination untouched): \(path)"
+            case .queueDirectoryNotAbsolute(let path):
+                "LaunchAgent QueueDirectories entry must be an absolute path (launchd does not expand $HOME/~): \(path)"
+            case .queueDirectoryMissing(let path):
+                "LaunchAgent QueueDirectories entry does not exist (destination untouched): \(path)"
+            case .queueDirectoryNotDirectory(let path):
+                "LaunchAgent QueueDirectories entry is not a directory (destination untouched): \(path)"
             case .environmentPathNotAbsolute(let path):
                 "LaunchAgent EnvironmentVariables.PATH component must be an absolute path (launchd does not expand $HOME/~): \(path)"
             case .programUsesOpen(let path):
@@ -339,7 +363,7 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678/680/681/682/683/684/686/687/688/689/690/692/693/695: bootstrap
+        // HAB-676/677/678/680/681/682/683/684/686/687/688/689/690/692/693/695/702: bootstrap
         // can succeed with a missing, unsigned, dylib-incomplete, or
         // unsigned-companion Mach-O Program, a WorkingDirectory that
         // cannot be chdir'd, a RootDirectory that cannot be chroot'd
@@ -360,7 +384,8 @@ public actor LaunchAgentInstaller {
         // signatures if Mach-O), WorkingDirectory (if present),
         // RootDirectory (if present), log
         // paths (if present), StandardInPath (if present), HOME (if
-        // present), TMPDIR (if present), PATH (if present), no paid
+        // present), TMPDIR (if present), PATH (if present), WatchPaths
+        // (if present), QueueDirectories (if present), no paid
         // API keys, and no DYLD_* keys before parking dest.
         // Rewrite-only dry-run skips.
         if spec.bootstrap {
@@ -369,6 +394,8 @@ public actor LaunchAgentInstaller {
             try Self.validateProgram(dict, fileManager: fileManager)
             try Self.validateWorkingDirectory(dict, fileManager: fileManager)
             try Self.validateRootDirectory(dict, fileManager: fileManager)
+            try Self.validateWatchPaths(dict, fileManager: fileManager)
+            try Self.validateQueueDirectories(dict, fileManager: fileManager)
             try Self.validateLogPaths(dict, fileManager: fileManager)
             try Self.validateStandardInPath(dict, fileManager: fileManager)
             try Self.validateEnvironmentHome(dict, fileManager: fileManager)
@@ -750,6 +777,76 @@ public actor LaunchAgentInstaller {
         }
         guard isDirectory.boolValue else {
             throw InstallError.rootDirectoryNotDirectory(path)
+        }
+    }
+
+    /// WatchPaths after HOME rewrite. Blank entries omitted.
+    public static func watchPaths(from dict: [String: Any]) -> [String] {
+        guard let values = dict["WatchPaths"] as? [Any] else { return [] }
+        var paths: [String] = []
+        var seen: Set<String> = []
+        for value in values {
+            guard let raw = value as? String else { continue }
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+            if seen.insert(trimmed).inserted {
+                paths.append(trimmed)
+            }
+        }
+        return paths
+    }
+
+    /// Fail-closed WatchPaths check used only when bootstrapping (HAB-702).
+    /// Missing key / empty array allowed. Relative paths and missing
+    /// entries fail before dest is parked. Files and directories are OK.
+    public static func validateWatchPaths(
+        _ dict: [String: Any],
+        fileManager: FileManager
+    ) throws {
+        for path in watchPaths(from: dict) {
+            guard path.hasPrefix("/") else {
+                throw InstallError.watchPathNotAbsolute(path)
+            }
+            guard fileManager.fileExists(atPath: path) else {
+                throw InstallError.watchPathMissing(path)
+            }
+        }
+    }
+
+    /// QueueDirectories after HOME rewrite. Blank entries omitted.
+    public static func queueDirectories(from dict: [String: Any]) -> [String] {
+        guard let values = dict["QueueDirectories"] as? [Any] else { return [] }
+        var paths: [String] = []
+        var seen: Set<String> = []
+        for value in values {
+            guard let raw = value as? String else { continue }
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+            if seen.insert(trimmed).inserted {
+                paths.append(trimmed)
+            }
+        }
+        return paths
+    }
+
+    /// Fail-closed QueueDirectories check used only when bootstrapping (HAB-702).
+    /// Missing key / empty array allowed. Relative paths, missing
+    /// directories, and files fail before dest is parked.
+    public static func validateQueueDirectories(
+        _ dict: [String: Any],
+        fileManager: FileManager
+    ) throws {
+        for path in queueDirectories(from: dict) {
+            guard path.hasPrefix("/") else {
+                throw InstallError.queueDirectoryNotAbsolute(path)
+            }
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
+                throw InstallError.queueDirectoryMissing(path)
+            }
+            guard isDirectory.boolValue else {
+                throw InstallError.queueDirectoryNotDirectory(path)
+            }
         }
     }
 
