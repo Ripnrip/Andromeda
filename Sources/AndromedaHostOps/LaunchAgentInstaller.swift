@@ -48,6 +48,10 @@ import Foundation
 /// existing directory (HAB-682): bootstrap can return 0 when launchd
 /// cannot open the log file (relative path — launchd does not expand
 /// `$HOME`/`~` — or a directory). Missing keys allowed. If
+/// `StandardInPath` is present it must be an absolute existing
+/// non-directory file (HAB-692): bootstrap can return 0 when launchd
+/// cannot open stdin (relative path — launchd does not expand
+/// `$HOME`/`~` — missing file, or a directory). Missing key allowed. If
 /// `EnvironmentVariables.HOME` is present it must be an absolute existing
 /// directory (HAB-683): bootstrap can return 0 when HOME is relative
 /// (launchd does not expand `$HOME`/`~`), missing, or a file; the job
@@ -65,7 +69,7 @@ import Foundation
 /// Mach-O (system dylibs only) and inherits Aqua/agent-shell env to run
 /// AppleScript. Rewrite-only (`bootstrap` false) stays a dry-run and does
 /// not require the binary, its dylibs, WorkingDirectory, log paths, HOME,
-/// PATH, reject `open`/`osascript`, or reject paid API keys. HAB-688 also refuses those
+/// PATH, reject `open`/`osascript`, reject StandardInPath, or reject paid API keys. HAB-688 also refuses those
 /// binaries in any ProgramArguments slot (and a separate Program key),
 /// so `/usr/bin/arch` / `/usr/bin/env` trampolines cannot wrap them.
 /// Paid provider API keys in EnvironmentVariables are refused on
@@ -76,7 +80,8 @@ import Foundation
 /// are refused on bootstrap (HAB-690): ad-hoc signed Program /
 /// companions (HAB-677/680) are not restricted, so
 /// `DYLD_INSERT_LIBRARIES` / search-path keys hijack the image after
-/// codesign passed. Rewrite-only unchanged.
+/// codesign passed. StandardInPath is checked on bootstrap (HAB-692).
+/// Rewrite-only unchanged.
 public actor LaunchAgentInstaller {
 
     /// Studio SoT template home baked into `ops/*.plist`.
@@ -155,6 +160,9 @@ public actor LaunchAgentInstaller {
         case workingDirectoryNotDirectory(String)
         case logPathNotAbsolute(String)
         case logPathIsDirectory(String)
+        case standardInPathNotAbsolute(String)
+        case standardInPathMissing(String)
+        case standardInPathIsDirectory(String)
         case environmentHomeNotAbsolute(String)
         case environmentHomeMissing(String)
         case environmentHomeNotDirectory(String)
@@ -212,6 +220,12 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent StandardOutPath/StandardErrorPath must be an absolute path (launchd does not expand $HOME/~): \(path)"
             case .logPathIsDirectory(let path):
                 "LaunchAgent StandardOutPath/StandardErrorPath is a directory (destination untouched): \(path)"
+            case .standardInPathNotAbsolute(let path):
+                "LaunchAgent StandardInPath must be an absolute path (launchd does not expand $HOME/~): \(path)"
+            case .standardInPathMissing(let path):
+                "LaunchAgent StandardInPath does not exist (destination untouched): \(path)"
+            case .standardInPathIsDirectory(let path):
+                "LaunchAgent StandardInPath is a directory (destination untouched): \(path)"
             case .environmentHomeNotAbsolute(let path):
                 "LaunchAgent EnvironmentVariables.HOME must be an absolute path (launchd does not expand $HOME/~): \(path)"
             case .environmentHomeMissing(let path):
@@ -299,7 +313,7 @@ public actor LaunchAgentInstaller {
             throw InstallError.labelMismatch(expected: expected, found: plistLabel)
         }
 
-        // HAB-676/677/678/680/681/682/683/684/686/687/688/689/690: bootstrap
+        // HAB-676/677/678/680/681/682/683/684/686/687/688/689/690/692: bootstrap
         // can succeed with a missing, unsigned, dylib-incomplete, or
         // unsigned-companion Mach-O Program, a WorkingDirectory that
         // cannot be chdir'd, a log path launchd cannot open,
@@ -309,13 +323,15 @@ public actor LaunchAgentInstaller {
         // /usr/bin/osascript (LaunchServices/osascript inherit
         // Aqua/agent-shell env, including via arch/env trampolines),
         // paid provider API keys in EnvironmentVariables (HUD
-        // local-only contract; KeepAlive then spend+leak), or DYLD_*
-        // keys that hijack an ad-hoc signed Program after HAB-677/680.
+        // local-only contract; KeepAlive then spend+leak), DYLD_*
+        // keys that hijack an ad-hoc signed Program after HAB-677/680,
+        // or a StandardInPath launchd cannot open (HAB-692).
         // Require the rendered exec path (not open/osascript in any
         // argv slot; signature + adjacent rpath dylibs + companion
         // signatures if Mach-O), WorkingDirectory (if present), log
-        // paths (if present), HOME (if present), PATH (if present),
-        // no paid API keys, and no DYLD_* keys before parking dest.
+        // paths (if present), StandardInPath (if present), HOME (if
+        // present), PATH (if present), no paid API keys, and no DYLD_*
+        // keys before parking dest.
         // Rewrite-only dry-run skips.
         if spec.bootstrap {
             try Self.validateProgramNotOpen(dict)
@@ -323,6 +339,7 @@ public actor LaunchAgentInstaller {
             try Self.validateProgram(dict, fileManager: fileManager)
             try Self.validateWorkingDirectory(dict, fileManager: fileManager)
             try Self.validateLogPaths(dict, fileManager: fileManager)
+            try Self.validateStandardInPath(dict, fileManager: fileManager)
             try Self.validateEnvironmentHome(dict, fileManager: fileManager)
             try Self.validateEnvironmentPath(dict)
             try Self.validateEnvironmentPaidKeys(dict)
@@ -707,6 +724,35 @@ public actor LaunchAgentInstaller {
             if fileManager.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
                 throw InstallError.logPathIsDirectory(path)
             }
+        }
+    }
+
+    /// StandardInPath after HOME rewrite. Nil when the key is absent or blank.
+    public static func standardInPath(from dict: [String: Any]) -> String? {
+        guard let value = dict["StandardInPath"] as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        return trimmed
+    }
+
+    /// Fail-closed StandardInPath check used only when bootstrapping (HAB-692).
+    /// Missing key is allowed. Relative paths, missing files, and existing
+    /// directories fail before dest is parked. Unlike stdout/stderr, launchd
+    /// does not create stdin — the file must already exist.
+    public static func validateStandardInPath(
+        _ dict: [String: Any],
+        fileManager: FileManager
+    ) throws {
+        guard let path = standardInPath(from: dict) else { return }
+        guard path.hasPrefix("/") else {
+            throw InstallError.standardInPathNotAbsolute(path)
+        }
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
+            throw InstallError.standardInPathMissing(path)
+        }
+        guard !isDirectory.boolValue else {
+            throw InstallError.standardInPathIsDirectory(path)
         }
     }
 
