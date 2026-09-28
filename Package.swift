@@ -206,6 +206,7 @@ let package = Package(
                 "AndromedaBrand",
                 "AndromedaCore",
                 "AndromedaGateway",
+                .product(name: "MemoryKit", package: "MemoryKit"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "Logging", package: "swift-log"),
             ]

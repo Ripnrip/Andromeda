@@ -2,6 +2,7 @@ import AndromedaMCPHub
 import ArgumentParser
 import Foundation
 import Logging
+import MemoryKit
 
 #if canImport(OSLog)
     import os
@@ -9,8 +10,8 @@ import Logging
 struct MCPHubCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "mcp-hub",
-        abstract: "Shared MCP hub — host upstream servers behind per-agent shims.",
-        subcommands: [Run.self, Validate.self, Status.self],
+        abstract: "Shared MCP hub: validate, status, and orphan lifecycle.",
+        subcommands: [Run.self, Validate.self, Status.self, Reap.self],
         defaultSubcommand: Status.self
     )
 
@@ -128,6 +129,47 @@ struct MCPHubCommand: AsyncParsableCommand {
             }
             let telemetryPath = configuration.telemetryLogPath
             print("📊 telemetry: \(telemetryPath)")
+        }
+    }
+}
+
+// MARK: - Orphan reap
+
+extension MCPHubCommand {
+    /// `andromeda mcp-hub reap` — classify orphaned MCP servers and reap them.
+    /// Dry-run by default; `--apply` sends signals. Every decision is logged
+    /// to the unified log (`infra.mcp.reap`) per fleet visibility rules.
+    struct Reap: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Find orphaned MCP servers (dead-broker zombies) and reap them. Dry-run unless --apply."
+        )
+
+        @Flag(help: "Actually send SIGTERM/SIGKILL. Without this, classify and report only.")
+        var apply: Bool = false
+
+        func run() async throws {
+            let reaper = MCPOrphanReaper()
+            let rows = ShellMCPProcessTable.snapshotRows()
+            let report = await reaper.reap(rows: rows, apply: apply)
+
+            print("mcp-hub reap — \(report.dryRun ? "DRY RUN" : "APPLIED") at \(report.ranAt.formatted(.iso8601))")
+            print("scanned MCP-looking processes: \(report.classifications.count)")
+            for entry in report.classifications {
+                let pid = entry.process.pid
+                let rss = String(format: "%.1f", entry.process.memoryMB)
+                switch entry.verdict {
+                case let .orphaned(reason):
+                    print("  🧟 orphaned pid \(pid) (\(rss) MB) — \(reason)")
+                case let .owned(brokerPID, brokerCommand):
+                    print("  🔒 owned pid \(pid) (\(rss) MB) — broker \(brokerPID): \(brokerCommand.prefix(60))")
+                case let .unknown(reason):
+                    print("  ❓ unknown pid \(pid) (\(rss) MB) — \(reason)")
+                }
+            }
+            print("orphans: \(report.orphanCount) | reaped: \(report.reaped.count) | failed: \(report.failed.count)")
+            if report.orphanCount > 0, report.reaped.isEmpty {
+                print("⚠️ dry-run: re-run with --apply to reap the orphans above.")
+            }
         }
     }
 }
