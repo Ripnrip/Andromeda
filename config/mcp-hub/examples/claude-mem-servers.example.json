@@ -1,0 +1,34 @@
+{
+  "socketDirectory": "~/.andromeda/mcp-hub/sockets",
+  "logDirectory": "~/.andromeda/logs",
+  "servers": [
+    {
+      "id": "chroma-mem",
+      "packageName": "chroma-mcp",
+      "command": "/opt/homebrew/bin/uv",
+      "arguments": [
+        "tool", "uvx", "--python", "3.13",
+        "--with", "onnxruntime>=1.20",
+        "--with", "protobuf<7",
+        "--from", "chroma-mcp==0.2.6",
+        "chroma-mcp",
+        "--client-type", "persistent",
+        "--data-dir", "/Users/admin/.claude-mem/chroma"
+      ],
+      "environment": {},
+      "placement": "shared",
+      "duplicateGroup": "chroma-mcp"
+    },
+    {
+      "id": "qdrant-mem",
+      "packageName": "qdrant-mcp-server",
+      "command": "/Users/admin/.local/share/uv/tools/qdrant-mcp-server/bin/python3",
+      "arguments": [
+        "/Users/admin/.local/bin/qdrant-mcp-server"
+      ],
+      "environment": {},
+      "placement": "shared",
+      "duplicateGroup": "qdrant-mcp"
+    }
+  ]
+}

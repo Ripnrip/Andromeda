@@ -2,6 +2,7 @@ import AndromedaMCPHub
 import ArgumentParser
 import Foundation
 import Logging
+import MemoryKit
 
 #if canImport(OSLog)
     import os
@@ -9,8 +10,8 @@ import Logging
 struct MCPHubCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "mcp-hub",
-        abstract: "Shared MCP hub — host upstream servers behind per-agent shims.",
-        subcommands: [Run.self, Validate.self, Status.self],
+        abstract: "Shared MCP hub: validate, status, and orphan lifecycle.",
+        subcommands: [Run.self, Validate.self, Status.self, Reap.self, Watch.self],
         defaultSubcommand: Status.self
     )
 
@@ -128,6 +129,65 @@ struct MCPHubCommand: AsyncParsableCommand {
             }
             let telemetryPath = configuration.telemetryLogPath
             print("📊 telemetry: \(telemetryPath)")
+        }
+    }
+}
+
+// MARK: - Orphan reap
+
+extension MCPHubCommand {
+    /// `andromeda mcp-hub reap` — classify orphaned MCP servers and reap them.
+    /// Dry-run by default; `--apply` sends signals. Every decision is logged
+    /// to the unified log (`infra.mcp.reap`) per fleet visibility rules.
+    struct Reap: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Find orphaned MCP servers (dead-broker zombies) and reap them. Dry-run unless --apply."
+        )
+
+        @Flag(help: "Actually send SIGTERM/SIGKILL. Without this, classify and report only.")
+        var apply: Bool = false
+
+        @Option(
+            parsing: .upToNextOption,
+            help: "PIDs to spare even if classified orphaned (intentional PPID-1 daemons, e.g. the claude-mem worker). Repeatable."
+        )
+        var spare: [Int32] = []
+
+        func run() async throws {
+            let reaper = MCPOrphanReaper()
+            // LOUD ps failure (review #5): a dead snapshot must abort with a
+            // clear error, never report a false "zero orphans" clean sweep.
+            guard let rows = ShellMCPProcessTable.snapshotRows() else {
+                throw ValidationError("ps snapshot failed — cannot classify safely; refusing to run (no false clean sweep)")
+            }
+            let report = await reaper.reap(rows: rows, apply: apply, sparePIDs: Set(spare))
+
+            print("mcp-hub reap — \(report.dryRun ? "DRY RUN" : "APPLIED") at \(report.ranAt.formatted(.iso8601))")
+            print("scanned MCP-looking processes: \(report.classifications.count)")
+            for entry in report.classifications {
+                let pid = entry.process.pid
+                let rss = String(format: "%.1f", entry.process.memoryMB)
+                switch entry.verdict {
+                case let .orphaned(reason):
+                    if report.spared.contains(pid) {
+                        print("  🛡️ spared pid \(pid) (\(rss) MB) — orphaned but allowlisted — \(reason)")
+                    } else {
+                        print("  🧟 orphaned pid \(pid) (\(rss) MB) — \(reason)")
+                    }
+                case let .owned(brokerPID, brokerCommand):
+                    print("  🔒 owned pid \(pid) (\(rss) MB) — broker \(brokerPID): \(brokerCommand.prefix(60))")
+                case let .unknown(reason):
+                    print("  ❓ unknown pid \(pid) (\(rss) MB) — \(reason)")
+                }
+            }
+            print("orphans: \(report.orphanCount) | reaped: \(report.reaped.count) | failed: \(report.failed.count) | spared: \(report.spared.count)")
+            // Hint gated on dryRun (review #6): a real --apply with 0 reaped
+            // is a FAILURE, not a dry-run — say so, never suggest --apply again.
+            if report.dryRun, report.orphanCount > 0, report.reaped.isEmpty {
+                print("⚠️ dry-run: re-run with --apply to reap the orphans above.")
+            } else if !report.dryRun, !report.failed.isEmpty {
+                print("❌ apply ran but \(report.failed.count) signal(s) failed — see infra.mcp.reap logs; NOT a dry-run.")
+            }
         }
     }
 }
