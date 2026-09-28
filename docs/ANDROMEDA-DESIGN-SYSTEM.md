@@ -3,6 +3,7 @@
 > **Audience:** any agent or human touching Andromeda UI — website, terminal, macOS.
 > **Rule:** there is exactly one Andromeda theme. Never invent a second one.
 > **Tickets:** BIN-229 (roll-out), BIN-230 (app UI), BIN-231 (terminal TUI), BIN-232 (shared patterns).
+> **Native Swift/SwiftUI craft:** [SWIFT-UI-DESIGN-RESOURCE.md](SWIFT-UI-DESIGN-RESOURCE.md) — drivable UI, Inject hot reload, Xcode Previews, SF Symbols & typography, Fleet Swift Canon, 15-question review gate.
 
 ## Sources of truth
 
