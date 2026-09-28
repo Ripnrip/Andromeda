@@ -9,7 +9,7 @@
 
 When Claude Design works in native Apple platforms (Swift & SwiftUI), the design process must maintain high visual taste while strictly adhering to production Apple engineering discipline.
 
-- **Fidelity to Platform**: Look and feel like a first-class Apple citizen (macOS 15/26+, iOS 18/26+).
+- **Fidelity to Platform**: Look and feel like a first-class Apple citizen. Deployment baseline matches the fleet manifests: **macOS 14 / iOS 17** — newer APIs are availability-gated (`if #available`), never a deployment-target bump.
 - **Zero AI Slop**: No generic centered heroes on monitor surfaces, no unearned blur/glassmorphism, no artificial card grids.
 - **Instrumentable & Drivable**: Designed from the start so autonomous agents, tests, and CI can inspect and drive the interface exactly like a human click.
 - **Instant Iteration Loop**: Live preview matrices with Xcode Previews, hot reload via Inject in Debug, snapshot testing for pixel parity.
@@ -29,6 +29,14 @@ Every drivable surface or app container must expose or conform to this interface
 | `/state` | `GET` | Curated JSON read model | Represents actual visual state. Honesty badges live here. **Never expose secrets/PII**. |
 | `/action` | `POST` | Typed `ControlAction` JSON | Invokes **exactly** the methods and reducers triggered by human clicks. Unknown action = `422 Unprocessable`. |
 | `/screenshot` | `GET` | PNG data stream | Off-screen render by identifier/pane. **Never use OS-level screen capture tools (`screencapture`)**. |
+
+### Security & Gating (non-negotiable)
+
+The contract above is a **debug/test harness, never a production control endpoint**. An app implementing these routes literally must carry the same constraints as the canonical App Control contract (`web/public/lessons/pack/app-control.md`):
+
+- **Env gate**: routes exist only when `ANDROMEDA_APP_CONTROL=1` is set. Absent the flag, none of the three endpoints are registered.
+- **Bind loopback only**, or authenticate via the existing MCP bearer — never an unauthenticated or non-loopback listener.
+- **No second HTTP host**: extend the existing `AndromedaHTTP` router. Do not spin up a parallel server for App Control.
 
 ### Hierarchical Control Identifiers
 
@@ -254,7 +262,7 @@ Apple's SF Symbols icon library provides unified iconography across macOS and iO
 ## 6. Fleet Swift Coding Guidelines & Canon
 
 ### Core Identity & Language Standards
-- **Target Modern Platforms**: Swift 6.1+, iOS 18+, macOS 15+.
+- **Target Modern Platforms**: Swift 6+ language mode. Deployment baseline **iOS 17 / macOS 14** (the fleet manifests); newer APIs must be availability-gated, not baseline-raising.
 - **Protocol-Oriented & Value Types**: Structs over classes by default. Use actors for shared mutable state. Classes only when AppKit/UIKit interop strictly demands reference semantics.
 - **Enums as First-Class State Machines**:
   - Model states, routes, errors, and configuration as typed `enum`s.
@@ -278,7 +286,7 @@ Apple's SF Symbols icon library provides unified iconography across macOS and iO
 
 ## 7. The Fleet 15-Question Review Gate
 
-Every Swift UI change or PR must satisfy these 15 questions. Questions marked **[BLOCKER]** prevent merge/completion if unsatisfied:
+Every Swift UI change or PR must satisfy these 15 questions. **Merge blockers are exactly Q1, Q2, Q6, Q8, Q9, and Q14** — identical to the canonical gate (`.claude/skills/swift-review-gate/SKILL.md`); this resource must never silently change fleet merge policy. All other questions are review-tier: each unchecked item needs an explicit rationale or `N/A` in the PR:
 
 ### Type & Expression
 - **Q1 [BLOCKER] Enums over magic strings**: Every finite set (states, error kinds, allowlists, lanes) is an `enum` with exhaustive `switch`.
@@ -296,7 +304,7 @@ Every Swift UI change or PR must satisfy these 15 questions. Questions marked **
 - **Q9 [BLOCKER] Secrets & data posture**: No secret leaks, no ambient environment inheritance, no PII in logs or mirrored states.
 
 ### UI & Presentation
-- **Q10 [BLOCKER] Xcode Previews**: Every user-visible state has a dedicated `#Preview` covering healthy, empty, error, dark mode, and Dynamic Type.
+- **Q10 Xcode Previews** *(review tier)*: Every user-visible state has a dedicated `#Preview` covering healthy, empty, error, dark mode, and Dynamic Type. Missing previews need an explicit rationale in the PR — they are a review-tier judgment, not a mechanical merge blocker (matches the canonical gate).
 - **Q11 Snapshot tests**: Visual regressions covered by committed snapshot test baselines.
 - **Q12 Interaction feedback**: Intentional haptics/sensory feedback on taps, accompanied by VoiceOver accessibility labels.
 
