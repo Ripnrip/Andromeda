@@ -61,6 +61,15 @@ Configs touched historically: `~/.cursor/mcp.json`, `~/.claude.json`, `~/.claude
 
 Each live agent host that loads filesystem + memory + sequential-thinking costs **×3** `npm exec` parents. N Claude TTYs ⇒ ~3N of the trio alone. Andromeda `MCPServerRegistry` (`infra.mcp.scan`) is observe-only today — shared lifecycle / dedupe is the product fix.
 
+For dead-broker zombies (claude-mem chroma/qdrant orphans), use the reaper:
+
+```bash
+andromeda mcp-hub reap            # dry-run: classify and report only
+andromeda mcp-hub reap --apply    # SIGTERM → SIGKILL escalation on orphans only
+```
+
+Classification and evidence: [MCP-ORPHAN-EPIDEMIC-2026-09-27.md](./MCP-ORPHAN-EPIDEMIC-2026-09-27.md). Owned (live-broker) processes are never touched; `unknown` verdicts are never signaled.
+
 ---
 
 ## 5. Tracker comments

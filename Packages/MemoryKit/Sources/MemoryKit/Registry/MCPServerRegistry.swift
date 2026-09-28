@@ -86,6 +86,7 @@ public struct ShellMCPProcessEnumerator: MCPProcessEnumerating {
             "firecrawl-mcp",
             "chrome-devtools-mcp",
             "claude-mem",
+            "chroma-mcp",
             "qdrant-mcp",
             "pageindex",
             "browsermcp",
