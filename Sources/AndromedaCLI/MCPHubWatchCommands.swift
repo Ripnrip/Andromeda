@@ -61,7 +61,11 @@ extension MCPHubCommand {
                     let rss = String(format: "%.1f", entry.process.memoryMB)
                     switch entry.verdict {
                     case let .orphaned(reason):
-                        print("  🧟 [cycle \(cycle.index)] orphaned pid \(pid) (\(rss) MB) — \(reason)")
+                        if cycle.spared.contains(pid) {
+                            print("  🛡️ [cycle \(cycle.index)] spared pid \(pid) (\(rss) MB) — orphaned but allowlisted — \(reason)")
+                        } else {
+                            print("  🧟 [cycle \(cycle.index)] orphaned pid \(pid) (\(rss) MB) — \(reason)")
+                        }
                     case let .owned(brokerPID, brokerCommand):
                         print("  🔒 [cycle \(cycle.index)] owned pid \(pid) (\(rss) MB) — broker \(brokerPID): \(brokerCommand.prefix(60))")
                     case let .unknown(reason):
@@ -70,7 +74,7 @@ extension MCPHubCommand {
                 }
             }
             print(
-                "total orphans: \(summary.totalOrphans) | reaped: \(summary.totalReaped) | failed: \(summary.totalFailed) | peak drift: \(String(format: "%.1f", summary.peakOrphanedMemoryMB)) MB"
+                "total orphans: \(summary.totalOrphans) | reaped: \(summary.totalReaped) | failed: \(summary.totalFailed) | spared: \(summary.totalSpared) | peak drift: \(String(format: "%.1f", summary.peakOrphanedMemoryMB)) MB"
             )
             if summary.apply {
                 MCPHubCommand.diagnostics.notice(

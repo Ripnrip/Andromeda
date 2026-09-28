@@ -1,34 +1,12 @@
 import Foundation
 import os
 
-/// Injectable process-table view: all live PIDs → command, for parent checks.
-public protocol MCPProcessTableProviding: Sendable {
-    /// Map of live pid → command line (may be empty in hermetic tests).
-    func liveProcessTable() -> [pid_t: String]
-}
-
-/// Hermetic default: empty table (tests inject fixtures).
-public struct NullMCPProcessTable: MCPProcessTableProviding {
+/// Production process-table enumerator: one `ps -axo pid=,ppid=,rss=,command=` pass.
+/// A failed `ps` is LOUD (review round 2): `snapshotRows()` returns nil instead of
+/// an empty array — an empty table from a dead `ps` would read as "zero orphans",
+/// i.e. false safety.
+public struct ShellMCPProcessTable: Sendable {
     public init() {}
-    public func liveProcessTable() -> [pid_t: String] {
-        [:]
-    }
-}
-
-/// Production enumerator: one `ps -axo pid=,ppid=,rss=,command=` pass.
-/// A failed `ps` is LOUD (review #5): returns nil instead of an empty array —
-/// an empty table from a dead `ps` would read as "zero orphans" false safety.
-public struct ShellMCPProcessTable: MCPProcessTableProviding {
-    public init() {}
-
-    public func liveProcessTable() -> [pid_t: String] {
-        let rows = Self.snapshotRows() ?? []
-        var table: [pid_t: String] = [:]
-        for row in rows {
-            table[row.pid] = row.command
-        }
-        return table
-    }
 
     /// All rows with parentage — shared with the reaper for candidate scans.
     /// `nil` = the `ps` invocation itself failed (non-zero or undecodable).
