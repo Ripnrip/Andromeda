@@ -1,14 +1,13 @@
-/**
+/* 
  * Tests for MCPWatchTower — bounded-cycle contract, drift accumulation,
  * and the dry-run guarantee that a watch never signals anything.
  */
 
-import Testing
 @testable import MemoryKit
+import Testing
 
 @Suite("MCPWatchTower — bounded foreground watch, never a daemon")
 struct MCPWatchTowerTests {
-
     // MARK: - Fixtures (same epidemic shapes as the reaper tests)
 
     private func orphanedUvxWrapper() -> MCPProcessParentSnapshot {
@@ -121,7 +120,9 @@ struct MCPWatchTowerTests {
         #expect(cycle.orphanCount == 0)
         #expect(cycle.classifications.count == 2) // python child + uvx wrapper are MCP-looking
         for entry in cycle.classifications {
-            if case .owned = entry.verdict { continue }
+            if case .owned = entry.verdict {
+                continue
+            }
             Issue.record("expected owned, got \(entry.verdict)")
         }
     }
@@ -159,14 +160,14 @@ struct MCPWatchTowerTests {
     // MARK: - Cycle value semantics
 
     @Test("cycle index and orphan memory are exposed")
-    func cycleExposesMemory() async {
+    func cycleExposesMemory() {
         let cycle = MCPWatchCycle(
             index: 7,
             classifications: [
                 MCPOrphanClassification(
                     process: orphanedUvxWrapper(),
                     verdict: .orphaned(reason: "test")
-                )
+                ),
             ],
             reaped: [],
             failed: []

@@ -1,4 +1,4 @@
-/**
+/* 
  * MCP Watch Tower — bounded, foreground orphan-drift surveillance.
  *
  * Backs `infra.mcp watch`: repeatedly snapshots the process table,
@@ -29,7 +29,9 @@ public struct MCPWatchCycle: Sendable, Equatable {
     /// Orphans classified this cycle, regardless of action taken.
     public var orphanCount: Int {
         classifications.filter {
-            if case .orphaned = $0.verdict { return true }
+            if case .orphaned = $0.verdict {
+                return true
+            }
             return false
         }.count
     }
@@ -38,7 +40,9 @@ public struct MCPWatchCycle: Sendable, Equatable {
     public var orphanedMemoryMB: Double {
         classifications
             .filter {
-                if case .orphaned = $0.verdict { return true }
+                if case .orphaned = $0.verdict {
+                    return true
+                }
                 return false
             }
             .reduce(0) { $0 + $1.process.memoryMB }
@@ -70,13 +74,19 @@ public struct MCPWatchSummary: Sendable, Equatable {
 
     /// Orphans seen across all cycles (an orphan persisting across N cycles
     /// counts N times — drift visibility, not unique-PID counting).
-    public var totalOrphans: Int { cycles.reduce(0) { $0 + $1.orphanCount } }
+    public var totalOrphans: Int {
+        cycles.reduce(0) { $0 + $1.orphanCount }
+    }
 
     /// Reap actions that succeeded (apply mode only).
-    public var totalReaped: Int { cycles.reduce(0) { $0 + $1.reaped.count } }
+    public var totalReaped: Int {
+        cycles.reduce(0) { $0 + $1.reaped.count }
+    }
 
     /// Reap actions that failed (apply mode only).
-    public var totalFailed: Int { cycles.reduce(0) { $0 + $1.failed.count } }
+    public var totalFailed: Int {
+        cycles.reduce(0) { $0 + $1.failed.count }
+    }
 
     /// Peak single-cycle orphan RSS observed during the run.
     public var peakOrphanedMemoryMB: Double {
@@ -155,7 +165,7 @@ public actor MCPWatchTower {
         var cycles: [MCPWatchCycle] = []
         cycles.reserveCapacity(bound)
 
-        for index in 1...bound {
+        for index in 1 ... bound {
             let cycle = await runCycle(rows: snapshot(), apply: apply, index: index)
             cycles.append(cycle)
 
@@ -169,7 +179,9 @@ public actor MCPWatchTower {
             // Cancellation-aware tick: cooperative cancel ends the run early
             // (still bounded, never a hang).
             try? await Task.sleep(for: interval)
-            if Task.isCancelled { break }
+            if Task.isCancelled {
+                break
+            }
         }
 
         return MCPWatchSummary(

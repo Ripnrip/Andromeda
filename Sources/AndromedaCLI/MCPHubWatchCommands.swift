@@ -36,7 +36,7 @@ extension MCPHubCommand {
             }
 
             MCPHubCommand.diagnostics.notice(
-                "watch start: cycles=\(self.cycles, privacy: .public) interval=\(self.interval, privacy: .public)s apply=\(self.apply, privacy: .public)"
+                "watch start: cycles=\(cycles, privacy: .public) interval=\(interval, privacy: .public)s apply=\(apply, privacy: .public)"
             )
 
             let tower = MCPWatchTower()
