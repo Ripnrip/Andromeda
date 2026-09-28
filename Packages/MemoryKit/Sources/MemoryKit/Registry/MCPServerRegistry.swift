@@ -98,6 +98,10 @@ public struct ShellMCPProcessEnumerator: MCPProcessEnumerating {
             "@remotion/mcp",
             "@supabase/mcp",
             "@playwright/mcp",
+            // nvm-installed binary runs as bare `playwright-mcp` (no npm path),
+            // which "@playwright/mcp" never matches. Live instance verified
+            // broker-owned (claude chain) on 2026-09-28, so scanning it is safe.
+            "playwright-mcp",
         ]
         return needles.contains { lowered.contains($0) }
     }

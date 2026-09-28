@@ -58,6 +58,10 @@ public struct MCPReapReport: Sendable, Equatable {
     public let classifications: [MCPOrphanClassification]
     public let reaped: [pid_t]
     public let failed: [pid_t]
+    /// Orphans matched by the operator allowlist (`sparePIDs`) — classified
+    /// orphaned, counted, but never signaled. Listed so fleet telemetry can
+    /// tell "spared by policy" apart from "reaped".
+    public let spared: [pid_t]
 
     /// Orphans found regardless of whether we acted.
     public var orphanCount: Int {
@@ -82,12 +86,14 @@ public struct MCPReapReport: Sendable, Equatable {
         dryRun: Bool,
         classifications: [MCPOrphanClassification],
         reaped: [pid_t],
-        failed: [pid_t]
+        failed: [pid_t],
+        spared: [pid_t] = []
     ) {
         self.ranAt = ranAt
         self.dryRun = dryRun
         self.classifications = classifications
         self.reaped = reaped
         self.failed = failed
+        self.spared = spared
     }
 }
