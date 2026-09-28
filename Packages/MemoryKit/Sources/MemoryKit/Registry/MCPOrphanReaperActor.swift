@@ -1,18 +1,3 @@
-/* 
- * MCP Orphan Reaper actor — classification engine + explicit, observable reap.
- *
- * Classification rules (per MCP-SPRAWL-OPS.md §3):
- *  - `parentPID == 1` or parent not in the live process map → orphaned.
- *  - Parent alive and itself MCP-looking → walk up one level (uvx wrapper
- *    pattern: uv tool → python child). If the grandparent chain ends at a
- *    dead broker, the whole chain is orphaned.
- *  - Parent alive and a session broker (claude/cursor/codex/hermes/node
- *    CLI hosts) → owned, never touched.
- *
- * Every run is dry-run by default; `apply: true` sends SIGTERM then SIGKILL
- * escalation for survivors, logging each PID to OSLog for fleet telemetry.
- */
-
 import Foundation
 import os
 
@@ -31,11 +16,13 @@ public struct NullMCPProcessTable: MCPProcessTableProviding {
 }
 
 /// Production enumerator: one `ps -axo pid=,ppid=,rss=,command=` pass.
+/// A failed `ps` is LOUD (review #5): returns nil instead of an empty array —
+/// an empty table from a dead `ps` would read as "zero orphans" false safety.
 public struct ShellMCPProcessTable: MCPProcessTableProviding {
     public init() {}
 
     public func liveProcessTable() -> [pid_t: String] {
-        let rows = Self.snapshotRows()
+        let rows = Self.snapshotRows() ?? []
         var table: [pid_t: String] = [:]
         for row in rows {
             table[row.pid] = row.command
@@ -44,13 +31,14 @@ public struct ShellMCPProcessTable: MCPProcessTableProviding {
     }
 
     /// All rows with parentage — shared with the reaper for candidate scans.
-    public static func snapshotRows() -> [MCPProcessParentSnapshot] {
+    /// `nil` = the `ps` invocation itself failed (non-zero or undecodable).
+    public static func snapshotRows() -> [MCPProcessParentSnapshot]? {
         guard let output = try? ConcurrentProcess.run(
             executable: "/bin/ps",
             arguments: ["-axo", "pid=,ppid=,rss=,command="]
         ), output.status == 0,
         let text = String(data: output.stdout, encoding: .utf8)
-        else { return [] }
+        else { return nil }
         return parse(text)
     }
 
@@ -93,58 +81,6 @@ public actor MCPOrphanReaper {
     private static let wrapperNeedles = ["uv tool", "uvx", "npm exec", "npx"]
 
     // MARK: - Classification
-
-    /// Classify one candidate against a live process table.
-    public func classify(
-        _ process: MCPProcessParentSnapshot,
-        processTable: [pid_t: String]
-    ) -> MCPOrphanClassification {
-        // Parent is launchd → broker died, child got reparented. Classic orphan.
-        if process.parentPID <= 1 {
-            return MCPOrphanClassification(
-                process: process,
-                verdict: .orphaned(reason: "reparented to launchd (ppid \(process.parentPID)) — broker is gone")
-            )
-        }
-
-        // Parent alive?
-        guard let parentCommand = processTable[process.parentPID] else {
-            return MCPOrphanClassification(
-                process: process,
-                verdict: .orphaned(reason: "parent \(process.parentPID) not in live table — broker is gone")
-            )
-        }
-
-        // Parent alive and itself an MCP transport wrapper (uvx/npm-exec) →
-        // the real broker is the grandparent; recurse one level.
-        let loweredParent = parentCommand.lowercased()
-        if Self.wrapperNeedles.contains(where: { loweredParent.contains($0) }) {
-            // Find the wrapper's own row to inspect its parent.
-            if let wrapperRow = processTable.first(where: { $0.key == process.parentPID }) {
-                // We need the wrapper's ppid, which the table lacks — treat
-                // candidates whose wrapper parent we cannot resolve as unknown.
-                // The CLI path passes full rows; see classify(rows:).
-                return MCPOrphanClassification(
-                    process: process,
-                    verdict: .unknown(reason: "parent is transport wrapper; use classify(rows:) for chain walks")
-                )
-            }
-        }
-
-        // Parent alive and a session broker → owned.
-        if Self.brokerNeedles.contains(where: { loweredParent.contains($0) }) {
-            return MCPOrphanClassification(
-                process: process,
-                verdict: .owned(brokerPID: process.parentPID, brokerCommand: parentCommand)
-            )
-        }
-
-        // Parent alive but not a known broker and not a wrapper — unknown.
-        return MCPOrphanClassification(
-            process: process,
-            verdict: .unknown(reason: "live parent \(process.parentPID) is neither broker nor wrapper: \(parentCommand.prefix(80))")
-        )
-    }
 
     /// Full-table classification: walks wrapper chains correctly using full rows.
     /// Returns classifications for every MCP-looking process.
@@ -216,12 +152,17 @@ public actor MCPOrphanReaper {
 
     /// Signal a process like `kill(2)`. Injectable so tests can simulate
     /// failure paths (dead pids, EPERM) without manufacturing real victims.
-    public typealias SignalClosure = @Sendable (_ pid: pid_t, _ signal: Int32) -> Int32
+    /// Returns the errno captured by the *default* closure; injected doubles
+    /// must supply their own (review #2: no stale-errno reads after -1).
+    public typealias SignalClosure = @Sendable (_ pid: pid_t, _ signal: Int32) -> (retval: Int32, errno: Int32)
 
-    /// Production default: Darwin `kill(2)`.
+    /// Production default: Darwin `kill(2)`, errno captured at the call site.
     private let signal: SignalClosure
 
-    public init(signal: @escaping SignalClosure = { pid, sig in kill(pid, sig) }) {
+    public init(signal: @escaping SignalClosure = { pid, sig in
+        let rc = kill(pid, sig)
+        return (rc, errno)
+    }) {
         self.signal = signal
     }
 
@@ -258,22 +199,71 @@ public actor MCPOrphanReaper {
 
         var reaped: [pid_t] = []
         var failed: [pid_t] = []
+        // TOCTOU guard (review #4): identity of each orphan at classification
+        // time, re-verified against a fresh snapshot immediately before any
+        // signal. A PID that died and got recycled between snapshot and kill
+        // is a different process — refuse to signal it.
+        let orphanIdentity = Dictionary(
+            uniqueKeysWithValues: classifications.compactMap { entry -> (pid_t, String)? in
+                guard case .orphaned = entry.verdict else { return nil }
+                return (entry.process.pid, entry.process.command)
+            }
+        )
         for pid in signalable {
+            // Cancellation gate (review #3): stop destroying the moment the
+            // surrounding task is cancelled — no further signals, no SIGKILLs.
+            if Task.isCancelled {
+                logger.notice("reap cancelled — stopping before pid \(pid, privacy: .public)")
+                break
+            }
+
+            // Pre-signal identity check (review #4). A nil snapshot here is a
+            // LOUD failure (review #5): we cannot verify identity, so we
+            // refuse to signal rather than risk killing a recycled PID.
+            if let expected = orphanIdentity[pid] {
+                guard let liveRows = ShellMCPProcessTable.snapshotRows() else {
+                    failed.append(pid)
+                    logger.error("ps snapshot failed before signaling pid \(pid, privacy: .public) — refusing (cannot verify identity)")
+                    continue
+                }
+                let live = liveRows.first { $0.pid == pid }?.command
+                if live != expected {
+                    failed.append(pid)
+                    logger.error(
+                        "pid \(pid, privacy: .public) identity changed before signal (TOCTOU) — refusing"
+                    )
+                    continue
+                }
+            }
+
             // SIGTERM first (graceful MCP shutdown), then verify and escalate —
             // the 2026-09-27 epidemic showed uvx wrappers surviving SIGTERM.
-            guard signal(pid, SIGTERM) == 0 else {
+            let term = signal(pid, SIGTERM)
+            guard term.retval == 0 else {
                 failed.append(pid)
-                logger.error("failed to signal orphan MCP pid \(pid, privacy: .public): errno \(String(cString: strerror(errno)), privacy: .public)")
+                logger.error("failed to signal orphan MCP pid \(pid, privacy: .public): errno \(term.errno)")
                 continue
             }
-            try? await Task.sleep(for: .milliseconds(300))
-            if signal(pid, 0) == 0 {
+            // Cancellation mid-escalation (review #3): a cancelled sleep must
+            // NOT fall through to SIGKILL — bail out of the loop entirely.
+            do {
+                try await Task.sleep(for: .milliseconds(300))
+            } catch {
+                logger.notice("reap cancelled mid-escalation on pid \(pid, privacy: .public) — no SIGKILL")
+                break
+            }
+            if Task.isCancelled {
+                logger.notice("reap cancelled after SIGTERM on pid \(pid, privacy: .public) — no SIGKILL")
+                break
+            }
+            if signal(pid, 0).retval == 0 {
                 // Still alive — escalate.
-                if signal(pid, SIGKILL) == 0 {
+                let forced = signal(pid, SIGKILL)
+                if forced.retval == 0 {
                     logger.notice("escalated orphan MCP pid \(pid, privacy: .public) to SIGKILL")
-                } else if errno != ESRCH {
+                } else if forced.errno != ESRCH {
                     failed.append(pid)
-                    logger.error("SIGKILL failed for pid \(pid, privacy: .public): errno \(String(cString: strerror(errno)), privacy: .public)")
+                    logger.error("SIGKILL failed for pid \(pid, privacy: .public): errno \(forced.errno)")
                     continue
                 }
             }

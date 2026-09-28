@@ -1,8 +1,3 @@
-/* 
- * Tests for MCPWatchTower — bounded-cycle contract, drift accumulation,
- * and the dry-run guarantee that a watch never signals anything.
- */
-
 @testable import MemoryKit
 import Testing
 
@@ -59,7 +54,7 @@ struct MCPWatchTowerTests {
             maxCycles: 3,
             interval: .milliseconds(10),
             apply: false,
-            snapshot: { [] }
+            snapshot: { [] as [MCPProcessParentSnapshot]? }
         )
         // The cycles array is the call record: one entry per snapshot.
         #expect(summary.cycles.count == 3)
@@ -73,7 +68,7 @@ struct MCPWatchTowerTests {
             maxCycles: 0,
             interval: .milliseconds(1),
             apply: false,
-            snapshot: { [] }
+            snapshot: { [] as [MCPProcessParentSnapshot]? }
         )
         #expect(summary.cycles.count == 1)
     }
@@ -86,7 +81,7 @@ struct MCPWatchTowerTests {
                 maxCycles: 1_000_000,
                 interval: .milliseconds(50),
                 apply: false,
-                snapshot: { [] }
+                snapshot: { [] as [MCPProcessParentSnapshot]? }
             )
         }
         // Give it a couple of ticks, then cancel — the run must finish.
@@ -151,7 +146,7 @@ struct MCPWatchTowerTests {
             maxCycles: 2,
             interval: .milliseconds(5),
             apply: false,
-            snapshot: { [] }
+            snapshot: { [] as [MCPProcessParentSnapshot]? }
         )
         #expect(summary.totalOrphans == 0)
         #expect(summary.peakOrphanedMemoryMB == 0)
