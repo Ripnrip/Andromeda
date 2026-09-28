@@ -49,4 +49,4 @@ applied once before and reverted by the Sep 20 update). Re-apply from
 - Chroma backfill JSON parse errors (`Unexpected identifier "why"/"session"`)
   on old transcripts — pre-existing, separate from this fix.
 - The 8×3.5GB node wave mechanism — see
-  [MCP-MEMORY-WAVE-2026-09-28.md](./MCP-MEMORY-WAVE-2026-09-28.md).
+  [MCP-ORPHAN-WAVE-2-2026-09-28.md](./MCP-ORPHAN-WAVE-2-2026-09-28.md).

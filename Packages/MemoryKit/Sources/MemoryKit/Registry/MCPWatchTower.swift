@@ -11,6 +11,9 @@ public struct MCPWatchCycle: Sendable, Equatable {
     public let classifications: [MCPOrphanClassification]
     public let reaped: [pid_t]
     public let failed: [pid_t]
+    /// Orphans spared by the allowlist this cycle — classified orphaned but
+    /// intentionally NOT signaled, visible in the same stream as the kills.
+    public let spared: [pid_t]
 
     /// Orphans classified this cycle, regardless of action taken.
     public var orphanCount: Int {
@@ -39,13 +42,15 @@ public struct MCPWatchCycle: Sendable, Equatable {
         ranAt: Date = Date(),
         classifications: [MCPOrphanClassification],
         reaped: [pid_t],
-        failed: [pid_t]
+        failed: [pid_t],
+        spared: [pid_t] = []
     ) {
         self.index = index
         self.ranAt = ranAt
         self.classifications = classifications
         self.reaped = reaped
         self.failed = failed
+        self.spared = spared
     }
 }
 
@@ -72,6 +77,12 @@ public struct MCPWatchSummary: Sendable, Equatable {
     /// Reap actions that failed (apply mode only).
     public var totalFailed: Int {
         cycles.reduce(0) { $0 + $1.failed.count }
+    }
+
+    /// Orphans spared by the allowlist across all cycles (never signaled,
+    /// visible all the same — same contract as the one-shot reap path).
+    public var totalSpared: Int {
+        cycles.reduce(0) { $0 + $1.spared.count }
     }
 
     /// Peak single-cycle orphan RSS observed during the run.
@@ -129,7 +140,8 @@ public actor MCPWatchTower {
             ranAt: Date(),
             classifications: report.classifications,
             reaped: report.reaped,
-            failed: report.failed
+            failed: report.failed,
+            spared: report.spared
         )
     }
 
