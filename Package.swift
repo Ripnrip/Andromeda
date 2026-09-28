@@ -50,7 +50,7 @@ let package = Package(
             name: "AndromedaBrand",
             dependencies: [],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
@@ -63,7 +63,7 @@ let package = Package(
             name: "AndromedaDomain",
             dependencies: [],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
@@ -72,7 +72,7 @@ let package = Package(
                 "AndromedaDomain",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
@@ -83,7 +83,7 @@ let package = Package(
                 "AndromedaJournal",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
@@ -94,7 +94,7 @@ let package = Package(
                 "AndromedaMemory",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
@@ -103,19 +103,19 @@ let package = Package(
                 "AndromedaDomain",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
             name: "AndromedaMCPHub",
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .executableTarget(
             name: "AndromedaMCPShim",
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
@@ -125,7 +125,7 @@ let package = Package(
                 .product(name: "AndromedaPowerKit", package: "AndromedaPowerKit"),
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
@@ -135,7 +135,7 @@ let package = Package(
                 "AndromedaSecrets",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
@@ -148,7 +148,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
@@ -158,7 +158,7 @@ let package = Package(
                 "AndromedaMemory",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
@@ -177,7 +177,7 @@ let package = Package(
                 .product(name: "Logging", package: "swift-log"),
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
@@ -224,7 +224,7 @@ let package = Package(
             ],
             path: "Sources/andromeda-runtime",
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
@@ -234,7 +234,7 @@ let package = Package(
             ],
             path: "Sources/AndromedaHomeCore",
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .executableTarget(
@@ -244,7 +244,7 @@ let package = Package(
             ],
             path: "Sources/AndromedaHome",
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .target(
@@ -255,7 +255,7 @@ let package = Package(
             ],
             path: "Sources/AndromedaHUDCore",
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .executableTarget(
@@ -265,14 +265,14 @@ let package = Package(
             ],
             path: "Sources/AndromedaHUD",
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(
             name: "AndromedaMCPHubTests",
             dependencies: ["AndromedaMCPHub"],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(
@@ -287,7 +287,7 @@ let package = Package(
                 "__Snapshots__",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(
@@ -302,7 +302,7 @@ let package = Package(
                 "__Snapshots__",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(
@@ -326,7 +326,7 @@ let package = Package(
                 "AndromedaDomain",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(
@@ -336,7 +336,7 @@ let package = Package(
                 "AndromedaJournal",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(
@@ -346,7 +346,7 @@ let package = Package(
                 "AndromedaTools",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(
@@ -357,7 +357,7 @@ let package = Package(
                 .product(name: "AndromedaPowerKit", package: "AndromedaPowerKit"),
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(
@@ -371,7 +371,7 @@ let package = Package(
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(
@@ -385,7 +385,7 @@ let package = Package(
                 "AndromedaServer",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(
@@ -396,7 +396,7 @@ let package = Package(
                 "AndromedaMemory",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(
@@ -409,7 +409,7 @@ let package = Package(
             ],
             path: "Tests/AndromedaProjectionTests",
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(
@@ -418,7 +418,7 @@ let package = Package(
                 "AndromedaSecrets",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(
@@ -427,7 +427,7 @@ let package = Package(
                 "AndromedaBrand",
             ],
             swiftSettings: [
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v6),
             ]
         ),
         .testTarget(

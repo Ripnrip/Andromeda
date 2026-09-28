@@ -1,14 +1,13 @@
-/**
+/* 
  * Tests for the MCP orphan reaper classifier — chain walks, ownership,
  * and dry-run refusal to signal anything.
  */
 
-import Testing
 @testable import MemoryKit
+import Testing
 
 @Suite("MCPOrphanReaper — classify the sprawl, sparing the owned")
 struct MCPOrphanReaperTests {
-
     let reaper = MCPOrphanReaper()
 
     // MARK: - Fixtures (shaped like the 2026-09-27 claude-mem epidemic)
@@ -83,7 +82,7 @@ struct MCPOrphanReaperTests {
                 parentPID: 999_999,
                 command: "qdrant-mcp-server",
                 memoryMB: 300
-            )
+            ),
         ]
         let result = await reaper.classifyRows(rows)
         guard let first = result.first, case .orphaned = first.verdict else {
@@ -211,7 +210,7 @@ struct MCPOrphanReaperTests {
             ),
         ]
         let result = await reaper.classifyRows(rows)
-        guard case .owned(let brokerPID, _) = result.first?.verdict else {
+        guard case let .owned(brokerPID, _) = result.first?.verdict else {
             Issue.record("expected owned, got \(String(describing: result.first?.verdict))")
             return
         }

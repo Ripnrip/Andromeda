@@ -1,4 +1,4 @@
-/**
+/* 
  * MCP Orphan Reaper actor — classification engine + explicit, observable reap.
  *
  * Classification rules (per MCP-SPRAWL-OPS.md §3):
@@ -25,7 +25,9 @@ public protocol MCPProcessTableProviding: Sendable {
 /// Hermetic default: empty table (tests inject fixtures).
 public struct NullMCPProcessTable: MCPProcessTableProviding {
     public init() {}
-    public func liveProcessTable() -> [pid_t: String] { [:] }
+    public func liveProcessTable() -> [pid_t: String] {
+        [:]
+    }
 }
 
 /// Production enumerator: one `ps -axo pid=,ppid=,rss=,command=` pass.
@@ -35,7 +37,9 @@ public struct ShellMCPProcessTable: MCPProcessTableProviding {
     public func liveProcessTable() -> [pid_t: String] {
         let rows = Self.snapshotRows()
         var table: [pid_t: String] = [:]
-        for row in rows { table[row.pid] = row.command }
+        for row in rows {
+            table[row.pid] = row.command
+        }
         return table
     }
 
@@ -45,7 +49,7 @@ public struct ShellMCPProcessTable: MCPProcessTableProviding {
             executable: "/bin/ps",
             arguments: ["-axo", "pid=,ppid=,rss=,command="]
         ), output.status == 0,
-            let text = String(data: output.stdout, encoding: .utf8)
+        let text = String(data: output.stdout, encoding: .utf8)
         else { return [] }
         return parse(text)
     }
@@ -232,7 +236,9 @@ public actor MCPOrphanReaper {
     ) async -> MCPReapReport {
         let classifications = classifyRows(rows)
         let orphanPIDs = classifications.compactMap { entry -> pid_t? in
-            if case .orphaned = entry.verdict { return entry.process.pid }
+            if case .orphaned = entry.verdict {
+                return entry.process.pid
+            }
             return nil
         }
 

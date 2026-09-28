@@ -1,4 +1,4 @@
-/**
+/* 
  * 🎭 The MCPServerRegistry - The Sprawl Spotlight
  *
  * "We seed the known playbill from Cursor / Claude / Codex / Hermes,
@@ -55,7 +55,7 @@ public struct ShellMCPProcessEnumerator: MCPProcessEnumerating {
             executable: "/bin/ps",
             arguments: ["-axo", "pid=,rss=,command="]
         ), output.status == 0,
-            let text = String(data: output.stdout, encoding: .utf8)
+        let text = String(data: output.stdout, encoding: .utf8)
         else { return [] }
         return Self.parsePSOutput(text)
     }
@@ -156,7 +156,7 @@ public struct MCPServerRegistry: Sendable {
     ) {
         self.enumerator = enumerator
         self.telemetry = telemetry
-        self.roster = entities ?? Self.catalogSeeds()
+        roster = entities ?? Self.catalogSeeds()
     }
 
     // MARK: Catalog seeds (config inventory)
@@ -253,18 +253,18 @@ public struct MCPServerRegistry: Sendable {
 
     private static func seedPackageName(for key: String) -> String {
         switch key {
-        case "filesystem": return "@modelcontextprotocol/server-filesystem"
-        case "memory": return "@modelcontextprotocol/server-memory"
-        case "sequentialthinking": return "@modelcontextprotocol/server-sequential-thinking"
-        case "firecrawl": return "firecrawl-mcp"
-        case "browsermcp": return "@browsermcp/mcp"
-        case "chrome-devtools": return "chrome-devtools-mcp"
-        case "playwright": return "@playwright/mcp"
-        case "qdrant": return "qdrant-mcp-server"
-        case "pageindex-local": return "pageindex-mcp-server"
-        case "multica": return "multica-habitat-mcp"
-        case "linear": return "linear-mcp"
-        default: return key
+        case "filesystem": "@modelcontextprotocol/server-filesystem"
+        case "memory": "@modelcontextprotocol/server-memory"
+        case "sequentialthinking": "@modelcontextprotocol/server-sequential-thinking"
+        case "firecrawl": "firecrawl-mcp"
+        case "browsermcp": "@browsermcp/mcp"
+        case "chrome-devtools": "chrome-devtools-mcp"
+        case "playwright": "@playwright/mcp"
+        case "qdrant": "qdrant-mcp-server"
+        case "pageindex-local": "pageindex-mcp-server"
+        case "multica": "multica-habitat-mcp"
+        case "linear": "linear-mcp"
+        default: key
         }
     }
 

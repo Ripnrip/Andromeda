@@ -1,4 +1,4 @@
-/**
+/* 
  * MCP Orphan Reaper types — classification and report models.
  *
  * Backs `infra.mcp.reap`: identifies MCP server processes whose broker
@@ -66,7 +66,9 @@ public struct MCPReapReport: Sendable, Equatable {
     /// Orphans found regardless of whether we acted.
     public var orphanCount: Int {
         classifications.filter {
-            if case .orphaned = $0.verdict { return true }
+            if case .orphaned = $0.verdict {
+                return true
+            }
             return false
         }.count
     }
@@ -75,7 +77,9 @@ public struct MCPReapReport: Sendable, Equatable {
     public var reclaimedMemoryMB: Double {
         classifications
             .filter {
-                if case .orphaned = $0.verdict { return true }
+                if case .orphaned = $0.verdict {
+                    return true
+                }
                 return false
             }
             .reduce(0) { $0 + $1.process.memoryMB }
