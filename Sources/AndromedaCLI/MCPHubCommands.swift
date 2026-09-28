@@ -155,7 +155,11 @@ extension MCPHubCommand {
 
         func run() async throws {
             let reaper = MCPOrphanReaper()
-            let rows = ShellMCPProcessTable.snapshotRows()
+            // LOUD ps failure (review #5): a dead snapshot must abort with a
+            // clear error, never report a false "zero orphans" clean sweep.
+            guard let rows = ShellMCPProcessTable.snapshotRows() else {
+                throw ValidationError("ps snapshot failed — cannot classify safely; refusing to run (no false clean sweep)")
+            }
             let report = await reaper.reap(rows: rows, apply: apply, sparePIDs: Set(spare))
 
             print("mcp-hub reap — \(report.dryRun ? "DRY RUN" : "APPLIED") at \(report.ranAt.formatted(.iso8601))")
@@ -177,8 +181,12 @@ extension MCPHubCommand {
                 }
             }
             print("orphans: \(report.orphanCount) | reaped: \(report.reaped.count) | failed: \(report.failed.count) | spared: \(report.spared.count)")
-            if report.orphanCount > 0, report.reaped.isEmpty, report.spared.isEmpty {
+            // Hint gated on dryRun (review #6): a real --apply with 0 reaped
+            // is a FAILURE, not a dry-run — say so, never suggest --apply again.
+            if report.dryRun, report.orphanCount > 0, report.reaped.isEmpty {
                 print("⚠️ dry-run: re-run with --apply to reap the orphans above.")
+            } else if !report.dryRun, !report.failed.isEmpty {
+                print("❌ apply ran but \(report.failed.count) signal(s) failed — see infra.mcp.reap logs; NOT a dry-run.")
             }
         }
     }

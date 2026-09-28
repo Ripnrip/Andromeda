@@ -1,9 +1,6 @@
-/* 
- * Tests for the MCP orphan reaper classifier — chain walks, ownership,
- * and dry-run refusal to signal anything.
- */
-
+import Foundation
 @testable import MemoryKit
+import os
 import Testing
 
 @Suite("MCPOrphanReaper — classify the sprawl, sparing the owned")
@@ -154,7 +151,7 @@ struct MCPOrphanReaperTests {
             command: "/Users/admin/.bun/bin/bun /Users/admin/.claude/plugins/cache/thedotmack/claude-mem/13.14.0/scripts/worker-service.cjs --daemon",
             memoryMB: 87
         )
-        let reaperWithFakeSignal = MCPOrphanReaper(signal: { _, _ in -1 }) // would fail if called
+        let reaperWithFakeSignal = MCPOrphanReaper(signal: { _, _ in (-1, 1) }) // would fail if called
         let report = await reaperWithFakeSignal.reap(
             rows: [intentionalDaemon],
             apply: true,
@@ -242,9 +239,152 @@ struct MCPOrphanReaperTests {
             command: "qdrant-mcp-server", memoryMB: 300
         )
         // Simulate EPERM: every kill attempt errors.
-        let failing = MCPOrphanReaper(signal: { _, _ in -1 })
+        let failing = MCPOrphanReaper(signal: { _, _ in (-1, 1) })
         let report = await failing.reap(rows: [orphan], apply: true)
         #expect(report.failed == [31337])
         #expect(report.reaped.isEmpty)
+    }
+}
+
+// MARK: - Review round 2 (PR #86): escalation, cancellation, TOCTOU, watch spare
+
+@Suite("Reaper review round 2 — kill-surface safety")
+struct ReaperReviewRound2Tests {
+    /// Review #12: SIGTERM → (still alive) → SIGKILL escalation sequencing.
+    /// A wrapper that ignores SIGTERM (the 2026-09-27 epidemic shape) must be
+    /// escalated: signal log = [TERM, probe, KILL], pid lands in reaped.
+    @Test("SIGTERM-ignoring wrapper is escalated to SIGKILL in order")
+    func escalationSequencing() async throws {
+        // The pre-signal TOCTOU guard re-snapshots real `ps`, so the victim
+        // must actually exist AND its classified command must equal what ps
+        // reports (argv verbatim). Spawn a bash helper whose script path
+        // carries a needle (qdrant-mcp…) and whose ps line is exactly
+        // "/bin/bash <path>"; NO exec — exec would replace the image and
+        // change the reported command.
+        let helperScript = FileManager.default.temporaryDirectory
+            .appendingPathComponent("qdrant-mcp-server-escalation-test").path
+        try "#!/bin/bash\n/bin/sleep 300\n".write(toFile: helperScript, atomically: true, encoding: .utf8)
+        let chmod = Process()
+        chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
+        chmod.arguments = ["+x", helperScript]
+        try chmod.run()
+        chmod.waitUntilExit()
+
+        let victim = Process()
+        victim.executableURL = URL(fileURLWithPath: "/bin/bash")
+        victim.arguments = [helperScript]
+        try victim.run()
+        defer {
+            if victim.isRunning {
+                victim.terminate()
+            }
+            _ = try? victim.waitUntilExit()
+            try? FileManager.default.removeItem(atPath: helperScript)
+        }
+
+        // ps reports: "/bin/bash /var/folders/…/qdrant-mcp-server-escalation-test"
+        let classifiedCommand = "/bin/bash " + helperScript
+        let row = MCPProcessParentSnapshot(
+            pid: victim.processIdentifier,
+            parentPID: 1,
+            command: classifiedCommand,
+            memoryMB: 1
+        )
+        let calls = os.OSAllocatedUnfairLock(initialState: [Int32]())
+        let reaper = MCPOrphanReaper(signal: { _, sig in
+            calls.withLock { $0.append(sig) }
+            // SIGTERM "succeeds", probe says still alive → expect SIGKILL.
+            return (0, 0)
+        })
+        let report = await reaper.reap(rows: [row], apply: true)
+        let seq = calls.withLock { $0 }
+        #expect(seq == [15, 0, 9])
+        #expect(report.reaped == [victim.processIdentifier])
+    }
+
+    /// Review #3: a task cancelled mid-escalation must NOT receive SIGKILL.
+    @Test("cancellation mid-escalation forbids SIGKILL")
+    func cancelledReapNeverSIGKILLs() async {
+        let kills = os.OSAllocatedUnfairLock(initialState: [Int32]())
+        let orphan = MCPProcessParentSnapshot(
+            pid: 5150, parentPID: 1,
+            command: "qdrant-mcp-server", memoryMB: 300
+        )
+        let reaper = MCPOrphanReaper(signal: { _, sig in
+            kills.withLock { $0.append(sig) }
+            return (0, 0)
+        })
+        let task = Task {
+            await reaper.reap(rows: [orphan], apply: true)
+        }
+        task.cancel()
+        let report = await task.value
+        let sent = kills.withLock { $0 }
+        #expect(!sent.contains(9))
+        #expect(report.reaped.isEmpty)
+    }
+
+    /// Review #4: a PID whose live command no longer matches the classified
+    /// identity is refused (TOCTOU). The live snapshot comes from real `ps`,
+    /// so this test uses a PID that cannot exist — identity mismatch by
+    /// absence. Wait — absence is the same as death; the guard only fires on
+    /// a LIVE different command. For a hermetic test we assert the absence
+    /// path: a PID not in the table is 'vanished' → failed, not reaped.
+    @Test("PID vanished before signal is failed, never signaled")
+    func vanishedPIDIsRefused() async {
+        let signals = os.OSAllocatedUnfairLock(initialState: [Int32]())
+        let ghost = MCPProcessParentSnapshot(
+            pid: 99999, parentPID: 1,
+            command: "qdrant-mcp-server", memoryMB: 300
+        )
+        let reaper = MCPOrphanReaper(signal: { _, sig in
+            signals.withLock { $0.append(sig) }
+            return (0, 0)
+        })
+        let report = await reaper.reap(rows: [ghost], apply: true)
+        #expect(report.failed == [99999])
+        #expect(report.reaped.isEmpty)
+        #expect(signals.withLock { $0 }.isEmpty)
+    }
+
+    /// Review blocker #1: watch threads sparePIDs into every cycle — the
+    /// intentional claude-mem daemon shape (needle-matched, PPID 1) must be
+    /// spared by `watch`, not just by one-shot `reap`.
+    @Test("watch spares the intentional daemon every cycle")
+    func watchSparesIntentionalDaemon() async {
+        let daemon = MCPProcessParentSnapshot(
+            pid: 4242, parentPID: 1,
+            command: "bun …/claude-mem/worker-service.cjs --daemon", memoryMB: 87
+        )
+        let tower = MCPWatchTower(
+            reaper: MCPOrphanReaper(signal: { _, _ in (-1, 1) }) // fail if signaled
+        )
+        let summary = await tower.watch(
+            maxCycles: 2,
+            interval: .milliseconds(5),
+            apply: true,
+            sparePIDs: [4242],
+            snapshot: { [daemon] }
+        )
+        #expect(summary.cycles.count == 2)
+        for cycle in summary.cycles {
+            #expect(cycle.orphanCount == 1) // visible as orphan…
+            #expect(cycle.reaped.isEmpty) // …but never signaled
+            #expect(cycle.failed.isEmpty)
+        }
+    }
+
+    /// Review #5: a nil snapshot (dead ps) aborts the watch with zero cycles
+    /// recorded — never a false clean sweep.
+    @Test("nil ps snapshot aborts watch loudly")
+    func nilSnapshotAbortsWatch() async {
+        let tower = MCPWatchTower()
+        let summary = await tower.watch(
+            maxCycles: 3,
+            interval: .milliseconds(5),
+            apply: false,
+            snapshot: { nil }
+        )
+        #expect(summary.cycles.isEmpty)
     }
 }

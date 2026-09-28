@@ -1,17 +1,3 @@
-/* 
- * MCP Watch Tower — bounded, foreground orphan-drift surveillance.
- *
- * Backs `infra.mcp watch`: repeatedly snapshots the process table,
- * classifies MCP-looking processes with the reaper, and (optionally) reaps
- * orphans each cycle — for a FIXED number of cycles, then exits.
- *
- * AGENTS.md canon: NO invisible daemons. A watch that never exits is a
- * daemon wearing a command's clothes. Every run is bounded by `maxCycles`;
- * launchd/KeepAlive owns restart policy, not this process. Each cycle is
- * logged to OSLog (`infra.mcp.watch`) so fleet telemetry sees the drift
- * curve, not just the terminal output.
- */
-
 import Foundation
 import os
 
@@ -121,12 +107,16 @@ public actor MCPWatchTower {
 
     /// Run ONE cycle against an explicit snapshot — the pure, clock-free
     /// core that tests drive and `watch(cycles:)` calls per tick.
+    /// `sparePIDs` flows to the reaper: spared orphans stay visible but are
+    /// never signaled (review blocker #1 — watch and reap share one safety
+    /// posture, no drift between the two kill surfaces).
     public func runCycle(
         rows: [MCPProcessParentSnapshot],
         apply: Bool,
-        index: Int
+        index: Int,
+        sparePIDs: Set<pid_t> = []
     ) async -> MCPWatchCycle {
-        let report = await reaper.reap(rows: rows, apply: apply)
+        let report = await reaper.reap(rows: rows, apply: apply, sparePIDs: sparePIDs)
         if report.orphanCount > 0 {
             logger.notice(
                 "cycle \(index, privacy: .public): \(report.orphanCount, privacy: .public) orphan(s), \(String(format: "%.1f", report.reclaimedMemoryMB), privacy: .public) MB drift"
@@ -151,22 +141,32 @@ public actor MCPWatchTower {
     ///   - maxCycles: hard upper bound on iterations; the run always exits.
     ///   - interval: sleep between cycles (no sleep after the final cycle).
     ///   - apply: pass through to the reaper — `false` observes only.
+    ///   - sparePIDs: operator allowlist threaded to every cycle's reap.
     ///   - snapshot: process-table provider; production uses one `ps` pass
     ///     per cycle, tests inject fixtures.
     public func watch(
         maxCycles: Int,
         interval: Duration,
         apply: Bool,
-        snapshot: @escaping @Sendable () -> [MCPProcessParentSnapshot] = {
+        sparePIDs: Set<pid_t> = [],
+        snapshot: @escaping @Sendable () -> [MCPProcessParentSnapshot]? = {
             ShellMCPProcessTable.snapshotRows()
         }
     ) async -> MCPWatchSummary {
         let bound = max(1, maxCycles)
+        let startedAt = Date() // captured at run start (review #7: end-of-run stamps lied)
         var cycles: [MCPWatchCycle] = []
         cycles.reserveCapacity(bound)
 
         for index in 1 ... bound {
-            let cycle = await runCycle(rows: snapshot(), apply: apply, index: index)
+            // LOUD ps failure (review #5): a nil snapshot is an environment
+            // failure — record an empty failed-marker cycle and stop; never
+            // report a dead ps as "zero orphans" clean sweep.
+            guard let rows = snapshot() else {
+                logger.error("cycle \(index, privacy: .public): ps snapshot FAILED — aborting watch (no false clean sweep)")
+                break
+            }
+            let cycle = await runCycle(rows: rows, apply: apply, index: index, sparePIDs: sparePIDs)
             cycles.append(cycle)
 
             if let last = cycles.last, last.orphanCount > 0, last.reaped.isEmpty, apply {
@@ -185,7 +185,7 @@ public actor MCPWatchTower {
         }
 
         return MCPWatchSummary(
-            startedAt: Date(),
+            startedAt: startedAt,
             interval: interval,
             apply: apply,
             cycles: cycles

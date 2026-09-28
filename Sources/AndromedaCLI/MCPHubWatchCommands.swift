@@ -27,6 +27,12 @@ extension MCPHubCommand {
         @Flag(help: "Reap orphans each cycle. Without this, observe and report only.")
         var apply: Bool = false
 
+        @Option(
+            parsing: .upToNextOption,
+            help: "PIDs to spare even if classified orphaned (intentional PPID-1 daemons, e.g. the claude-mem worker). Repeatable. Applies to every cycle."
+        )
+        var spare: [Int32] = []
+
         func run() async throws {
             guard cycles >= 1 else {
                 throw ValidationError("--cycles must be >= 1 (bounded run, not zero)")
@@ -36,14 +42,15 @@ extension MCPHubCommand {
             }
 
             MCPHubCommand.diagnostics.notice(
-                "watch start: cycles=\(cycles, privacy: .public) interval=\(interval, privacy: .public)s apply=\(apply, privacy: .public)"
+                "watch start: cycles=\(cycles, privacy: .public) interval=\(interval, privacy: .public)s apply=\(apply, privacy: .public) spared=\(spare.count, privacy: .public)"
             )
 
             let tower = MCPWatchTower()
             let summary = await tower.watch(
                 maxCycles: cycles,
                 interval: .seconds(interval),
-                apply: apply
+                apply: apply,
+                sparePIDs: Set(spare)
             )
 
             // Human-facing report — presentation, not logging.
@@ -71,6 +78,9 @@ extension MCPHubCommand {
                 )
             } else if summary.totalOrphans > 0 {
                 print("⚠️ dry-run: re-run with --apply to reap the orphans above.")
+            }
+            if summary.apply, summary.totalFailed > 0 {
+                print("❌ \(summary.totalFailed) signal(s) failed during apply — see infra.mcp.watch logs.")
             }
         }
     }
