@@ -2,7 +2,8 @@
 
 > Evidence record for HAB-727. Operator-only. No secrets.
 > Companion runbook: [MCP-SPRAWL-OPS.md](./MCP-SPRAWL-OPS.md) ·
-> Problem inventory: [MCP-SPRAWL-PROBLEM.md](./MCP-SPRAWL-PROBLEM.md)
+> Problem inventory: [MCP-SPRAWL-PROBLEM.md](./MCP-SPRAWL-PROBLEM.md) ·
+> Follow-up wave: [MCP-ORPHAN-WAVE-2-2026-09-28.md](./MCP-ORPHAN-WAVE-2-2026-09-28.md) (HAB-731)
 
 ## What happened
 

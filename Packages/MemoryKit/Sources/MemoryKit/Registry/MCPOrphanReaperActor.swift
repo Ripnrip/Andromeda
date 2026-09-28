@@ -77,15 +77,16 @@ public actor MCPOrphanReaper {
 
     /// Commands that mark a live process as a session broker worth keeping.
     /// If an MCP server's parent matches one of these, it is owned.
+    /// `claude.app/contents/helpers` makes the Claude desktop app's
+    /// `.../Helpers/disclaimer --pgroup ...` intermediate an explicit broker
+    /// stop — previously it only matched via the loose `claude` substring.
     private static let brokerNeedles = [
         "claude", "cursor", "codex", "hermes", "cmux", "node_modules/.bin",
-        "electron", "claude.exe",
+        "electron", "claude.exe", "claude.app/contents/helpers",
     ]
 
     /// Commands that mark a process as an MCP transport wrapper (walk up past it).
     private static let wrapperNeedles = ["uv tool", "uvx", "npm exec", "npx"]
-
-    public init() {}
 
     // MARK: - Classification
 
@@ -209,10 +210,25 @@ public actor MCPOrphanReaper {
 
     // MARK: - Reap
 
+    /// Signal a process like `kill(2)`. Injectable so tests can simulate
+    /// failure paths (dead pids, EPERM) without manufacturing real victims.
+    public typealias SignalClosure = @Sendable (_ pid: pid_t, _ signal: Int32) -> Int32
+
+    /// Production default: Darwin `kill(2)`.
+    private let signal: SignalClosure
+
+    public init(signal: @escaping SignalClosure = { pid, sig in kill(pid, sig) }) {
+        self.signal = signal
+    }
+
     /// Classify and (optionally) reap. Dry-run unless `apply` is true.
+    /// `sparePIDs` is an operator allowlist: orphans whose pid is in the set
+    /// are still classified `orphaned` (visible in `orphanCount`/telemetry)
+    /// but are never signaled and land in `report.spared` instead.
     public func reap(
         rows: [MCPProcessParentSnapshot],
-        apply: Bool
+        apply: Bool,
+        sparePIDs: Set<pid_t> = []
     ) async -> MCPReapReport {
         let classifications = classifyRows(rows)
         let orphanPIDs = classifications.compactMap { entry -> pid_t? in
@@ -220,29 +236,34 @@ public actor MCPOrphanReaper {
             return nil
         }
 
-        guard apply, !orphanPIDs.isEmpty else {
+        // Policy allowlist takes precedence: spared orphans are reported, never signaled.
+        let spared = orphanPIDs.filter { sparePIDs.contains($0) }
+        let signalable = orphanPIDs.filter { !sparePIDs.contains($0) }
+
+        guard apply, !signalable.isEmpty else {
             return MCPReapReport(
                 dryRun: !apply,
                 classifications: classifications,
                 reaped: [],
-                failed: []
+                failed: [],
+                spared: spared
             )
         }
 
         var reaped: [pid_t] = []
         var failed: [pid_t] = []
-        for pid in orphanPIDs {
+        for pid in signalable {
             // SIGTERM first (graceful MCP shutdown), then verify and escalate —
             // the 2026-09-27 epidemic showed uvx wrappers surviving SIGTERM.
-            guard kill(pid, SIGTERM) == 0 else {
+            guard signal(pid, SIGTERM) == 0 else {
                 failed.append(pid)
                 logger.error("failed to signal orphan MCP pid \(pid, privacy: .public): errno \(String(cString: strerror(errno)), privacy: .public)")
                 continue
             }
             try? await Task.sleep(for: .milliseconds(300))
-            if kill(pid, 0) == 0 {
+            if signal(pid, 0) == 0 {
                 // Still alive — escalate.
-                if kill(pid, SIGKILL) == 0 {
+                if signal(pid, SIGKILL) == 0 {
                     logger.notice("escalated orphan MCP pid \(pid, privacy: .public) to SIGKILL")
                 } else if errno != ESRCH {
                     failed.append(pid)
@@ -258,7 +279,8 @@ public actor MCPOrphanReaper {
             dryRun: false,
             classifications: classifications,
             reaped: reaped,
-            failed: failed
+            failed: failed,
+            spared: spared
         )
     }
 }

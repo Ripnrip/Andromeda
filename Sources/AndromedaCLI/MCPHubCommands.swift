@@ -11,7 +11,7 @@ struct MCPHubCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "mcp-hub",
         abstract: "Shared MCP hub: validate, status, and orphan lifecycle.",
-        subcommands: [Run.self, Validate.self, Status.self, Reap.self],
+        subcommands: [Run.self, Validate.self, Status.self, Reap.self, Watch.self],
         defaultSubcommand: Status.self
     )
 
@@ -147,10 +147,16 @@ extension MCPHubCommand {
         @Flag(help: "Actually send SIGTERM/SIGKILL. Without this, classify and report only.")
         var apply: Bool = false
 
+        @Option(
+            parsing: .upToNextOption,
+            help: "PIDs to spare even if classified orphaned (intentional PPID-1 daemons, e.g. the claude-mem worker). Repeatable."
+        )
+        var spare: [Int32] = []
+
         func run() async throws {
             let reaper = MCPOrphanReaper()
             let rows = ShellMCPProcessTable.snapshotRows()
-            let report = await reaper.reap(rows: rows, apply: apply)
+            let report = await reaper.reap(rows: rows, apply: apply, sparePIDs: Set(spare))
 
             print("mcp-hub reap — \(report.dryRun ? "DRY RUN" : "APPLIED") at \(report.ranAt.formatted(.iso8601))")
             print("scanned MCP-looking processes: \(report.classifications.count)")
@@ -159,15 +165,19 @@ extension MCPHubCommand {
                 let rss = String(format: "%.1f", entry.process.memoryMB)
                 switch entry.verdict {
                 case let .orphaned(reason):
-                    print("  🧟 orphaned pid \(pid) (\(rss) MB) — \(reason)")
+                    if report.spared.contains(pid) {
+                        print("  🛡️ spared pid \(pid) (\(rss) MB) — orphaned but allowlisted — \(reason)")
+                    } else {
+                        print("  🧟 orphaned pid \(pid) (\(rss) MB) — \(reason)")
+                    }
                 case let .owned(brokerPID, brokerCommand):
                     print("  🔒 owned pid \(pid) (\(rss) MB) — broker \(brokerPID): \(brokerCommand.prefix(60))")
                 case let .unknown(reason):
                     print("  ❓ unknown pid \(pid) (\(rss) MB) — \(reason)")
                 }
             }
-            print("orphans: \(report.orphanCount) | reaped: \(report.reaped.count) | failed: \(report.failed.count)")
-            if report.orphanCount > 0, report.reaped.isEmpty {
+            print("orphans: \(report.orphanCount) | reaped: \(report.reaped.count) | failed: \(report.failed.count) | spared: \(report.spared.count)")
+            if report.orphanCount > 0, report.reaped.isEmpty, report.spared.isEmpty {
                 print("⚠️ dry-run: re-run with --apply to reap the orphans above.")
             }
         }
