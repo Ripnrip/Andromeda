@@ -1,0 +1,639 @@
+import Foundation
+
+#if canImport(Darwin)
+    import Darwin
+#endif
+
+/// Fail-closed, atomic install transaction for bare Mach-O executables.
+///
+/// HAB-606 (2026-09-20): a freshly copied SwiftPM executable published at
+/// `~/.local/bin/andromeda` was SIGKILLed by the macOS 26 signing monitor
+/// (`Taskgated Invalid Signature` / `Invalid Page`) because the copy landed at
+/// its final path *before* its post-copy ad-hoc signature settled. This
+/// installer inverts the order into a single transaction:
+///
+/// 1. validate the source executable,
+/// 2. stage a **fresh inode** (randomized name) inside the destination
+///    directory — same volume, so the final publish is a true `rename(2)`,
+/// 3. ad-hoc re-sign the **staged** copy (`codesign --force --sign -`),
+/// 4. strictly verify the staged copy (`codesign --verify --strict`),
+/// 5. atomically `rename(2)` staging → destination.
+///
+/// The live destination path is never written into: a process that is running
+/// the old binary keeps its inode, and new launches always observe either the
+/// fully-signed old artifact or the fully-signed new one. Any failure before
+/// the rename leaves the destination untouched and removes the staging file.
+///
+/// Scope: single-file executables plus **adjacent** required rpath dylibs.
+/// System libraries (`/usr/lib`, `/System`, `/Library/Apple`) and **weak**
+/// loads are allowed to be missing (the live `andromeda` CLI weakly links
+/// `@rpath/libswiftCompatibilitySpan.dylib`). Required runtime-relative
+/// dylibs (`@rpath` / `@loader_path` / `@executable_path`) must exist next to
+/// the source *or* already next to the destination — otherwise the
+/// transaction fails closed (HAB-625). Companion dylibs are themselves
+/// `otool -L`'d (HAB-674): a nested required adjacent name is staged too,
+/// and a missing nested required dylib fails closed before publish.
+/// Companions found next to the source are staged, ad-hoc re-signed,
+/// strictly verified, then renamed into the destination directory before
+/// the executable itself (HAB-626). Previous
+/// companion inodes are parked first and restored if the executable rename
+/// (or a later companion rename) fails (HAB-628). The previous dest
+/// executable is parked the same way and kept (with companion backups)
+/// until post-publish `codesign --verify --strict` succeeds on dest AND
+/// each published companion; a failed dest or companion verify restores
+/// dest + companions (HAB-629 / HAB-631). Bundles that ship a tree
+/// of rpath dylibs use `codesign --deep` on the `.app` (`AppBundleInstaller`).
+public actor BinaryInstaller {
+    /// Outcome of a successful install transaction.
+    public struct Report: Sendable, CustomStringConvertible {
+        /// The built artifact that was installed.
+        public let source: String
+        /// The final install path.
+        public let destination: String
+        /// Inode of the signed staging file captured just before the rename.
+        ///
+        /// NOTE: `codesign --force` replaces the file it signs (new inode), so
+        /// this is captured *after* signing — it is the inode that the atomic
+        /// rename then publishes, and equals `publishedInode`.
+        public let signedInode: UInt64
+        /// Inode previously at the destination, if any (fresh installs have none).
+        public let previousDestinationInode: UInt64?
+        /// Inode now at the destination (rename preserves the staged inode).
+        public let publishedInode: UInt64
+        /// Size of the installed executable in bytes.
+        public let bytes: Int
+        /// Adjacent required dylibs copied+signed into the destination directory.
+        public let companionDylibs: [String]
+
+        public var description: String {
+            let previous = previousDestinationInode.map(String.init) ?? "none (fresh install)"
+            let companions =
+                companionDylibs.isEmpty ? "(none)" : companionDylibs.joined(separator: ", ")
+            return """
+            install-cli report
+              source:          \(source)
+              destination:     \(destination)
+              signed inode:    \(signedInode)
+              previous inode:  \(previous)
+              published inode: \(publishedInode)  (atomic rename, fresh inode)
+              size:            \(bytes) bytes
+              companions:      \(companions)
+            """
+        }
+    }
+
+    /// Every failure mode of the transaction leaves dest + companions as
+    /// they were before this call. Companion dylibs are published *before*
+    /// the executable; a binary-rename failure restores parked companion
+    /// inodes so dest never keeps new dylibs beside the old binary
+    /// (HAB-628). The previous dest inode is parked before the executable
+    /// rename, and backups stay until post-publish verify succeeds on dest
+    /// and each companion so a failed dest or companion verify can restore
+    /// dest + companions (HAB-629 / HAB-631).
+    public enum InstallError: Error, CustomStringConvertible, Sendable {
+        case sourceMissing(String)
+        case sourceNotExecutable(String)
+        case destinationIsDirectory(String)
+        case stagingFailed(String)
+        case chmodFailed(String)
+        case signingFailed(String)
+        case verificationFailed(String)
+        case publishFailed(String)
+        case postPublishVerificationFailed(String)
+        case linkedLibraryInspectionFailed(String)
+        case missingRequiredLinkedLibrary(String)
+
+        public var description: String {
+            switch self {
+            case let .sourceMissing(path):
+                "Source executable not found: \(path)"
+            case let .sourceNotExecutable(path):
+                "Source is not an executable file: \(path)"
+            case let .destinationIsDirectory(path):
+                "Destination exists and is a directory: \(path)"
+            case let .stagingFailed(detail):
+                "Failed to stage fresh copy: \(detail)"
+            case let .chmodFailed(detail):
+                "Failed to make staged copy executable: \(detail)"
+            case let .signingFailed(detail):
+                "Ad-hoc signing of staged copy failed (destination untouched): \(detail)"
+            case let .verificationFailed(detail):
+                "Strict signature verification of staged copy failed (destination untouched): \(detail)"
+            case let .publishFailed(detail):
+                "Atomic rename into destination failed (destination untouched): \(detail)"
+            case let .postPublishVerificationFailed(detail):
+                "Published artifact failed post-publish verification (destination restored): \(detail)"
+            case let .linkedLibraryInspectionFailed(detail):
+                "Could not inspect staged linked libraries (destination untouched): \(detail)"
+            case let .missingRequiredLinkedLibrary(detail):
+                "Staged copy is missing a required non-system dylib (destination untouched): \(detail)"
+            }
+        }
+    }
+
+    /// One `otool -L` load command from a Mach-O.
+    public struct LinkedLibrary: Sendable, Equatable {
+        public let installName: String
+        public let isWeak: Bool
+
+        public var isSystem: Bool {
+            installName.hasPrefix("/usr/lib/")
+                || installName.hasPrefix("/System/")
+                || installName.hasPrefix("/Library/Apple/")
+        }
+
+        public var isRuntimeRelative: Bool {
+            installName.hasPrefix("@rpath/")
+                || installName.hasPrefix("@loader_path/")
+                || installName.hasPrefix("@executable_path/")
+        }
+
+        /// Last path component when the install name is `@rpath/foo.dylib` (no subdirs).
+        public var adjacentFileName: String? {
+            for prefix in ["@rpath/", "@loader_path/", "@executable_path/"] {
+                guard installName.hasPrefix(prefix) else { continue }
+                let rest = String(installName.dropFirst(prefix.count))
+                if rest.isEmpty || rest.contains("/") {
+                    return nil
+                }
+                return rest
+            }
+            return nil
+        }
+    }
+
+    private struct PlannedCompanion {
+        let fileName: String
+        let sourceURL: URL
+        let stagingURL: URL
+        let destinationURL: URL
+    }
+
+    private let shell: any ShellExecuting
+    private let fileManager: FileManager
+    /// Injected `rename(2)` so tests can fail the executable publish after
+    /// companions have already been renamed into the destination directory.
+    private let renamePaths: @Sendable (String, String) -> Int32
+
+    public init(
+        shell: (any ShellExecuting)? = LiveShell(),
+        fileManager: FileManager = .default,
+        renamePaths: (@Sendable (String, String) -> Int32)? = nil
+    ) {
+        self.shell = shell ?? LiveShell()
+        self.fileManager = fileManager
+        self.renamePaths = renamePaths ?? { old, new in rename(old, new) }
+    }
+
+    /// Run the full install transaction and return its report.
+    ///
+    /// - Parameters:
+    ///   - source: built executable to install.
+    ///   - destination: final install path (parent directories are created).
+    /// - Throws: `InstallError`; the destination is left untouched on any
+    ///   pre-publish failure.
+    public func install(source: URL, destination: URL) async throws -> Report {
+        // 1. Validate source (exists, is a file, is executable).
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: source.path, isDirectory: &isDirectory), !isDirectory.boolValue else {
+            throw InstallError.sourceMissing(source.path)
+        }
+        guard fileManager.isExecutableFile(atPath: source.path) else {
+            throw InstallError.sourceNotExecutable(source.path)
+        }
+        if fileManager.fileExists(atPath: destination.path, isDirectory: &isDirectory), isDirectory.boolValue {
+            throw InstallError.destinationIsDirectory(destination.path)
+        }
+
+        // 2. Stage a fresh inode next to the destination (same volume → the
+        //    publish is a true atomic rename, never a cross-volume copy).
+        let destinationDirectory = destination.deletingLastPathComponent()
+        do {
+            try fileManager.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+        } catch {
+            throw InstallError.stagingFailed("could not create \(destinationDirectory.path): \(error.localizedDescription)")
+        }
+        let stagingURL = destinationDirectory
+            .appendingPathComponent(".\(destination.lastPathComponent).install-\(UUID().uuidString).tmp")
+        do {
+            try fileManager.copyItem(at: source, to: stagingURL)
+        } catch {
+            throw InstallError.stagingFailed(error.localizedDescription)
+        }
+
+        var stagedURLs: [URL] = [stagingURL]
+        /// Fail-closed helper: never leak staging files.
+        func cleanupAndThrow(_ error: InstallError) -> InstallError {
+            for url in stagedURLs.reversed() {
+                try? fileManager.removeItem(at: url)
+            }
+            return error
+        }
+
+        // 3. Executable bit (copyItem preserves source mode; enforce anyway).
+        do {
+            try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: stagingURL.path)
+        } catch {
+            throw cleanupAndThrow(.chmodFailed(error.localizedDescription))
+        }
+
+        // 4. Inspect linked libraries. Required adjacent dylibs must exist
+        //    next to the source or already next to the destination (HAB-625).
+        //    Source-adjacent companions are staged+signed+published (HAB-626).
+        //    Companions are inspected too — nested required adjacent names
+        //    join the same fail-closed + stage set (HAB-674).
+        let sourceDirectory = source.deletingLastPathComponent()
+        let libraries: [LinkedLibrary]
+        do {
+            let initial = try await loadLinkedLibraries(at: stagingURL)
+            libraries = try await expandLinkedLibraries(
+                initial: initial,
+                sourceDirectory: sourceDirectory
+            )
+        } catch let error as InstallError {
+            throw cleanupAndThrow(error)
+        } catch {
+            throw cleanupAndThrow(.linkedLibraryInspectionFailed(error.localizedDescription))
+        }
+
+        let gaps = Self.requiredLibraryGaps(
+            libraries,
+            adjacentDirectory: destinationDirectory,
+            sourceDirectory: sourceDirectory,
+            fileExists: { [fileManager] path in
+                fileManager.fileExists(atPath: path)
+            }
+        )
+        if !gaps.isEmpty {
+            let detail = gaps.map(\.installName).joined(separator: ", ")
+            throw cleanupAndThrow(.missingRequiredLinkedLibrary(detail))
+        }
+
+        let companions: [PlannedCompanion]
+        do {
+            companions = try stageCompanions(
+                libraries: libraries,
+                sourceDirectory: sourceDirectory,
+                destinationDirectory: destinationDirectory,
+                stagedURLs: &stagedURLs
+            )
+        } catch let error as InstallError {
+            throw cleanupAndThrow(error)
+        } catch {
+            throw cleanupAndThrow(.stagingFailed(error.localizedDescription))
+        }
+
+        // 5. Ad-hoc re-sign companions, then the staged executable.
+        for companion in companions {
+            let signResult = try await shell.execute([
+                "codesign", "--force", "--sign", "-", companion.stagingURL.path,
+            ])
+            guard signResult.success else {
+                throw cleanupAndThrow(.signingFailed("\(companion.fileName): \(signResult.output)"))
+            }
+            let verifyResult = try await shell.execute([
+                "codesign", "--verify", "--strict", companion.stagingURL.path,
+            ])
+            guard verifyResult.success else {
+                throw cleanupAndThrow(.verificationFailed("\(companion.fileName): \(verifyResult.output)"))
+            }
+        }
+
+        let signResult = try await shell.execute(["codesign", "--force", "--sign", "-", stagingURL.path])
+        guard signResult.success else {
+            throw cleanupAndThrow(.signingFailed(signResult.output))
+        }
+
+        // 6. Strict verification before anything is published.
+        let verifyResult = try await shell.execute(["codesign", "--verify", "--strict", stagingURL.path])
+        guard verifyResult.success else {
+            throw cleanupAndThrow(.verificationFailed(verifyResult.output))
+        }
+        // codesign --force replaces the file it signs (fresh inode); capture
+        // the signed inode here — it is what the rename below publishes.
+        let signedInode = inodeNumber(at: stagingURL)
+
+        // 7. Atomic publish: companions first (park previous companion inodes,
+        //    then rename staged copies in). Park the previous dest executable
+        //    next, then rename the staged binary last. Any publish failure
+        //    restores parked dest + companions (HAB-628 / HAB-629).
+        let publishedCompanions: [PublishedCompanion]
+        do {
+            publishedCompanions = try publishCompanions(companions, stagedURLs: &stagedURLs)
+        } catch let error as InstallError {
+            throw cleanupAndThrow(error)
+        } catch {
+            throw cleanupAndThrow(.publishFailed(error.localizedDescription))
+        }
+
+        let previousInode = inodeNumber(at: destination)
+        let parkedDestination: PublishedCompanion
+        do {
+            parkedDestination = try parkDestination(destination)
+        } catch let error as InstallError {
+            rollbackPublishedCompanions(publishedCompanions)
+            throw cleanupAndThrow(error)
+        } catch {
+            rollbackPublishedCompanions(publishedCompanions)
+            throw cleanupAndThrow(.publishFailed(error.localizedDescription))
+        }
+
+        let renameResult = renamePaths(stagingURL.path, destination.path)
+        guard renameResult == 0 else {
+            let detail = String(cString: strerror(errno))
+            rollbackPublishedCompanions(publishedCompanions + [parkedDestination])
+            throw cleanupAndThrow(.publishFailed("rename(\(stagingURL.path) -> \(destination.path)): \(detail)"))
+        }
+        stagedURLs.removeAll { $0 == stagingURL }
+        let publishedInode = inodeNumber(at: destination)
+        let bytes = ((try? fileManager.attributesOfItem(atPath: destination.path))?[.size] as? Int) ?? 0
+
+        // 8. Post-publish verification. Backups stay until dest AND each
+        //    published companion verify so a failed dest or companion
+        //    check can restore dest + companions (HAB-629 / HAB-631).
+        let postVerify = try await shell.execute(["codesign", "--verify", "--strict", destination.path])
+        guard postVerify.success, publishedInode == signedInode else {
+            rollbackPublishedCompanions(publishedCompanions + [parkedDestination])
+            throw cleanupAndThrow(
+                .postPublishVerificationFailed(
+                    "publish sanity failed (verify.success=\(postVerify.success), " +
+                        "published=\(publishedInode.map(String.init) ?? "nil") signed=\(signedInode.map(String.init) ?? "nil")): \(postVerify.output)"
+                )
+            )
+        }
+        for companion in publishedCompanions {
+            let companionVerify = try await shell.execute([
+                "codesign", "--verify", "--strict", companion.destinationURL.path,
+            ])
+            guard companionVerify.success else {
+                rollbackPublishedCompanions(publishedCompanions + [parkedDestination])
+                throw cleanupAndThrow(
+                    .postPublishVerificationFailed(
+                        "\(companion.fileName): \(companionVerify.output)"
+                    )
+                )
+            }
+        }
+        dropCompanionBackups(publishedCompanions + [parkedDestination])
+
+        return Report(
+            source: source.path,
+            destination: destination.path,
+            signedInode: signedInode ?? 0,
+            previousDestinationInode: previousInode,
+            publishedInode: publishedInode ?? 0,
+            bytes: bytes,
+            companionDylibs: companions.map(\.fileName)
+        )
+    }
+
+    private func inodeNumber(at url: URL) -> UInt64? {
+        let attributes = try? fileManager.attributesOfItem(atPath: url.path)
+        return (attributes?[.systemFileNumber] as? Int).map(UInt64.init)
+    }
+
+    private func loadLinkedLibraries(at staged: URL) async throws -> [LinkedLibrary] {
+        let result = try await shell.execute(["/usr/bin/otool", "-L", staged.path])
+        guard result.success else {
+            throw InstallError.linkedLibraryInspectionFailed(result.output)
+        }
+        return Self.parseOtoolL(result.output)
+    }
+
+    /// Walk source-adjacent companions and union their load commands.
+    ///
+    /// HAB-625 only inspected the staged executable. A dylib that itself
+    /// requires `@loader_path/libnested.dylib` would then publish without
+    /// the nested file (or succeed when the nested file is missing). BFS
+    /// over adjacent names, skipping missing source files (dest-adjacent
+    /// leftovers still satisfy `requiredLibraryGaps`).
+    private func expandLinkedLibraries(
+        initial: [LinkedLibrary],
+        sourceDirectory: URL
+    ) async throws -> [LinkedLibrary] {
+        var all = initial
+        var seen: Set<String> = []
+        var queue: [String] = []
+        func enqueue(_ libraries: [LinkedLibrary]) {
+            for library in libraries {
+                if library.isWeak {
+                    continue
+                }
+                guard let name = library.adjacentFileName else { continue }
+                if seen.insert(name).inserted {
+                    queue.append(name)
+                }
+            }
+        }
+        enqueue(initial)
+        var index = 0
+        while index < queue.count {
+            let name = queue[index]
+            index += 1
+            let sourceURL = sourceDirectory.appendingPathComponent(name)
+            guard fileManager.fileExists(atPath: sourceURL.path) else { continue }
+            let nested = try await loadLinkedLibraries(at: sourceURL)
+            all.append(contentsOf: nested)
+            enqueue(nested)
+        }
+        return all
+    }
+
+    private func stageCompanions(
+        libraries: [LinkedLibrary],
+        sourceDirectory: URL,
+        destinationDirectory: URL,
+        stagedURLs: inout [URL]
+    ) throws -> [PlannedCompanion] {
+        var planned: [PlannedCompanion] = []
+        var seen: Set<String> = []
+        for library in libraries {
+            if library.isWeak {
+                continue
+            }
+            guard let name = library.adjacentFileName else { continue }
+            guard seen.insert(name).inserted else { continue }
+            let sourceURL = sourceDirectory.appendingPathComponent(name)
+            guard fileManager.fileExists(atPath: sourceURL.path) else { continue }
+            let destinationURL = destinationDirectory.appendingPathComponent(name)
+            let stagingURL = destinationDirectory
+                .appendingPathComponent(".\(name).install-\(UUID().uuidString).tmp")
+            do {
+                try fileManager.copyItem(at: sourceURL, to: stagingURL)
+            } catch {
+                throw InstallError.stagingFailed("\(name): \(error.localizedDescription)")
+            }
+            stagedURLs.append(stagingURL)
+            do {
+                try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: stagingURL.path)
+            } catch {
+                throw InstallError.chmodFailed("\(name): \(error.localizedDescription)")
+            }
+            planned.append(
+                PlannedCompanion(
+                    fileName: name,
+                    sourceURL: sourceURL,
+                    stagingURL: stagingURL,
+                    destinationURL: destinationURL
+                )
+            )
+        }
+        return planned
+    }
+
+    private struct PublishedCompanion {
+        let fileName: String
+        let destinationURL: URL
+        let backupURL: URL?
+    }
+
+    /// Park any existing dest companion, then rename the staged copy into place.
+    private func publishCompanions(
+        _ companions: [PlannedCompanion],
+        stagedURLs: inout [URL]
+    ) throws -> [PublishedCompanion] {
+        var published: [PublishedCompanion] = []
+        for companion in companions {
+            let backupURL: URL?
+            do {
+                backupURL = try parkExistingCompanion(
+                    companion.destinationURL,
+                    fileName: companion.fileName
+                )
+            } catch let error as InstallError {
+                rollbackPublishedCompanions(published)
+                throw error
+            }
+            let item = PublishedCompanion(
+                fileName: companion.fileName,
+                destinationURL: companion.destinationURL,
+                backupURL: backupURL
+            )
+            let renameResult = renamePaths(companion.stagingURL.path, companion.destinationURL.path)
+            guard renameResult == 0 else {
+                let detail = String(cString: strerror(errno))
+                rollbackPublishedCompanions(published + [item])
+                throw InstallError.publishFailed(
+                    "rename(\(companion.stagingURL.path) -> \(companion.destinationURL.path)): \(detail)"
+                )
+            }
+            stagedURLs.removeAll { $0 == companion.stagingURL }
+            published.append(item)
+        }
+        return published
+    }
+
+    /// Park the previous dest executable so a failed binary rename or
+    /// post-publish verify can restore it (HAB-629).
+    private func parkDestination(_ destination: URL) throws -> PublishedCompanion {
+        let backupURL = try parkExistingCompanion(
+            destination,
+            fileName: destination.lastPathComponent
+        )
+        return PublishedCompanion(
+            fileName: destination.lastPathComponent,
+            destinationURL: destination,
+            backupURL: backupURL
+        )
+    }
+
+    /// Move an existing dest companion aside so its inode can be restored.
+    private func parkExistingCompanion(_ destinationURL: URL, fileName: String) throws -> URL? {
+        guard fileManager.fileExists(atPath: destinationURL.path) else { return nil }
+        let backupURL = destinationURL.deletingLastPathComponent()
+            .appendingPathComponent(".\(fileName).rollback-\(UUID().uuidString).tmp")
+        let result = renamePaths(destinationURL.path, backupURL.path)
+        guard result == 0 else {
+            let detail = String(cString: strerror(errno))
+            throw InstallError.publishFailed(
+                "park(\(destinationURL.path) -> \(backupURL.path)): \(detail)"
+            )
+        }
+        return backupURL
+    }
+
+    /// Restore parked companion inodes and drop any newly published copies.
+    private func rollbackPublishedCompanions(_ published: [PublishedCompanion]) {
+        for item in published.reversed() {
+            if fileManager.fileExists(atPath: item.destinationURL.path) {
+                let orphan = item.destinationURL.deletingLastPathComponent()
+                    .appendingPathComponent(".\(item.fileName).orphan-\(UUID().uuidString).tmp")
+                if renamePaths(item.destinationURL.path, orphan.path) == 0 {
+                    try? fileManager.removeItem(at: orphan)
+                } else {
+                    try? fileManager.removeItem(at: item.destinationURL)
+                }
+            }
+            if let backup = item.backupURL, fileManager.fileExists(atPath: backup.path) {
+                _ = renamePaths(backup.path, item.destinationURL.path)
+            }
+        }
+    }
+
+    /// After post-publish verify succeeds, parked previous dest + companions
+    /// are no longer needed.
+    private func dropCompanionBackups(_ published: [PublishedCompanion]) {
+        for item in published {
+            if let backup = item.backupURL {
+                try? fileManager.removeItem(at: backup)
+            }
+        }
+    }
+
+    /// Parse `otool -L` stdout into load commands. Header lines (`path:`) skipped.
+    public static func parseOtoolL(_ output: String) -> [LinkedLibrary] {
+        var libraries: [LinkedLibrary] = []
+        for raw in output.split(whereSeparator: \.isNewline) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty {
+                continue
+            }
+            if line.hasSuffix(":") {
+                continue
+            }
+            guard let paren = line.firstIndex(of: "(") else { continue }
+            let name = line[..<paren].trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { continue }
+            let meta = line[paren...]
+            libraries.append(
+                LinkedLibrary(installName: String(name), isWeak: meta.contains("weak"))
+            )
+        }
+        return libraries
+    }
+
+    /// Required (non-weak) libraries that would not resolve after publish.
+    /// Adjacent names may be satisfied by the source directory (copied in
+    /// HAB-626) or by an already-installed companion next to the destination.
+    public static func requiredLibraryGaps(
+        _ libraries: [LinkedLibrary],
+        adjacentDirectory: URL,
+        sourceDirectory: URL? = nil,
+        fileExists: (String) -> Bool
+    ) -> [LinkedLibrary] {
+        libraries.filter { library in
+            if library.isWeak {
+                return false
+            }
+            if library.isSystem {
+                return false
+            }
+            if let name = library.adjacentFileName {
+                if let sourceDirectory {
+                    let sourceAdjacent = sourceDirectory.appendingPathComponent(name)
+                    if fileExists(sourceAdjacent.path) {
+                        return false
+                    }
+                }
+                let adjacent = adjacentDirectory.appendingPathComponent(name)
+                return !fileExists(adjacent.path)
+            }
+            if library.isRuntimeRelative {
+                // `@rpath/subdir/lib.dylib` — we do not copy directory trees.
+                return true
+            }
+            // Absolute non-system path: dyld can still load it if it exists.
+            return !fileExists(library.installName)
+        }
+    }
+}

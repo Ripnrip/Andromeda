@@ -1,7 +1,9 @@
 import AndromedaBrand
 import AndromedaCore
 import AndromedaGateway
+import AndromedaHostOps
 import ArgumentParser
+import Darwin
 import Foundation
 import Logging
 
@@ -11,7 +13,7 @@ struct Andromeda: AsyncParsableCommand {
         commandName: "andromeda",
         abstract: "Andromeda — Swift-native control plane and Hummingbird model gateway.",
         version: AndromedaVersion.string,
-        subcommands: [Serve.self, Status.self, Brand.self, MCPHubCommand.self],
+        subcommands: [Serve.self, Status.self, Brand.self, InstallCLI.self, InstallApp.self, InstallLaunchAgent.self, MCPHubCommand.self],
         defaultSubcommand: Status.self
     )
 }
@@ -98,9 +100,15 @@ struct Serve: AsyncParsableCommand {
 
     func run() async throws {
         var config = try GatewayConfig.loadFromEnvironment()
-        if let host { config.host = host }
-        if let port { config.port = port }
-        if let strategy { config.cacheStrategy = strategy }
+        if let host {
+            config.host = host
+        }
+        if let port {
+            config.port = port
+        }
+        if let strategy {
+            config.cacheStrategy = strategy
+        }
         try config.validate()
         let resolvedLogLevel = Self.logLevel(from: config.logLevel)
 
@@ -138,5 +146,250 @@ struct Serve: AsyncParsableCommand {
         case "critical": .critical
         default: .info
         }
+    }
+}
+
+/// BIN-101 slice · HAB-606 prevention: fail-closed atomic install of a built
+/// executable (fresh inode → ad-hoc re-sign → strict verify → atomic rename).
+///
+/// HAB-606: freshly copied SwiftPM binaries published at their final path
+/// before their post-copy signature settled were SIGKILLed by the macOS 26
+/// signing monitor (Taskgated Invalid Signature / Invalid Page). This command
+/// stages and signs a fresh inode next to the destination and only then
+/// renames it into place, so consumers never observe an unsigned inode.
+struct InstallCLI: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "install-cli",
+        abstract: "Atomically install a built executable: stage fresh inode, re-sign, verify, rename.",
+        discussion: """
+        Fail-closed install transaction (HAB-606 prevention, BIN-101 slice).
+
+        The destination is never written in place: a staging copy with a fresh
+        inode is ad-hoc re-signed and strictly verified next to the destination,
+        then atomically renamed into it. Required adjacent rpath dylibs found
+        next to the source are staged, re-signed, and published beside the
+        destination (HAB-626); missing required companions fail closed (HAB-625).
+        Post-publish verify covers dest AND each companion; failure restores
+        parked dest + companions (HAB-629 / HAB-631). Any failure before
+        publish leaves the destination binary untouched.
+        """
+    )
+
+    @Option(help: "Built executable to install (e.g. .build/release/andromeda).")
+    var source: String
+
+    @Option(help: "Final install path (e.g. ~/.local/bin/andromeda). Parent directories are created.")
+    var destination: String
+
+    func run() async throws {
+        let installer = BinaryInstaller()
+        let report = try await installer.install(
+            source: URL(fileURLWithPath: source),
+            destination: URL(fileURLWithPath: (destination as NSString).expandingTildeInPath)
+        )
+        print(report)
+    }
+}
+
+/// BIN-101 slice · HAB-621: fail-closed atomic install of a minimal `.app`
+/// bundle (stage tree → strip leftover sigs → `codesign --force --deep` →
+/// `--verify --deep --strict` → atomic replace).
+///
+/// Companion to `install-cli` (bare Mach-O). Does **not** open the app, does
+/// **not** install LaunchAgents, and does **not** default to `~/Applications`
+/// — callers pass `--destination` explicitly.
+struct InstallApp: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "install-app",
+        abstract: "Atomically install a built executable as a signed .app bundle.",
+        discussion: """
+        Fail-closed .app install transaction (HAB-621 / HAB-630 / HAB-671 / HAB-673 / HAB-675, BIN-101 slice).
+
+        Assembles Contents/MacOS + Info.plist at a staging .app next to the
+        destination, inspects the inner executable with otool -L, then BFS
+        otool -L source-adjacent companions (HAB-675). Copies required rpath
+        dylibs (including nested adjacent names) into Contents/MacOS (fails
+        closed if a required non-system dylib is missing), ad-hoc deep-signs
+        and strictly verifies that staging tree, parks any previous dest
+        bundle, then publishes staging. A failed post-publish --deep --strict
+        dest verify or companion --strict verify restores the parked bundle
+        (HAB-630 / HAB-673). The live destination is never overwritten with
+        an unsigned tree.
+
+        Does not `open -a` and does not touch LaunchAgents.
+        """
+    )
+
+    @Option(help: "Built executable to wrap (e.g. .build/release/AndromedaHome).")
+    var source: String
+
+    @Option(help: "Final .app path (e.g. /tmp/AndromedaHome.app). Parent directories are created.")
+    var destination: String
+
+    @Option(name: .customLong("bundle-id"), help: "CFBundleIdentifier (e.g. com.andromeda.home).")
+    var bundleId: String
+
+    @Option(name: .customLong("display-name"), help: "CFBundleDisplayName. Defaults to the product name.")
+    var displayName: String?
+
+    @Option(help: "CFBundleExecutable / MacOS filename. Defaults to the source basename.")
+    var product: String?
+
+    @Option(help: "CFBundleShortVersionString.")
+    var version: String = "0.3"
+
+    @Option(help: "CFBundleVersion. Defaults to yyyyMMddHHmm.")
+    var build: String?
+
+    @Flag(name: .customLong("lsui-element"), help: "Set LSUIElement (accessory HUD, no Dock icon).")
+    var lsuiElement: Bool = false
+
+    func run() async throws {
+        let sourceURL = URL(fileURLWithPath: source)
+        let destURL = URL(fileURLWithPath: (destination as NSString).expandingTildeInPath)
+        let productName = product ?? sourceURL.lastPathComponent
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMddHHmm"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        let spec = AppBundleInstaller.Spec(
+            productName: productName,
+            bundleIdentifier: bundleId,
+            displayName: displayName ?? productName,
+            shortVersion: version,
+            buildVersion: build ?? formatter.string(from: Date()),
+            lsuiElement: lsuiElement
+        )
+        let installer = AppBundleInstaller()
+        let report = try await installer.install(source: sourceURL, destination: destURL, spec: spec)
+        print(report)
+    }
+}
+
+/// BIN-101 leftover · HAB-622: rewrite Studio HOME template in a LaunchAgent
+/// plist, write it to an explicit destination, optionally bootstrap.
+///
+/// Kickstart is opt-in (`--kickstart`) and requires `--bootstrap`. Heartbeat
+/// cron must not pass `--kickstart` (AGENTS.md: no invisible launchd jobs).
+/// Destination is required — this command never defaults to
+/// `~/Library/LaunchAgents`.
+struct InstallLaunchAgent: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "install-launch-agent",
+        abstract: "Render a LaunchAgent plist (HOME rewrite) and optionally bootstrap it.",
+        discussion: """
+        Fail-closed LaunchAgent install (HAB-622 / HAB-632 / HAB-676 / HAB-677 / HAB-678 / HAB-680 / HAB-681 / HAB-682 / HAB-683 / HAB-684 / HAB-686 / HAB-687 / HAB-688 / HAB-689 / HAB-690 / HAB-692 / HAB-693 / HAB-695 / HAB-702 / HAB-703 / HAB-705, BIN-101 leftover).
+
+        launchd does not expand $HOME/~. ops/*.plist bake the Studio home
+        template /Users/admin; this command rewrites that string to --home
+        (absolute) and writes the result to --destination.
+
+        Previous dest is parked until publish succeeds; a failed
+        bootstrap+load restores that inode (or leaves dest absent on a
+        fresh install). --bootstrap requires the rendered Program path to
+        exist and be executable before dest is parked (HAB-676). If that
+        Program is Mach-O it must also pass codesign --verify --strict
+        (HAB-677), have required adjacent rpath dylibs present (HAB-678),
+        and those companions must themselves pass codesign --verify
+        --strict (HAB-680) — unsigned Mach-O is Taskgated SIGKILL
+        (HAB-606) and a missing or unsigned companion dyld-fails; both
+        KeepAlive-hammer. If WorkingDirectory is present it must be an
+        absolute existing directory (HAB-681): bootstrap can return 0
+        when chdir would fail. Missing key is allowed. If RootDirectory
+        is present it must be an absolute existing directory (HAB-693):
+        bootstrap can return 0 when chroot would fail. Missing key is
+        allowed. If StandardOutPath
+        / StandardErrorPath is present it must be absolute and must not
+        be a directory (HAB-682): bootstrap can return 0 when launchd
+        cannot open the log. Missing keys allowed. If StandardInPath
+        is present it must be an absolute existing non-directory file
+        (HAB-692): bootstrap can return 0 when launchd cannot open
+        stdin (relative, missing, or a directory). Missing key allowed.
+        If
+        EnvironmentVariables.HOME is present it must be an absolute
+        existing directory (HAB-683): bootstrap can return 0 when HOME
+        is relative, missing, or a file, then KeepAlive hammers.
+        Missing key allowed. If EnvironmentVariables.TMPDIR is present
+        it must be an absolute existing directory (HAB-695): bootstrap
+        can return 0 when TMPDIR is relative, missing, or a file, then
+        libc tempfile fails and KeepAlive hammers. Missing key allowed.
+        If EnvironmentVariables.PATH is present,
+        every colon-component must be absolute (HAB-684): bootstrap can
+        return 0 when PATH contains relative, empty, $HOME, or ~
+        components (launchd does not expand them). Components need not
+        exist. Missing key allowed. /usr/bin/open is refused on
+        --bootstrap (HAB-686): LaunchServices open -a can inherit
+        Aqua/agent-shell env (paid API keys). /usr/bin/osascript is
+        refused on --bootstrap (HAB-687): osascript inherits the same
+        Aqua/agent-shell env. HAB-688 also refuses those binaries in
+        any ProgramArguments slot (arch/env trampolines). Scripts/shebangs
+        stay allowed. Paid provider API keys in EnvironmentVariables
+        (OPENROUTER_/ANTHROPIC_/OPENAI_/XAI_/GROQ_ prefixes plus
+        GOOGLE_API_KEY/GEMINI_API_KEY) are refused on --bootstrap
+        (HAB-689); HOME/PATH/LANG allowed. DYLD_* EnvironmentVariables
+        are refused on --bootstrap (HAB-690): ad-hoc signed Program
+        honors DYLD_INSERT_LIBRARIES / search-path keys after
+        HAB-677/680. If WatchPaths is present, each entry must be an
+        absolute existing path (HAB-702): bootstrap can return 0 when
+        a watch path is relative or missing. If QueueDirectories is
+        present, each entry must be an absolute existing directory
+        (HAB-702): bootstrap can return 0 when a queue directory is
+        relative, missing, or a file. Missing keys / empty arrays
+        allowed. If KeepAlive is a dictionary and PathState is
+        present, each PathState key must be an absolute path
+        (HAB-703): bootstrap can return 0 when a PathState key is
+        relative (launchd does not expand $HOME/~). Boolean KeepAlive
+        and missing PathState allowed. Existence is not required.
+        If Sockets is present, each SockPathName must be an
+        absolute path whose parent is an existing directory and
+        which is not a directory (HAB-705): bootstrap can return 0
+        when a Unix socket path is relative (launchd does not
+        expand $HOME/~), a directory, or has a missing parent.
+        TCP sockets without SockPathName allowed. Missing Sockets
+        / empty dict allowed.
+        Rewrite-only does not inspect those keys or
+        StandardInPath. Rewrite-only (no --bootstrap) stays a dry-run.
+        --bootstrap runs bootout then bootstrap (legacy load fallback).
+        --kickstart is opt-in and refused without --bootstrap. Cron must
+        not kickstart live HUD.
+        """
+    )
+
+    @Option(help: "Source plist (e.g. ops/com.andromeda.hud.plist).")
+    var source: String
+
+    @Option(help: "Destination plist path. Parent directories are created. No default.")
+    var destination: String
+
+    @Option(help: "Expected Label. Defaults to the Label inside the rendered plist.")
+    var label: String?
+
+    @Option(help: "Absolute HOME to rewrite the Studio template to. Defaults to the process home.")
+    var home: String?
+
+    @Option(help: "uid for gui/<uid> domain. Defaults to the process uid.")
+    var uid: UInt32?
+
+    @Flag(help: "launchctl bootout + bootstrap (legacy load fallback). Off by default.")
+    var bootstrap: Bool = false
+
+    @Flag(help: "launchctl kickstart -k after bootstrap. Off by default; requires --bootstrap.")
+    var kickstart: Bool = false
+
+    func run() async throws {
+        let sourceURL = URL(fileURLWithPath: (source as NSString).expandingTildeInPath)
+        let destURL = URL(fileURLWithPath: (destination as NSString).expandingTildeInPath)
+        let homePath = (home ?? NSHomeDirectory())
+        let resolvedUID = uid ?? UInt32(getuid())
+        let spec = LaunchAgentInstaller.Spec(
+            label: label,
+            home: homePath,
+            uid: resolvedUID,
+            bootstrap: bootstrap,
+            kickstart: kickstart
+        )
+        let installer = LaunchAgentInstaller()
+        let report = try await installer.install(source: sourceURL, destination: destURL, spec: spec)
+        print(report)
     }
 }
