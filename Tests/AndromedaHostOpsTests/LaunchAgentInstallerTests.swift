@@ -255,21 +255,34 @@ struct LaunchAgentInstallerTests {
         let dir = makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        let already = fixturePlist(home: LaunchAgentInstaller.studioHomeTemplate)
-        let source = writePlist(dir, name: "src.plist", body: already)
+        let sourceHomeTemplate = dir.appendingPathComponent("source-home").path
+        let input = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>Label</key>
+            <string>com.andromeda.fixture.agent</string>
+        </dict>
+        </plist>
+        """
+        #expect(!input.contains(sourceHomeTemplate))
+
+        let source = writePlist(dir, name: "src.plist", body: input)
         let destination = dir.appendingPathComponent("out.plist")
-        let installer = LaunchAgentInstaller(shell: RecordingShell())
+        let installer = LaunchAgentInstaller(
+            shell: RecordingShell(),
+            sourceHomeTemplate: sourceHomeTemplate
+        )
         let report = try await installer.install(
             source: source,
             destination: destination,
-            spec: LaunchAgentInstaller.Spec(
-                home: LaunchAgentInstaller.studioHomeTemplate,
-                uid: 501
-            )
+            spec: LaunchAgentInstaller.Spec(home: sourceHomeTemplate, uid: 501)
         )
+
         #expect(!report.rewritten)
         let rendered = try String(contentsOf: destination, encoding: .utf8)
-        #expect(rendered.contains(LaunchAgentInstaller.studioHomeTemplate))
+        #expect(rendered == input)
     }
 
     @Test

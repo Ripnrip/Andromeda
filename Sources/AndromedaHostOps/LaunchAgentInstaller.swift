@@ -329,13 +329,16 @@ public actor LaunchAgentInstaller {
 
     private let shell: any ShellExecuting
     private let fileManager: FileManager
+    private let sourceHomeTemplate: String
 
     public init(
         shell: any ShellExecuting = LiveShell(),
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        sourceHomeTemplate: String = LaunchAgentInstaller.studioHomeTemplate
     ) {
         self.shell = shell
         self.fileManager = fileManager
+        self.sourceHomeTemplate = sourceHomeTemplate
     }
 
     /// Render, write, and optionally bootstrap a LaunchAgent plist.
@@ -361,7 +364,7 @@ public actor LaunchAgentInstaller {
             throw InstallError.plistUnreadable(error.localizedDescription)
         }
 
-        let studio = Self.studioHomeTemplate
+        let studio = sourceHomeTemplate
         let rendered: String
         let rewritten: Bool
         if spec.home == studio {
