@@ -216,16 +216,36 @@ jobs:
         if: steps.scope.outputs.run_root == 'true' && steps.snapshots.outputs.record != 'true'
         env:
           ANDROMEDA_TEST_QDRANT_URL: ${{ steps.qdrant_verify.outputs.reachable == 'true' && steps.qdrant.outputs.url || '' }}
-        # Single worker: AppKit snapshot + MainActor HUD tests contend under default
-        # Swift Testing parallelism and flake debounce / project.state timeouts on CI.
+        # Serial by design: `--num-workers 1` does NOT serialize Swift Testing under
+        # `--parallel` (run 37174849882: dozens of tests sharing start/finish
+        # instants), so main-actor-heavy suites were starving wall-clock-sensitive
+        # neighbors (debounce 30s poll, project.state 15s watchdog) queued behind
+        # their runloop pumping. Fast, main-actor-light suites only here — the six
+        # heavy ones run in their own serial step below.
         # IMPORTANT: do not set SNAPSHOT_TESTING_RECORD="" — empty still counts as set
         # in ProcessInfo.environment and forces Point-Free record=.all (always fails).
         # When url is empty, live Qdrant tests fall back to localhost and skip if down.
         shell: bash
         run: |
           set -euo pipefail
-          args=(--parallel --num-workers 1 --skip HUDRecallE2ESnapshotTests --skip ProjectionEndToEndTests --skip QdrantProjectionTests)
+          args=(--skip HUDRecallE2ESnapshotTests --skip ProjectionEndToEndTests --skip QdrantProjectionTests --skip HUDViewSnapshotTests --skip HUDComponentSnapshotTests --skip HUDComponentsSnapshotTests --skip HUDResultsViewSnapshotTests --skip HUDChainHealthViewSnapshotTests --skip HUDIdentifierTests)
           swift test "${args[@]}"
+
+      # The main-actor monopolists — hosted-AX walks + AppKit snapshot rendering —
+      # hold the main thread for tens of seconds on hosted runners (the identifier
+      # walk alone ran 43.5s in 37174849882). They get a serial step of their own so
+      # they can never co-run with the ceiling-bound unit tests above. Type-name
+      # filters OR together; verified: exactly these 6 suites / 42 tests selected.
+      - name: Test (root package, main-actor heavy suites)
+        if: steps.scope.outputs.run_root == 'true' && steps.snapshots.outputs.record != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=$(swift test --filter HUDIdentifierTests --filter HUDViewSnapshotTests --filter HUDComponentSnapshotTests --filter HUDComponentsSnapshotTests --filter HUDResultsViewSnapshotTests --filter HUDChainHealthViewSnapshotTests)
+          printf '%s\n' "$out"
+          # Fake-green guard: a renamed suite would empty this filter set and pass
+          # with 0 tests — fail loudly instead. (grep, not rg — runners may lack rg.)
+          printf '%s\n' "$out" | grep -q 'in 6 suites' || { echo 'heavy-suite selection shrank — expected 6 suites; update the filters above'; exit 1; }
 
       # Compile gate BEFORE the tolerant record steps. Record mode fails the
       # test runs on purpose (continue-on-error below), which also swallows
@@ -250,7 +270,9 @@ jobs:
           # lane, going stale on runner bumps). The live-infra e2e suites stay
           # skipped: they own no upload-path baselines and their output would
           # be environment-dependent (live Qdrant/vault).
-          args=(--parallel --num-workers 1 --skip ProjectionEndToEndTests --skip QdrantProjectionTests)
+          # Serial: same starvation class as the lane above — record runs re-record
+          # every baseline-owning suite, heavy ones included, so --parallel is off.
+          args=(--skip ProjectionEndToEndTests --skip QdrantProjectionTests)
           swift test "${args[@]}"
         continue-on-error: true
 
