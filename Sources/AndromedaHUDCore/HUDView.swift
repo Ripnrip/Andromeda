@@ -32,6 +32,16 @@ public struct HUDView: View {
         self._searchVM = State(initialValue: MemorySearchViewModel(hudModel: model))
     }
 
+    /// App Control entry point (HAB-838): builds the view around a model the
+    /// process owns. AppDelegate hoists one `HUDModel` and hands it here so
+    /// the App Control plane and the glass share a single source of truth.
+    public init(model: HUDModel) {
+        self._isExpanded = State(initialValue: false)
+        self._searchQuery = State(initialValue: "")
+        self._model = State(initialValue: model)
+        self._searchVM = State(initialValue: MemorySearchViewModel(hudModel: model))
+    }
+
     private var resultsVisible: Bool {
         isExpanded && (
             model.lastOutcome.showsResultsPanel
@@ -53,6 +63,7 @@ public struct HUDView: View {
 
                 HStack(spacing: 8) {
                     HUDFleetPulseChip(pulse: model.fleetPulse)
+                        .hudIdentifier(.fleetPulse)
                         .onTapGesture { expandAndFocusSearch() }
 
                     Image(systemName: "sparkles")
@@ -67,6 +78,7 @@ public struct HUDView: View {
                         .frame(maxWidth: .infinity)
                         .accessibilityLabel("Memory command")
                         .accessibilityHint("Type recall, store, journal, infer.write, or project.state. Arrow keys move among results. Escape dismisses results.")
+                        .hudIdentifier(.searchField)
                         .onSubmit {
                             handleSubmit()
                         }
@@ -121,6 +133,7 @@ public struct HUDView: View {
                     .padding(.horizontal, 12)
                     .accessibilityLabel(feedback)
                     .accessibilityAddTraits(.updatesFrequently)
+                    .hudIdentifier(.feedback)
                     .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             }
 
@@ -149,6 +162,11 @@ public struct HUDView: View {
             .fixedSize(horizontal: false, vertical: resultsVisible)
         }
         .fixedSize(horizontal: true, vertical: true)
+        // `.contain` keeps the root's identifier from bleeding onto every
+        // descendant — macOS stamps a plain container identifier onto each
+        // child's AXIdentifier, shadowing their own.
+        .accessibilityElement(children: .contain)
+        .hudIdentifier(.root)
         .onChange(of: isSearchFocused) { _, newValue in
             if newValue {
                 isExpanded = true
@@ -161,6 +179,9 @@ public struct HUDView: View {
             expandAndFocusSearch()
         }
         .onChange(of: searchQuery) { oldValue, newValue in
+            // 🪞 Forward mirror (HAB-838): every typed character lands on the
+            // model so App Control's /state sees the live field.
+            model.fieldQuery = newValue
             selectedIndex = 0
             searchVM.updateQueryFromField(newValue)
             if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -171,6 +192,15 @@ public struct HUDView: View {
                 searchVM.cancelPendingSearch()
             } else if newValue != oldValue {
                 isExpanded = true
+            }
+        }
+        .onChange(of: model.fieldQuery) { _, newValue in
+            // 🪞 Reverse mirror (HAB-838): programmatic submits write the model
+            // field; reflect into the TextField so expand + live-search ride
+            // along exactly as if typed. Converges without looping —
+            // onChange only fires on real value changes.
+            if newValue != searchQuery {
+                searchQuery = newValue
             }
         }
         .onChange(of: model.lastOutcome) { _, _ in
@@ -334,6 +364,10 @@ struct HUDRecentQueriesView: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 4)
                 .accessibilityAddTraits(.isHeader)
+                // The pane identifier rides the header leaf: a container-level
+                // identifier this deep in the AX tree collapses on macOS, but
+                // leaf identifiers survive at any depth.
+                .hudIdentifier(.resultsRecent)
 
             ForEach(Array(visible.enumerated()), id: \.offset) { index, query in
                 Button {
@@ -360,6 +394,7 @@ struct HUDRecentQueriesView: View {
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: selectedIndex)
                 }
                 .buttonStyle(.plain)
+                .hudIdentifier(.resultsRecentItem)
                 .accessibilityLabel("Recent query: \(query)")
                 .accessibilityHint("Runs this query again")
                 .accessibilityAddTraits(index == selectedIndex ? [.isSelected, .isButton] : .isButton)
@@ -522,6 +557,7 @@ struct HUDStatusRow: View {
         .padding(.vertical, 14)
         .frame(minHeight: HUDResultsLayout.visibleMinHeight - 16, alignment: .center)
         .accessibilityElement(children: .combine)
+        .hudIdentifier(.resultsStatus)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(showsProgress ? .updatesFrequently : [])
     }
@@ -560,6 +596,15 @@ struct HUDProjectResultsView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
+                    // 🧭 Zero-size pane anchor: container identifiers this deep
+                    // in the hosted AX tree collapse on macOS, so the pane id
+                    // rides a dedicated marker leaf instead. Invisible, inert,
+                    // and targetable.
+                    Color.clear
+                        .frame(width: 0, height: 0)
+                        .accessibilityElement()
+                        .hudIdentifier(.resultsProjects)
+
                     ForEach(Array(projects.prefix(4))) { project in
                         projectBlock(project, flatItems: flatItems)
                     }
@@ -653,6 +698,7 @@ struct HUDProjectResultsView: View {
         }
         .buttonStyle(.plain)
         .id(globalIndex)
+        .hudIdentifier(.resultsProjectsItem)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(item.title), \(ProjectStatePanelModel.statusLabel(item.status))")
         .accessibilityAddTraits(globalIndex == selectedIndex ? [.isSelected, .isButton] : .isButton)
@@ -719,6 +765,7 @@ struct HUDMemoryHitRow: View {
             isHovering = hovering
         }
         .accessibilityElement(children: .combine)
+        .hudIdentifier(.resultsHit)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint(hit.path == nil ? "Copies narrative to clipboard" : "Opens file path")
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
