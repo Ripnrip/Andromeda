@@ -596,15 +596,6 @@ struct HUDProjectResultsView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    // 🧭 Zero-size pane anchor: container identifiers this deep
-                    // in the hosted AX tree collapse on macOS, so the pane id
-                    // rides a dedicated marker leaf instead. Invisible, inert,
-                    // and targetable.
-                    Color.clear
-                        .frame(width: 0, height: 0)
-                        .accessibilityElement()
-                        .hudIdentifier(.resultsProjects)
-
                     ForEach(Array(projects.prefix(4))) { project in
                         projectBlock(project, flatItems: flatItems)
                     }
@@ -612,6 +603,18 @@ struct HUDProjectResultsView: View {
                 .padding(.horizontal, 8)
                 .padding(.bottom, 12)
                 .padding(.top, 4)
+                // 🧭 Zero-size pane anchor, BACKGROUND so it can never spend
+                // layout: a 0×0 child inside a `spacing:` VStack still buys
+                // spacing on both sides (CI caught the 16px shift as pixel
+                // diffs on ProjectResults baselines). A background joins the
+                // AX tree but not the layout pass. Container ids this deep
+                // collapse on macOS; leaf ids survive at any depth.
+                .background {
+                    Color.clear
+                        .frame(width: 0, height: 0)
+                        .accessibilityElement()
+                        .hudIdentifier(.resultsProjects)
+                }
             }
             .frame(
                 minHeight: 120,
