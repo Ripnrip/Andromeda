@@ -13,6 +13,7 @@ let package = Package(
         .library(name: "AndromedaGateway", targets: ["AndromedaGateway"]),
         .library(name: "AndromedaHomeCore", targets: ["AndromedaHomeCore"]),
         .library(name: "AndromedaHUDCore", targets: ["AndromedaHUDCore"]),
+        .library(name: "AndromedaAppControl", targets: ["AndromedaAppControl"]),
         .library(name: "AndromedaDomain", targets: ["AndromedaDomain"]),
         .library(name: "AndromedaJournal", targets: ["AndromedaJournal"]),
         .library(name: "AndromedaMemory", targets: ["AndromedaMemory"]),
@@ -258,10 +259,25 @@ let package = Package(
                 .swiftLanguageMode(.v6),
             ]
         ),
+        .target(
+            name: "AndromedaAppControl",
+            dependencies: [
+                "AndromedaHUDCore",
+                "AndromedaMCPHub",
+                .product(name: "MemoryKit", package: "MemoryKit"),
+                .product(name: "Hummingbird", package: "hummingbird"),
+                .product(name: "Logging", package: "swift-log"),
+            ],
+            path: "Sources/AndromedaAppControl",
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
         .executableTarget(
             name: "AndromedaHUD",
             dependencies: [
                 "AndromedaHUDCore",
+                "AndromedaAppControl",
             ],
             path: "Sources/AndromedaHUD",
             swiftSettings: [
@@ -286,6 +302,19 @@ let package = Package(
             exclude: [
                 "__Snapshots__",
             ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
+        .testTarget(
+            name: "AndromedaAppControlTests",
+            dependencies: [
+                "AndromedaAppControl",
+                "AndromedaHUDCore",
+                .product(name: "MemoryKit", package: "MemoryKit"),
+                .product(name: "HummingbirdTesting", package: "hummingbird"),
+            ],
+            path: "Tests/AndromedaAppControlTests",
             swiftSettings: [
                 .swiftLanguageMode(.v6),
             ]
