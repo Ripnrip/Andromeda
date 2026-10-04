@@ -280,6 +280,40 @@ struct AndromedaMCPTests {
         #expect(responses[1].contains("-32700"))
     }
 
+    @Test("request missing jsonrpc 2.0 is an invalid request, not dispatched")
+    func missingJSONRPCVersionRejected() throws {
+        // The envelope names its version; a request that omits it must not
+        // silently dispatch (issue #52 §8 — the field was decoded but never
+        // validated, so a version-less or wrong-version frame was answered
+        // as if well-formed).
+        let responses = try runExchange([
+            #"{"id":11,"method":"tools/list"}"#,
+            #"{"jsonrpc":"1.0","id":12,"method":"tools/list"}"#,
+        ], fixtureName: "jsonrpc-version")
+        #expect(responses.count == 2, "got \(responses.count): \(responses)")
+        #expect(responses[0].contains("-32600"), "got: \(responses[0])")
+        #expect(responses[0].contains(#""id":11"#), "got: \(responses[0])")
+        #expect(responses[1].contains("-32600"), "got: \(responses[1])")
+        #expect(responses[1].contains(#""id":12"#), "got: \(responses[1])")
+    }
+
+    @Test("valid JSON with an invalid envelope is -32600 and salvages the id")
+    func invalidEnvelopeSalvagesID() throws {
+        // -32700 is reserved for non-JSON bytes. A well-formed JSON object
+        // that fails the envelope shape (here: no `method`) is an INVALID
+        // REQUEST (-32600), and the client's id must be echoed so it can
+        // correlate the failure instead of orphaning a request it already
+        // sent (issue #52 §8 — first-pass failures were collapsed to -32700
+        // with a null id).
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":5,"params":{}}"#,
+        ], fixtureName: "envelope-salvage")
+        #expect(responses.count == 1, "got \(responses.count): \(responses)")
+        #expect(responses[0].contains("-32600"), "got: \(responses[0])")
+        #expect(!responses[0].contains("-32700"), "got: \(responses[0])")
+        #expect(responses[0].contains(#""id":5"#), "got: \(responses[0])")
+    }
+
     @Test("symlinks pivoting outside the workspace root are rejected")
     func symlinkContainment() throws {
         let outside = URL(fileURLWithPath: NSTemporaryDirectory())
