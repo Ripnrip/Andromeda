@@ -138,7 +138,7 @@ struct AppControlRouteTests {
         }
     }
 
-    @Test("unknown action is a 400 naming the catalogue")
+    @Test("unknown action is a 422 naming the catalogue")
     func unknownActionRejected() async throws {
         try await makeApp().test(.router) { client in
             let body = ByteBuffer(data: Data(#"{"action":"hud.self-destruct"}"#.utf8))
@@ -148,7 +148,7 @@ struct AppControlRouteTests {
                 headers: [.contentType: "application/json"],
                 body: body
             )
-            #expect(response.status == .badRequest)
+            #expect(response.status == .unprocessableContent)
             let text = String(buffer: response.body)
             #expect(text.contains("unknown action 'hud.self-destruct'"))
             // The whole catalogue, sorted — the caller never guesses.
@@ -172,7 +172,7 @@ struct AppControlRouteTests {
                 headers: [.contentType: "application/json"],
                 body: body
             )
-            #expect(response.status == .badRequest)
+            #expect(response.status == .unprocessableContent)
             let decoded = try JSONDecoder().decode([String: String].self, from: Data(response.body.readableBytesView))
             #expect(decoded["error"]?.contains(hostile) == true)
         }
@@ -182,6 +182,20 @@ struct AppControlRouteTests {
     func garbageBodyRejected() async throws {
         try await makeApp().test(.router) { client in
             let body = ByteBuffer(data: Data("not json at all".utf8))
+            let response = try await client.execute(
+                uri: "/action",
+                method: .post,
+                headers: [.contentType: "application/json"],
+                body: body
+            )
+            #expect(response.status == .badRequest)
+        }
+    }
+
+    @Test("missing action field is a 400 malformed payload")
+    func missingActionRejected() async throws {
+        try await makeApp().test(.router) { client in
+            let body = ByteBuffer(data: Data("{}".utf8))
             let response = try await client.execute(
                 uri: "/action",
                 method: .post,

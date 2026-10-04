@@ -162,6 +162,18 @@ struct HUDIdentifierTests {
         )
     }
 
+    private func expectHygienicIdentifiers(
+        _ identifiers: Set<String>,
+        excluding rawValues: [String] = []
+    ) {
+        for identifier in identifiers where identifier.hasPrefix("hud") {
+            #expect(HUDIdentifier.recognizes(identifier), "unregistered identifier on glass: \(identifier)")
+            for rawValue in rawValues where !rawValue.isEmpty {
+                #expect(!identifier.contains(rawValue), "raw value leaked into identifier: \(rawValue)")
+            }
+        }
+    }
+
     // MARK: - Coverage per state
 
     @Test("idle pill carries root, field, and fleet pulse identifiers")
@@ -180,33 +192,54 @@ struct HUDIdentifierTests {
     @Test("recalled outcome carries container + hit identifiers")
     func recalledIdentifiers() {
         let model = makeModel()
-        model.lastOutcome = .recalled(hits: [
-            MemoryHit(narrative: "First memory", source: .hotStore, score: 10.0),
-            MemoryHit(narrative: "Second memory", project: "andromeda", source: .vault, score: 8.0),
-        ])
+        let hits = [
+            MemoryHit(contentHash: "content-alpha", narrative: "First private memory", source: .hotStore, score: 10.0),
+            MemoryHit(contentHash: "content-beta", narrative: "Second private memory", project: "andromeda", source: .vault, score: 8.0),
+        ]
+        model.lastOutcome = .recalled(hits: hits)
         let found = identifiers(
             in: HUDView(isExpanded: true, searchQuery: "recall", model: model).padding(),
             frame: CGSize(width: 400, height: 320)
         )
         #expect(found.contains(HUDIdentifier.root.rawValue))
         #expect(found.contains(HUDIdentifier.resultsContainer.rawValue))
-        #expect(found.contains(HUDIdentifier.resultsHit.rawValue))
+        expectHygienicIdentifiers(
+            found,
+            excluding: hits.flatMap { hit in
+                [hit.id.uuidString.lowercased(), hit.contentHash ?? "", hit.narrative, hit.project ?? ""]
+            }
+        )
+        for hit in hits {
+            let identifier = HUDIdentifier.memoryHit(hit.id).rawValue
+            #expect(found.contains(identifier))
+            #expect(!identifier.contains(hit.id.uuidString.lowercased()))
+            #expect(!identifier.contains(hit.narrative))
+            if let project = hit.project {
+                #expect(!identifier.contains(project))
+            }
+        }
     }
 
     @Test("recent queries carry list + per-item identifiers")
     func recentIdentifiers() {
         HUDModel.clearPersistedRecentQueries()
+        let queries = ["project.state", "recall fleet observe"]
         let seeded = HUDModel(
             projectSurface: InMemoryProjectStateStore(),
             memorySessionReady: true,
-            recentQueries: ["project.state", "recall fleet observe"]
+            recentQueries: queries
         )
         let found = identifiers(
             in: HUDView(isExpanded: true, searchQuery: "", model: seeded).padding(),
             frame: CGSize(width: 400, height: 260)
         )
         #expect(found.contains(HUDIdentifier.resultsRecent.rawValue))
-        #expect(found.contains(HUDIdentifier.resultsRecentItem.rawValue))
+        expectHygienicIdentifiers(found, excluding: queries)
+        for query in queries {
+            let identifier = HUDIdentifier.recentQuery(query).rawValue
+            #expect(found.contains(identifier))
+            #expect(!identifier.contains(query))
+        }
     }
 
     @Test("failed outcome carries the status row identifier")
@@ -219,19 +252,22 @@ struct HUDIdentifierTests {
         )
         #expect(found.contains(HUDIdentifier.resultsContainer.rawValue))
         #expect(found.contains(HUDIdentifier.resultsStatus.rawValue))
+        expectHygienicIdentifiers(found, excluding: ["Memory store unavailable"])
     }
 
     @Test("project.state results carry pane + per-item identifiers")
     func projectIdentifiers() {
         let model = makeModel()
+        let projectID: ProjectState.ID = "andromeda"
+        let items = [
+            ProjectStateItem(id: "HAB-838", title: "Private App Control UI", status: .active),
+            ProjectStateItem(id: "HAB-557", title: "Private ticketing nudge", status: .backlog),
+        ]
         model.lastOutcome = .projects(states: [
             ProjectState(
-                id: "andromeda",
+                id: projectID,
                 title: "Andromeda",
-                items: [
-                    ProjectStateItem(id: "hab-838", title: "App Control UI", status: .active),
-                    ProjectStateItem(id: "hab-557", title: "Ticketing nudge", status: .backlog),
-                ]
+                items: items
             ),
         ])
         let found = identifiers(
@@ -240,7 +276,52 @@ struct HUDIdentifierTests {
         )
         #expect(found.contains(HUDIdentifier.resultsContainer.rawValue))
         #expect(found.contains(HUDIdentifier.resultsProjects.rawValue))
-        #expect(found.contains(HUDIdentifier.resultsProjectsItem.rawValue))
+        expectHygienicIdentifiers(
+            found,
+            excluding: ["andromeda", "Andromeda"] + items.flatMap { [$0.id.rawValue, $0.title] }
+        )
+        for item in items {
+            let identifier = HUDIdentifier.projectItem(projectID: projectID, itemID: item.id).rawValue
+            #expect(found.contains(identifier))
+            #expect(!identifier.contains(item.id.rawValue))
+            #expect(!identifier.contains(item.title))
+        }
+    }
+
+    @Test("project item identifiers include project scope")
+    func projectItemIdentifiersIncludeProjectScope() {
+        let model = makeModel()
+        let sharedItemID: ProjectStateItem.ID = "shared-item"
+        let projects = [
+            ProjectState(
+                id: "project-alpha",
+                title: "Private Alpha",
+                items: [ProjectStateItem(id: sharedItemID, title: "Alpha task", status: .active)]
+            ),
+            ProjectState(
+                id: "project-beta",
+                title: "Private Beta",
+                items: [ProjectStateItem(id: sharedItemID, title: "Beta task", status: .backlog)]
+            ),
+        ]
+        model.lastOutcome = .projects(states: projects)
+
+        let found = identifiers(
+            in: HUDView(isExpanded: true, searchQuery: "project.state", model: model).padding(),
+            frame: CGSize(width: 400, height: 360)
+        )
+        let expected = projects.map {
+            HUDIdentifier.projectItem(projectID: $0.id, itemID: sharedItemID).rawValue
+        }
+        #expect(Set(expected).count == projects.count)
+        for identifier in expected {
+            #expect(found.contains(identifier))
+        }
+        expectHygienicIdentifiers(
+            found,
+            excluding: projects.flatMap { [$0.id.rawValue, $0.title] }
+                + [sharedItemID.rawValue, "Alpha task", "Beta task"]
+        )
     }
 
     @Test("activation feedback carries its identifier")
@@ -252,6 +333,7 @@ struct HUDIdentifierTests {
             frame: CGSize(width: 400, height: 200)
         )
         #expect(found.contains(HUDIdentifier.feedback.rawValue))
+        expectHygienicIdentifiers(found, excluding: ["Copied to clipboard"])
     }
 
     @Test("identifier scheme is dotted hud.* — no legacy camelCase survivors")
@@ -260,13 +342,124 @@ struct HUDIdentifierTests {
             in: HUDView(model: makeModel()).padding(),
             frame: CGSize(width: 400, height: 100)
         )
-        // 📜 The catalogue is the whole law: every hud-prefixed identifier on
-        // glass must be a member — legacy spellings (hudResults.*) and rogue
-        // literals fail here by construction, because the enum is the only
-        // way views can stamp one.
-        let catalogue = Set(HUDIdentifier.allCases.map(\.rawValue))
-        for identifier in found where identifier.hasPrefix("hud") {
-            #expect(catalogue.contains(identifier), "unregistered identifier on glass: \(identifier)")
+        // 📜 Static catalogue entries and opaque factory namespaces are the
+        // whole law. Legacy spellings (hudResults.*), raw row content, and
+        // rogue literals fail here.
+        expectHygienicIdentifiers(found)
+    }
+
+    @Test("row identifier factories are stable, distinct, and opaque")
+    func rowIdentifierFactoriesAreOpaque() throws {
+        let queries = ["recall private launch narrative", "project.state private"]
+        let recent = queries.map(HUDIdentifier.recentQuery)
+        #expect(recent == queries.map(HUDIdentifier.recentQuery))
+        #expect(Set(recent).count == queries.count)
+        for (identifier, query) in zip(recent, queries) {
+            #expect(!identifier.rawValue.contains(query))
+            #expect(HUDIdentifier.recognizes(identifier.rawValue))
         }
+
+        let firstID = try #require(UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
+        let secondID = try #require(UUID(uuidString: "22222222-2222-2222-2222-222222222222"))
+        let hits = [
+            MemoryHit(
+                id: firstID,
+                narrative: "Private memory narrative",
+                project: "private-project",
+                source: .hotStore,
+                score: 1
+            ),
+            MemoryHit(
+                id: secondID,
+                narrative: "Another private narrative",
+                project: "secret-project",
+                source: .vault,
+                score: 2
+            ),
+        ]
+        let memory = hits.map { HUDIdentifier.memoryHit($0.id) }
+        #expect(Set(memory).count == hits.count)
+        for (identifier, hit) in zip(memory, hits) {
+            #expect(identifier == HUDIdentifier.memoryHit(hit.id))
+            #expect(!identifier.rawValue.contains(hit.id.uuidString.lowercased()))
+            #expect(!identifier.rawValue.contains(hit.narrative))
+            #expect(!identifier.rawValue.contains(hit.project ?? ""))
+            #expect(HUDIdentifier.recognizes(identifier.rawValue))
+        }
+
+        let items = [
+            ProjectStateItem(id: "HAB-838", title: "Private project title", status: .active),
+            ProjectStateItem(id: "HAB-557", title: "Secret project title", status: .backlog),
+        ]
+        let projectID: ProjectState.ID = "private-project"
+        let projects = items.map { HUDIdentifier.projectItem(projectID: projectID, itemID: $0.id) }
+        #expect(Set(projects).count == items.count)
+        for (identifier, item) in zip(projects, items) {
+            #expect(identifier == HUDIdentifier.projectItem(projectID: projectID, itemID: item.id))
+            #expect(!identifier.rawValue.contains(projectID.rawValue))
+            #expect(!identifier.rawValue.contains(item.id.rawValue))
+            #expect(!identifier.rawValue.contains(item.title))
+            #expect(!identifier.rawValue.contains("HAB"))
+            #expect(HUDIdentifier.recognizes(identifier.rawValue))
+        }
+
+        let reusedItemID: ProjectStateItem.ID = "shared-item"
+        let firstScoped = HUDIdentifier.projectItem(projectID: "project-alpha", itemID: reusedItemID)
+        let secondScoped = HUDIdentifier.projectItem(projectID: "project-beta", itemID: reusedItemID)
+        #expect(firstScoped != secondScoped)
+
+        #expect(Set(recent + memory + projects).count == recent.count + memory.count + projects.count)
+        #expect(!HUDIdentifier.recognizes("hud.results.recent.item.raw-query"))
+    }
+
+    @Test("row identifiers survive source reordering")
+    func rowIdentifiersSurviveReordering() throws {
+        let queries = ["first private query", "second private query"]
+        let rowsBefore = HUDRecentQueriesView.rows(for: queries)
+        let rowsAfter = HUDRecentQueriesView.rows(for: Array(queries.reversed()))
+        let identityBefore = Dictionary(uniqueKeysWithValues: rowsBefore.map { ($0.query, $0.id) })
+        let identityAfter = Dictionary(uniqueKeysWithValues: rowsAfter.map { ($0.query, $0.id) })
+        #expect(identityBefore == identityAfter)
+        #expect(rowsBefore.map(\.id) != rowsAfter.map(\.id))
+
+        let hitIDs = [
+            try #require(UUID(uuidString: "33333333-3333-3333-3333-333333333333")),
+            try #require(UUID(uuidString: "44444444-4444-4444-4444-444444444444")),
+        ]
+        let memoryIDs = hitIDs.map(HUDIdentifier.memoryHit)
+        #expect(Array(memoryIDs.reversed()) == hitIDs.reversed().map(HUDIdentifier.memoryHit))
+
+        let itemIDs: [ProjectStateItem.ID] = ["HAB-838", "HAB-557"]
+        let projectID: ProjectState.ID = "andromeda"
+        let projectIDs = itemIDs.map { HUDIdentifier.projectItem(projectID: projectID, itemID: $0) }
+        #expect(
+            Array(projectIDs.reversed())
+                == itemIDs.reversed().map { HUDIdentifier.projectItem(projectID: projectID, itemID: $0) }
+        )
+    }
+
+    @Test("memory row identifiers do not depend on narrative or ranking")
+    func memoryRowIdentifiersIgnoreRankingInputs() throws {
+        let hitID = try #require(UUID(uuidString: "55555555-5555-5555-5555-555555555555"))
+        let quiet = MemoryHit(
+            id: hitID,
+            memoryID: UUID(uuidString: "66666666-6666-6666-6666-666666666666"),
+            contentHash: "sha256:stable",
+            narrative: "Quiet narrative",
+            source: .hotStore,
+            score: 0.5
+        )
+        // Same durable identity, different narrative/project/score/source.
+        let loud = MemoryHit(
+            id: hitID,
+            memoryID: quiet.memoryID,
+            contentHash: quiet.contentHash,
+            narrative: "Totally different narrative",
+            project: "some-project",
+            source: .vault,
+            score: 99
+        )
+        #expect(HUDIdentifier.memoryHit(quiet.id) == HUDIdentifier.memoryHit(loud.id))
+        #expect(HUDIdentifier.memoryHit(hitID) != HUDIdentifier.memoryHit(UUID()))
     }
 }

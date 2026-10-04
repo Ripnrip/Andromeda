@@ -66,19 +66,36 @@ version.
 | `hud.refresh-fleet-pulse` | `refreshFleetPulse()` — the boot refresh |
 
 Typed `AppControlVerb` (`CaseIterable`) + `AppControlAction` (payloads) — one
-list; `GET /actions` and the unknown-action 400 generate from it. Unknown
-actions get a loud 400 naming the whole catalogue. `hud.submit-query` without
-a non-empty `query` is a 400 payload error, not an unknown action.
+list; `GET /actions` and unknown-action responses generate from it. Unknown
+action names are syntactically valid but semantically unprocessable, so they
+get a loud **422** naming the whole catalogue. Missing/invalid JSON fields and
+`hud.submit-query` without a non-empty `query` remain **400** payload errors.
 
 ## Identifiers (pillar 1 — the glass)
 
-`hud.<pane>.<control>`, stamped via `.hudIdentifier(_:)` from the
-`HUDIdentifier` enum (`CaseIterable`, AndromedaHUDCore) — the single source
-of spelling. Views can only stamp catalogue members, and `HUDIdentifierTests`
-walks the real AppKit AX tree over `NSHostingView` to prove every identifier
-materializes (its hygiene test fails on any unregistered `hud*` string on
-glass). The rawValues are the wire contract; renaming one migrates every
-client.
+`hud.<pane>.<control>`, stamped via `.hudIdentifier(_:)` from the typed
+`HUDIdentifier` catalogue (AndromedaHUDCore) — the single source of spelling.
+Static surfaces use named constants. Data-backed rows use stable opaque
+factories:
+
+- `recentQuery(_:)` hashes the query and also supplies stable `ForEach`
+  identity, so reordering recent queries does not retarget a row.
+- `memoryHit(_:)` hashes `MemoryHit.ID`, so a row keeps its identity across
+  re-render and reorder. **Bounded stability:** `RetrievalService` mints a
+  fresh `MemoryHit.id` per vault recall, so a *vault* row's identifier changes
+  when the query is re-run. Durable hot-store hits keep theirs. Making vault
+  identity refresh-stable is a MemoryKit change, deliberately not smuggled
+  into this slice.
+- `projectItem(projectID:itemID:)` hashes the typed `ProjectState.ID` plus
+  its project-scoped `ProjectStateItem.ID`.
+
+The factories emit a namespaced 96-bit SHA-256 prefix; raw queries, memory
+narratives/projects, project titles, and tracker IDs such as `HAB-*` never
+enter AX identifiers. `HUDIdentifierTests` proves distinctness and reorder
+stability, then walks the real AppKit AX tree over `NSHostingView` to prove
+every identifier materializes. Its hygiene test rejects unregistered `hud*`
+strings on glass. The resulting strings are the wire contract; renaming a
+namespace migrates every client.
 
 **macOS placement law** (empirical, macOS 26 hosted-AX tree): SwiftUI
 identifiers under `NSHostingView` surface only to a real AX client (the

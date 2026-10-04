@@ -73,7 +73,7 @@ public struct AppControlRoute: Sendable {
             case let .missingPayload(verb):
                 return Self.badRequest("action '\(verb.rawValue)' requires a non-empty \"query\" payload")
             case let .unknown(name):
-                return Self.badRequest(Self.unknownActionMessage(name))
+                return Self.unprocessableContent(Self.unknownActionMessage(name))
             }
             let outcome = await actions.dispatch(action)
             Self.logOutcome(outcome, action: action, logger: logger)
@@ -107,7 +107,7 @@ public struct AppControlRoute: Sendable {
         }
     }
 
-    /// 400 body naming the full catalogue — the caller should never have to
+    /// 422 body naming the full catalogue — the caller should never have to
     /// guess what exists.
     private static func unknownActionMessage(_ name: String) -> String {
         let known = AppControlVerb.allCases.map(\.rawValue).sorted().joined(separator: ", ")
@@ -115,9 +115,10 @@ public struct AppControlRoute: Sendable {
     }
 
     /// Decoded action from a request body: `.valid` carries the typed case,
-    /// `.unparseable`/`.unknown`/`.missingPayload` carry the failure for the
-    /// 400. `submit-query` without a non-empty `query` is a payload error,
-    /// not an unknown action.
+    /// `.unparseable`/`.missingPayload` stay malformed-payload 400s;
+    /// `.unknown` is syntactically valid but semantically unprocessable (422).
+    /// `submit-query` without a non-empty `query` is a payload error, not an
+    /// unknown action.
     private enum DecodedAction {
         case valid(AppControlAction)
         case unparseable
@@ -173,6 +174,10 @@ public struct AppControlRoute: Sendable {
 
     private static func badRequest(_ message: String) -> Response {
         errorResponse(message, status: .badRequest)
+    }
+
+    private static func unprocessableContent(_ message: String) -> Response {
+        errorResponse(message, status: .unprocessableContent)
     }
 
     private static func internalError() -> Response {
