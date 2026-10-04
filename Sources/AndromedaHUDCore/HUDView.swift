@@ -349,14 +349,28 @@ struct HUDFleetPulseChip: View {
 
 // MARK: - Recent queries
 
+struct HUDRecentQueryRow: Identifiable {
+    let index: Int
+    let query: String
+
+    var id: HUDIdentifier { .recentQuery(query) }
+}
+
 struct HUDRecentQueriesView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let queries: [String]
     var selectedIndex: Int = 0
     var onSelect: (String) -> Void
 
+    static func rows(for queries: [String]) -> [HUDRecentQueryRow] {
+        queries
+            .prefix(HUDSelectionNavigation.recentQueriesVisibleLimit)
+            .enumerated()
+            .map { HUDRecentQueryRow(index: $0.offset, query: $0.element) }
+    }
+
     var body: some View {
-        let visible = Array(queries.prefix(HUDSelectionNavigation.recentQueriesVisibleLimit))
+        let visible = Self.rows(for: queries)
         VStack(alignment: .leading, spacing: 4) {
             Text("Recent")
                 .font(.caption2)
@@ -369,16 +383,16 @@ struct HUDRecentQueriesView: View {
                 // leaf identifiers survive at any depth.
                 .hudIdentifier(.resultsRecent)
 
-            ForEach(Array(visible.enumerated()), id: \.offset) { index, query in
+            ForEach(visible) { row in
                 Button {
-                    onSelect(query)
+                    onSelect(row.query)
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "clock.arrow.circlepath")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .accessibilityHidden(true)
-                        Text(query)
+                        Text(row.query)
                             .font(.caption)
                             .lineLimit(1)
                             .foregroundStyle(.primary)
@@ -388,16 +402,16 @@ struct HUDRecentQueriesView: View {
                     .padding(.vertical, 6)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(index == selectedIndex ? Color.andromedaSelection : .clear)
+                            .fill(row.index == selectedIndex ? Color.andromedaSelection : .clear)
                     )
                     .contentShape(Rectangle())
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: selectedIndex)
                 }
                 .buttonStyle(.plain)
-                .hudIdentifier(.resultsRecentItem)
-                .accessibilityLabel("Recent query: \(query)")
+                .hudIdentifier(row.id)
+                .accessibilityLabel("Recent query: \(row.query)")
                 .accessibilityHint("Runs this query again")
-                .accessibilityAddTraits(index == selectedIndex ? [.isSelected, .isButton] : .isButton)
+                .accessibilityAddTraits(row.index == selectedIndex ? [.isSelected, .isButton] : .isButton)
             }
         }
         .padding(.bottom, 8)
@@ -580,6 +594,11 @@ struct HUDStatusRow: View {
 
 /// 🌐 Capability-safe project.state rows — titles + status labels only (never tracker brands).
 struct HUDProjectResultsView: View {
+    private struct ScopedItemID: Equatable {
+        let projectID: ProjectState.ID
+        let itemID: ProjectStateItem.ID
+    }
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let projects: [ProjectState]
     var selectedIndex: Int = 0
@@ -591,13 +610,22 @@ struct HUDProjectResultsView: View {
         }
     }
 
+    private static func flattenedOpenItemIDs(from projects: [ProjectState]) -> [ScopedItemID] {
+        Array(projects.prefix(4)).flatMap { project in
+            project.items
+                .filter { $0.status != .done }
+                .prefix(4)
+                .map { ScopedItemID(projectID: project.id, itemID: $0.id) }
+        }
+    }
+
     var body: some View {
-        let flatItems = Self.flattenedOpenItems(from: projects)
+        let flatItemIDs = Self.flattenedOpenItemIDs(from: projects)
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(projects.prefix(4))) { project in
-                        projectBlock(project, flatItems: flatItems)
+                        projectBlock(project, flatItemIDs: flatItemIDs)
                     }
                 }
                 .padding(.horizontal, 8)
@@ -634,7 +662,7 @@ struct HUDProjectResultsView: View {
     }
 
     @ViewBuilder
-    private func projectBlock(_ project: ProjectState, flatItems: [ProjectStateItem]) -> some View {
+    private func projectBlock(_ project: ProjectState, flatItemIDs: [ScopedItemID]) -> some View {
         let openItems = Array(project.items.filter { $0.status != .done }.prefix(4))
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
@@ -661,14 +689,19 @@ struct HUDProjectResultsView: View {
                     .padding(.leading, 22)
             } else {
                 ForEach(Array(openItems.enumerated()), id: \.element.id) { _, item in
-                    let globalIndex = flatItems.firstIndex(where: { $0.id == item.id }) ?? 0
-                    projectItemRow(item: item, globalIndex: globalIndex)
+                    let scopedID = ScopedItemID(projectID: project.id, itemID: item.id)
+                    let globalIndex = flatItemIDs.firstIndex(of: scopedID) ?? 0
+                    projectItemRow(projectID: project.id, item: item, globalIndex: globalIndex)
                 }
             }
         }
     }
 
-    private func projectItemRow(item: ProjectStateItem, globalIndex: Int) -> some View {
+    private func projectItemRow(
+        projectID: ProjectState.ID,
+        item: ProjectStateItem,
+        globalIndex: Int
+    ) -> some View {
         Button {
             onActivateItem?(item)
         } label: {
@@ -701,7 +734,7 @@ struct HUDProjectResultsView: View {
         }
         .buttonStyle(.plain)
         .id(globalIndex)
-        .hudIdentifier(.resultsProjectsItem)
+        .hudIdentifier(.projectItem(projectID: projectID, itemID: item.id))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(item.title), \(ProjectStatePanelModel.statusLabel(item.status))")
         .accessibilityAddTraits(globalIndex == selectedIndex ? [.isSelected, .isButton] : .isButton)
@@ -768,7 +801,7 @@ struct HUDMemoryHitRow: View {
             isHovering = hovering
         }
         .accessibilityElement(children: .combine)
-        .hudIdentifier(.resultsHit)
+        .hudIdentifier(.memoryHit(hit.id))
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint(hit.path == nil ? "Copies narrative to clipboard" : "Opens file path")
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
