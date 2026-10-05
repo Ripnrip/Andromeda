@@ -8,6 +8,14 @@
 
 import Foundation
 
+/// Salvage target for an otherwise-invalid envelope (JSON-RPC 2.0: reply
+/// with the request's id when it is detectable, null only when it is not).
+/// Only `id` is decoded, so it succeeds on any valid JSON object carrying a
+/// well-formed id even when the rest of the envelope is rejected.
+private struct IDSalvage: Decodable {
+    let id: RPCID?
+}
+
 @main
 struct AndromedaMCPServer {
     static func main() async throws {
@@ -25,7 +33,32 @@ struct AndromedaMCPServer {
     // MARK: - Dispatch
 
     private static func dispatch(_ data: Data, engine: URL?) async {
+        // Stage 1 — syntax only: -32700 is reserved for bytes that are not
+        // JSON at all. (JSONSerialization is a syntax gate here, not a typing
+        // layer — everything typed stays Codable.) Valid JSON that then fails
+        // envelope decoding is an invalid request, -32600, handled below.
+        // `.fragmentsAllowed` keeps the gate purely syntactic: top-level
+        // scalars (42, "x", true, null) are valid JSON — an invalid envelope
+        // shape (-32600), never a parse error (-32700).
+        guard (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)) != nil else {
+            send(RPCErrorResponse(id: nil, code: .parseError, message: "Parse error"))
+            return
+        }
+
         guard let header = decode(RPCRequestHeader.self, from: data, id: nil) else { return }
+
+        // Envelope enforcement runs BEFORE notification silence: a frame
+        // that is not JSON-RPC 2.0 is not a valid notification either, so
+        // it must not be swallowed silently — it answers -32600 (with the
+        // id when present, null when not).
+        guard header.jsonrpc == "2.0" else {
+            send(RPCErrorResponse(
+                id: header.id,
+                code: .invalidRequest,
+                message: "Invalid request: jsonrpc must be \"2.0\""
+            ))
+            return
+        }
 
         // JSON-RPC 2.0: a message whose `id` key is OMITTED is a
         // notification — the server MUST NOT reply, whatever the method.
@@ -169,16 +202,23 @@ struct AndromedaMCPServer {
 
     // MARK: - Wire I/O
 
-    /// Decode with evidence: failures reply `-32700`/`-32602` carrying the
-    /// coding path instead of collapsing to a silent nil.
+    /// Decode with evidence: failures reply `-32700`/`-32600`/`-32602` carrying
+    /// the coding path instead of collapsing to a silent nil.
     private static func decode<T: Decodable>(_ type: T.Type, from data: Data, id: RPCID?) -> T? {
         do {
             return try JSONDecoder().decode(type, from: data)
         } catch let error as DecodingError {
-            let isHeader = type == RPCRequestHeader.self || type == ToolNameProbe.self
+            // Syntax was validated before dispatch, so a header DecodingError
+            // means valid JSON with an invalid envelope shape (-32600), never
+            // -32700. Tool probes fail on params shape (-32602).
+            let isHeader = type == RPCRequestHeader.self
+            // Salvage a well-formed id from invalid envelopes — JSON-RPC 2.0:
+            // reply with the request's id when it is detectable, null only
+            // when it is not.
+            let salvagedID = (try? JSONDecoder().decode(IDSalvage.self, from: data))?.id
             send(RPCErrorResponse(
-                id: id,
-                code: isHeader ? .parseError : .invalidParams,
+                id: salvagedID ?? id,
+                code: isHeader ? .invalidRequest : .invalidParams,
                 message: "Invalid request: \(error.brief)"
             ))
             return nil
