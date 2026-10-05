@@ -314,6 +314,41 @@ struct AndromedaMCPTests {
         #expect(responses[0].contains(#""id":5"#), "got: \(responses[0])")
     }
 
+    @Test("top-level JSON scalars are -32600 invalid requests, not -32700")
+    func scalarFramesAreInvalidRequestsNotParseErrors() throws {
+        // Syntax-gate scope (codex P2 on #90): `42`, `"x"`, `true`, `null`
+        // are syntactically valid JSON — a JSON-RPC peer rejecting them does
+        // so at the ENVELOPE layer (-32600, no id to echo), never the parse
+        // layer (-32700, reserved for bytes that are not JSON at all).
+        let responses = try runExchange([
+            "42",
+            "\"x\"",
+            "true",
+            "null",
+        ], fixtureName: "scalar-frames", expectedResponses: 4)
+        #expect(responses.count == 4, "got \(responses.count): \(responses)")
+        for response in responses {
+            #expect(response.contains("-32600"), "got: \(response)")
+            #expect(!response.contains("-32700"), "got: \(response)")
+        }
+    }
+
+    @Test("wrong-version frames are -32600 even in notification form")
+    func versionCheckPrecedesNotificationSilence() throws {
+        // Envelope order (codex P2 on #90): a frame that is not JSON-RPC 2.0
+        // is not a valid notification either. A version-less (or 1.0) frame
+        // with an omitted id must NOT be swallowed by notification silence —
+        // it answers -32600 so the sender learns its version is required.
+        let responses = try runExchange([
+            #"{"method":"ping"}"#,
+            #"{"jsonrpc":"1.0","method":"ping"}"#,
+        ], fixtureName: "version-before-silence", expectedResponses: 2)
+        #expect(responses.count == 2, "got \(responses.count): \(responses)")
+        for response in responses {
+            #expect(response.contains("-32600"), "got: \(response)")
+        }
+    }
+
     @Test("symlinks pivoting outside the workspace root are rejected")
     func symlinkContainment() throws {
         let outside = URL(fileURLWithPath: NSTemporaryDirectory())
