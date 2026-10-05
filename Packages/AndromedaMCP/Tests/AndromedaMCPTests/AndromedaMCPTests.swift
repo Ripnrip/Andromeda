@@ -232,6 +232,23 @@ struct AndromedaMCPTests {
         #expect(responses[1].contains("Invalid request"))
     }
 
+    @Test("malformed tool params are -32602 invalid params, not -32700/-32600, id echoed")
+    func malformedParamsAreInvalidParamsNotOtherCodes() throws {
+        // `arguments.pattern` is typed String; sending a number is a valid
+        // envelope with an invalid params shape — the three-way split this PR
+        // created must classify it -32602 with the id detectable, and never
+        // collapse upward to -32700 (syntax) or -32600 (envelope).
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+            #"{"jsonrpc":"2.0","id":99,"method":"tools/call","params":{"name":"code.search","arguments":{"pattern":123}}}"#,
+        ], fixtureName: "invalid-params")
+        #expect(responses.count == 2)
+        #expect(responses[1].contains(#"-32602"#), "expected -32602: \(responses[1])")
+        #expect(!responses[1].contains("-32700"), "must not be a parse error")
+        #expect(!responses[1].contains("-32600"), "must not be an invalid-request error")
+        #expect(responses[1].contains(#""id":99"#), "request id must survive the params failure")
+    }
+
     @Test("ping requests get an empty result with the id echoed")
     func pingResponds() throws {
         let responses = try runExchange([
