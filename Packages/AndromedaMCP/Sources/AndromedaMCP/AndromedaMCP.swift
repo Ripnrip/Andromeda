@@ -37,12 +37,28 @@ struct AndromedaMCPServer {
         // JSON at all. (JSONSerialization is a syntax gate here, not a typing
         // layer — everything typed stays Codable.) Valid JSON that then fails
         // envelope decoding is an invalid request, -32600, handled below.
-        guard (try? JSONSerialization.jsonObject(with: data)) != nil else {
+        // `.fragmentsAllowed` keeps the gate purely syntactic: top-level
+        // scalars (42, "x", true, null) are valid JSON — an invalid envelope
+        // shape (-32600), never a parse error (-32700).
+        guard (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)) != nil else {
             send(RPCErrorResponse(id: nil, code: .parseError, message: "Parse error"))
             return
         }
 
         guard let header = decode(RPCRequestHeader.self, from: data, id: nil) else { return }
+
+        // Envelope enforcement runs BEFORE notification silence: a frame
+        // that is not JSON-RPC 2.0 is not a valid notification either, so
+        // it must not be swallowed silently — it answers -32600 (with the
+        // id when present, null when not).
+        guard header.jsonrpc == "2.0" else {
+            send(RPCErrorResponse(
+                id: header.id,
+                code: .invalidRequest,
+                message: "Invalid request: jsonrpc must be \"2.0\""
+            ))
+            return
+        }
 
         // JSON-RPC 2.0: a message whose `id` key is OMITTED is a
         // notification — the server MUST NOT reply, whatever the method.
@@ -55,17 +71,6 @@ struct AndromedaMCPServer {
                 id: nil,
                 code: .invalidRequest,
                 message: "Invalid request: id must be a number or string when present, not null"
-            ))
-            return
-        }
-
-        // A valid JSON-RPC 2.0 envelope names its version; anything else is an
-        // invalid request (id preserved), never a method dispatch.
-        guard header.jsonrpc == "2.0" else {
-            send(RPCErrorResponse(
-                id: header.id,
-                code: .invalidRequest,
-                message: "Invalid request: jsonrpc must be \"2.0\""
             ))
             return
         }
