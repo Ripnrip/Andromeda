@@ -21,7 +21,10 @@ let package = Package(
         .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.0"),
     ],
     targets: [
-        .target(name: "AnimaIndexing", dependencies: []),
+        .target(
+            name: "AnimaIndexing",
+            dependencies: [.product(name: "MemoryKit", package: "MemoryKit")]
+        ),
         .target(
             name: "AnimaKnowledge",
             dependencies: [.product(name: "MemoryKit", package: "MemoryKit")]
