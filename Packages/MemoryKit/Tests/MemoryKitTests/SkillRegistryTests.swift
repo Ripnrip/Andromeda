@@ -52,4 +52,14 @@ struct SkillRegistryTests {
         let registry = SkillRegistry(enumerator: NullSkillPathEnumerator())
         #expect(registry.listCapabilityIDs() == SkillRegistry.catalogCapabilityIDs)
     }
+
+    @Test("knowledge-sync plan lists live destinations and excludes Ladybug")
+    func knowledgeSyncPlan() {
+        let plan = SkillRegistry().knowledgeSyncPlan()
+        #expect(plan.capabilityID == "skill.knowledge-sync")
+        #expect(plan.rows.count == KnowledgeSyncDestination.allCases.count)
+        #expect(plan.rows.contains { $0.destination == .qdrant && $0.status == .live })
+        #expect(plan.excluded.contains(where: { $0.lowercased().contains("ladybug") }))
+        #expect(!plan.rows.contains { $0.destination.rawValue.lowercased().contains("ladybug") })
+    }
 }
