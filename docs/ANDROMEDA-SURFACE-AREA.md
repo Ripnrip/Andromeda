@@ -145,7 +145,7 @@ stable curtain IDs such as `memory.*`, current `infer.write`, and
 | `watchdog.cloak` | Watchdog | `com.gurinder.cloakwatch` every 300s | LaunchAgent | `Watchdog.Cloak` (adjacent) | poll | later |
 | `job.fleet_heal` | Cron | `com.chezmoi.fleet-heal` Sun 09:17 | LaunchAgent | `ScheduledJob.FleetHeal` | none | later |
 | `skill.checkpoint` | Skill | `~/.claude/skills/checkpoint` | skill | `SkillEntity.Checkpoint` | trigger | 0→2 |
-| `skill.knowledge-sync` | Skill | `~/.claude/skills/knowledge-sync` | skill | `SkillEntity.KnowledgeSync` | trigger | 0→2 |
+| `skill.knowledge-sync` | Skill | `~/.claude/skills/knowledge-sync` | skill | `SkillEntity` / `SkillRegistry` (HAB-598 observe) | list/scan; invoke 📐 | 1 |
 | `skill.close` | Skill | `~/.claude/skills/close` | skill | `SkillEntity.Close` | trigger | 0→2 |
 | `skill.graphify` | Skill | `~/.claude/skills/graphify` | skill | `SkillEntity.Graphify` | trigger | 0→2 |
 | `skill.herdr` | Skill | `~/.claude/skills/herdr` | skill | `SkillEntity.Herdr` | none | 0 |

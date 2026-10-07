@@ -54,8 +54,9 @@ Covered cases:
 ## Evidence artifacts
 
 - Log: `/tmp/memorykit-ladybug-proof.log`
-- Tests: `Tests/MemoryKitTests/LadybugIndexerTests.swift`
-- Source: `Sources/MemoryKit/Indexing/LadybugIndexer.swift`
+- Tests: `Packages/Anima/Tests/AnimaTests/LadybugIndexerTests.swift` (migrated from MemoryKit)
+- Source: `Packages/Anima/Sources/AnimaIndexing/LadybugIndexer.swift`
+- Visibility: `VisibilityFilter.isAllowed(..., .ladybugIndex)` before node upsert (2026-10-07)
 
 ## Hardening applied this pass
 
