@@ -26,8 +26,16 @@ swift test --filter MemoryChainProofRunnerTests
 swift test --filter CurtainAgentToAgentProofTests
 ```
 
+## CLI dogfood (Studio)
+
+```bash
+andromeda memory-chain prove           # agent-to-agent → ~/.andromeda/proofs/memory-chain.json
+andromeda memory-chain prove --ladybug # also start ladybug-index health leg
+andromeda memory-chain status          # read-only census
+```
+
 ## Remaining gaps
 
-- Live Studio write of defaultPath after a real multi-agent MCP session (dogfood).
-- Ladybug `pass` requires `/nodes`/`/edges` upsert + query on the hub serve path.
-- Cloak-review umbrella still gates shared-memory cutover (separate lane).
+- Live Studio write of defaultPath after a real multi-agent MCP session (dogfood via CLI above).
+- Ladybug `pass` requires `/nodes`/`/edges` upsert + query on the hub serve path (Berserker lane).
+- Cloak-review umbrella still gates shared-memory cutover (Letta-Chan lane).
