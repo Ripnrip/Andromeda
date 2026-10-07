@@ -216,6 +216,50 @@ func cliVerificationFail() async throws {
     }
 }
 
+@Test("cloak markers force internal visibility before seal")
+func cloakForcesInternal() async throws {
+    let (root, memory) = try makeTempMemFS()
+    let writer = GitBackedLettaWriter(memfsRoot: root)
+    let fact = LettaMemoryFact(
+        title: "Public Looking Fact",
+        body: "Contains [cloak] customer token details.",
+        visibility: .public,
+        tags: ["share"],
+        source: "test-suite"
+    )
+    #expect(fact.effectiveVisibility == .internal)
+    let receipt = try await writer.write(fact, to: "0000aabb-1234-cccc")
+    let onDisk = try String(contentsOf: memory.appendingPathComponent(receipt.relativePath), encoding: .utf8)
+    #expect(onDisk.contains("visibility: internal"))
+    #expect(!onDisk.contains("visibility: public"))
+}
+
+@Test("ingress emits start + ok telemetry events")
+func telemetryEmitsOnWrite() async throws {
+    let (root, _) = try makeTempMemFS()
+    let recorder = RecordingTelemetryClient()
+    let writer = GitBackedLettaWriter(memfsRoot: root, telemetry: recorder)
+    _ = try await writer.write(sampleFact, to: "0000aabb-1234-cccc")
+    let names = await recorder.names()
+    #expect(names.contains("memory.ingress.write.start"))
+    #expect(names.contains("memory.ingress.write.ok"))
+}
+
+@Test("ingress emits error telemetry when write fails")
+func telemetryEmitsOnError() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("letta-ingress-tel-err-\(UUID().uuidString)", isDirectory: true)
+    let recorder = RecordingTelemetryClient()
+    let writer = GitBackedLettaWriter(memfsRoot: root, telemetry: recorder)
+    await #expect(throws: LettaIngressError.self) {
+        // Valid hex agent id so we fail on memfsMissing after start telemetry.
+        _ = try await writer.write(sampleFact, to: "0000aabb-1234-cccc")
+    }
+    let names = await recorder.names()
+    #expect(names.contains("memory.ingress.write.start"))
+    #expect(names.contains("memory.ingress.write.error"))
+}
+
 /// 🌐 Live E2E against the real Studio-Agent memfs. Only runs when
 /// LETTA_LIVE_E2E=1 is set — never in CI. Writes a dated proof entry to the
 /// agent's real core memory and verifies via git lifecycle.

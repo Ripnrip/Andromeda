@@ -53,8 +53,8 @@ agent/client → memory.write(fact, tags)          # capability curtain
 ## 4. Phases (revised 2026-09-05 after the Phase 0 spike)
 
 - **Phase 0 — spike: ✅ DONE (2026-09-05).** Findings: git-backed memfs write lane exists today via the bundled `letta` CLI; only `system/**` is in-context; pre-commit frontmatter contract measured (§7). Channel/websocket reversing dropped — unnecessary.
-- **Phase 1 — git-backed writer: ✅ LANDED (2026-09-05, uncommitted for review).** `GitBackedLettaWriter` in MemoryKit — contract-compliant render, attributable commits, idempotency, git + CLI verification legs. 9 unit tests + live E2E green. Remaining in phase: PR it per the merge gate (BIN-218), and Multica-backfill the ticket (done: `2a5ea368`).
-- **Phase 2 — operationalize the lane.** Fix Studio-Agent's model endpoint (Multica `253690cb`) so agents can *converse* over their memory again (ingress verification beyond the token census: ask the agent what it knows). Decide daemon home: fold the writer into an existing long-running Andromeda binary vs a new `com.andromeda.memory-ingress` daemon. Wire telemetry events (write/commit/verify) into the fleet stream + HUD `LaunchEntity` roster.
+- **Phase 1 — git-backed writer: ✅ LANDED (2026-09-05, merged #73).** `GitBackedLettaWriter` in MemoryKit — contract-compliant render, attributable commits, idempotency, git + CLI verification legs. Unit tests + live E2E green. Multica-backfill done (`2a5ea368`).
+- **Phase 2 — operationalize the lane.** 🚧 Partial: telemetry events (`memory.ingress.write.*` / `verify.ok`) + cloak enforcement via `VisibilityFilter` on every write. Still open: Fix Studio-Agent's model endpoint (Multica `253690cb`) so agents can *converse* over their memory again; decide daemon home (fold into existing Andromeda binary vs `com.andromeda.memory-ingress`); HUD `LaunchEntity` roster wiring.
 - **Phase 3 — multi-agent + tag enforcement at scale.** All local agents (not just Studio-Agent) under the lane; per-agent cloak defaults (e.g. Antara-chan's customer data → `internal`-only hard rule); conflict policy when an agent self-edits the same file between ingress commits (git merge policy: ours-appends, never rewrite agent-authored content).
 - **Phase 4 — fleet backends behind the same protocol.** qdrant (`secondbrain_learnings`, exists today), SecondBrain vault notes, and Letta agents all behind one `memory.write` — clients stop caring which backend holds a fact. This phase is where Anima starts subsuming the Python multibrain memory fleet (control-plane doc direction), one backend at a time.
 - **Descoped by operator lock (2026-09-05):** Letta Cloud REST path and SecretsBroker dependency — local only until the operator reopens it.
@@ -110,7 +110,7 @@ agent/client → memory.write(fact, tags)          # capability curtain
 
 ---
 
-## 8. Phase 1 scaffold — LANDED 2026-09-05
+## 8. Phase 1 scaffold — LANDED 2026-09-05 (merged #73)
 
 `Packages/MemoryKit/Sources/MemoryKit/Services/LettaMemoryIngress.swift` — protocol
 `LettaMemoryWriting`, models (`LettaMemoryFact` with mandatory `MemoryVisibility` tag,
@@ -121,11 +121,13 @@ strict concurrency, all shell work through the injected `ProcessRunning` seam fr
 `andromeda-memory-ingress`, verifies clean-tree after commit, idempotent rewrites return
 `unchanged: true` without a duplicate commit.
 
-**Verified:** `swift test --filter LettaMemoryIngress` — **6/6 pass** (write lands + receipt,
-idempotency, visibility rendered, empty-title rejection, missing-memfs error, slug safety).
+**Verified:** `swift test --filter LettaMemoryIngress` (unit + optional `LETTA_LIVE_E2E=1`).
 
-**Not committed** — new files only, left in the working tree on branch
-`fix/ciscope-security-enums-observability` for operator review; Per AGENTS.md merge gate
-(BIN-218) any PR from this goes through normal review.
+**Phase 2 partial (2026-10-07):** every write runs `fact.cloaked` through
+`VisibilityFilter` before seal; injectable `TelemetryClient` emits
+`memory.ingress.write.start` / `.ok` / `.error` (+ `memory.ingress.verify.ok` when
+cliTokens verification is enabled).
 
-**Next:** decide daemon home (fold into an existing Andromeda long-running binary vs new `com.andromeda.memory-ingress`); unblock agent-side conversation verification by fixing Studio-Agent's model endpoint (Multica `253690cb`).
+**Next:** decide daemon home (fold into an existing Andromeda long-running binary vs new
+`com.andromeda.memory-ingress`); unblock agent-side conversation verification by fixing
+Studio-Agent's model endpoint (Multica `253690cb`); wire LaunchEntity roster.
