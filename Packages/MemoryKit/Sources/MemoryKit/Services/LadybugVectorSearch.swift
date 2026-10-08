@@ -130,7 +130,13 @@ public struct LadybugVectorSearch: LadybugVectorSearching {
                 return LadybugSearchOutcome(hits: [], degraded: true,
                                             reason: "ladybug HTTP \(httpResponse.statusCode)")
             }
-            let hits = Self.parseHits(data)
+            // Malformed 2xx bodies must surface as degradation, not as a
+            // silent empty index — a broken/incompatible server stays
+            // observable (review r4213544639). A valid empty array is healthy.
+            guard let hits = Self.parseHits(data) else {
+                return LadybugSearchOutcome(hits: [], degraded: true,
+                                            reason: "ladybug malformed /query payload")
+            }
             return LadybugSearchOutcome(hits: hits, degraded: false)
         } catch {
             return LadybugSearchOutcome(hits: [], degraded: true,
@@ -139,9 +145,11 @@ public struct LadybugVectorSearch: LadybugVectorSearching {
     }
 
     /// 🧾 Parse the bare-array `/query` payload — tolerate missing keys per hit.
-    static func parseHits(_ data: Data) -> [LadybugSearchHit] {
+    /// Returns nil when the body is not a JSON array of objects at all — the
+    /// caller treats that as a degraded backend, never as "no hits".
+    static func parseHits(_ data: Data) -> [LadybugSearchHit]? {
         guard let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            return []
+            return nil
         }
         return rows.compactMap { row in
             // `distance` is the only load-bearing field — a row without it is noise.
