@@ -255,6 +255,7 @@ public final class AndromedaMemorySession {
                     switch hit.source {
                     case .hotStore: return "hot"
                     case .vault: return "vault"
+                    case .semantic: return "semantic"
                     }
                 }()
                 let subtitleParts = [
