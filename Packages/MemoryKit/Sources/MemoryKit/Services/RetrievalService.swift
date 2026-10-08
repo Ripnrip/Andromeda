@@ -30,6 +30,9 @@ public struct RecallQuery: Sendable, Equatable {
     public var limit: Int
     /// When true, attempt vault ripgrep if hot results are below `limit`.
     public var includeVaultFallback: Bool
+    /// When true, probe the Ladybug index server (`:8286`) with the text needle —
+    /// semantic neighbours from vault notes + §13 cache nodes, fail-open (§13).
+    public var includeLadybugFallback: Bool
 
     // 🌟 The Seeker's Brief - Assemble the lantern with sensible defaults
     public init(
@@ -40,7 +43,8 @@ public struct RecallQuery: Sendable, Equatable {
         dateFrom: Date? = nil,
         dateTo: Date? = nil,
         limit: Int = 20,
-        includeVaultFallback: Bool = true
+        includeVaultFallback: Bool = true,
+        includeLadybugFallback: Bool = true
     ) {
         self.text = text
         self.tags = tags
@@ -50,6 +54,7 @@ public struct RecallQuery: Sendable, Equatable {
         self.dateTo = dateTo
         self.limit = max(1, limit)
         self.includeVaultFallback = includeVaultFallback
+        self.includeLadybugFallback = includeLadybugFallback
     }
 }
 
@@ -58,6 +63,9 @@ public struct MemoryHit: Sendable, Identifiable, Equatable {
     public enum Source: String, Sendable, Equatable {
         case hotStore
         case vault
+        /// Semantic neighbour from the Ladybug index server (`:8286`) —
+        /// vault notes + §13 thin-metadata cache nodes, fail-open probe.
+        case ladybug
     }
 
     public let id: UUID
@@ -109,19 +117,30 @@ public struct RecallResult: Sendable, Equatable {
     /// True when vault ripgrep was skipped (missing path) or failed open.
     public let vaultDegraded: Bool
     public let degradationReason: String?
+    /// Semantic neighbours contributed by the Ladybug index probe (§13).
+    public let ladybugHitCount: Int
+    /// True when the Ladybug index server was unreachable/unhealthy (fail-open).
+    public let ladybugDegraded: Bool
+    public let ladybugDegradationReason: String?
 
     public init(
         hits: [MemoryHit],
         hotHitCount: Int,
         vaultHitCount: Int,
         vaultDegraded: Bool,
-        degradationReason: String? = nil
+        degradationReason: String? = nil,
+        ladybugHitCount: Int = 0,
+        ladybugDegraded: Bool = false,
+        ladybugDegradationReason: String? = nil
     ) {
         self.hits = hits
         self.hotHitCount = hotHitCount
         self.vaultHitCount = vaultHitCount
         self.vaultDegraded = vaultDegraded
         self.degradationReason = degradationReason
+        self.ladybugHitCount = ladybugHitCount
+        self.ladybugDegraded = ladybugDegraded
+        self.ladybugDegradationReason = ladybugDegradationReason
     }
 }
 
@@ -310,6 +329,8 @@ public actor RetrievalService {
     private let processRunner: any ProcessRunning
     private let ripgrepExecutable: String
     private let fileManager: FileManager
+    /// 🐞 Injectable Ladybug index probe (`:8286`) — §13 fail-open semantic stage.
+    private let ladybugSearch: any LadybugVectorSearching
 
     /// 🔮 Bind the librarian to a hot vault and optional Obsidian path.
     /// - Parameters:
@@ -318,28 +339,33 @@ public actor RetrievalService {
     ///   - processRunner: Injectable runner (mock in tests; `LocalProcessRunner` in prod).
     ///   - ripgrepExecutable: Path to `rg` binary.
     ///   - fileManager: Injected for vault-existence checks.
+    ///   - ladybugSearch: Injectable Ladybug index probe; default binds `127.0.0.1:8286`,
+    ///     an unreachable server degrades recall, never fails it (§13 constraint 2).
     public init(
         container: SwiftDataContainer,
         vaultURL: URL? = nil,
         processRunner: any ProcessRunning = LocalProcessRunner(),
         ripgrepExecutable: String = "/opt/homebrew/bin/rg",
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        ladybugSearch: any LadybugVectorSearching = LadybugVectorSearch()
     ) {
         self.container = container
         self.vaultURL = vaultURL
         self.processRunner = processRunner
         self.ripgrepExecutable = ripgrepExecutable
         self.fileManager = fileManager
+        self.ladybugSearch = ladybugSearch
     }
 
-    /// 🔍 recall_memory — hot store first, optional vault ripgrep fallback, never Qdrant/Ladybug.
+    /// 🔍 recall_memory — hot store first, optional vault + Ladybug fallbacks.
+    /// Qdrant is never required; Ladybug is semantic augmentation, not a requirement.
     @discardableResult
     public func recallMemory(_ query: RecallQuery) async throws -> RecallResult {
         guard hasSearchableCriteria(query) else {
             throw RetrievalServiceError.emptyQuery
         }
 
-        print("🌐 ✨ RECALL_MEMORY AWAKENS! limit=\(query.limit) vaultFallback=\(query.includeVaultFallback)")
+        print("🌐 ✨ RECALL_MEMORY AWAKENS! limit=\(query.limit) vaultFallback=\(query.includeVaultFallback) ladybugFallback=\(query.includeLadybugFallback)")
 
         // 🎨 Act I — query the hot ledger with structured filters
         let hotHits = try await searchHotStore(query)
@@ -367,8 +393,27 @@ public actor RetrievalService {
             }
         }
 
+        // 🐞 Act II½ — Ladybug semantic probe (vault notes + §13 cache nodes).
+        //     Runs independently of the vault stage whenever a text needle exists;
+        //     fail-open — a dark index server narrows recall, it never fails it.
+        var ladybugHits: [MemoryHit] = []
+        var ladybugDegraded = false
+        var ladybugReason: String?
+        let shouldProbeLadybug = query.includeLadybugFallback && !textNeedle.isEmpty
+        if shouldProbeLadybug {
+            let outcome = await ladybugSearch.search(text: textNeedle, k: query.limit)
+            ladybugHits = outcome.hits.map { Self.memoryHit(from: $0) }
+            ladybugDegraded = outcome.degraded
+            ladybugReason = outcome.reason
+            if ladybugDegraded {
+                print("🐞 ⚠️ Ladybug stage degraded — \(ladybugReason ?? "unknown")")
+            } else {
+                print("🐞 Ladybug index whispered back \(ladybugHits.count) semantic neighbours")
+            }
+        }
+
         // 🌟 Act III — merge, dedupe, rank; hot store wins identity collisions
-        let merged = mergeAndRank(hot: hotHits, vault: vaultHits, limit: query.limit)
+        let merged = mergeAndRank(hot: hotHits, vault: vaultHits, ladybug: ladybugHits, limit: query.limit)
         print("🎉 ✨ RECALL_MEMORY MASTERPIECE COMPLETE! hits=\(merged.count)")
 
         return RecallResult(
@@ -376,7 +421,10 @@ public actor RetrievalService {
             hotHitCount: hotHits.count,
             vaultHitCount: vaultHits.count,
             vaultDegraded: vaultDegraded,
-            degradationReason: degradationReason
+            degradationReason: degradationReason,
+            ladybugHitCount: ladybugHits.count,
+            ladybugDegraded: ladybugDegraded,
+            ladybugDegradationReason: ladybugReason
         )
     }
 
@@ -602,10 +650,47 @@ public actor RetrievalService {
         return hits
     }
 
+    // MARK: - Ladybug Stage
+
+    /// 🐞 Crystallize a Ladybug neighbour into a MemoryHit.
+    ///
+    /// Cache hits are thin metadata (§13) — `narrative` carries the join
+    /// pointer (title + source path), never the note body. Score: cosine
+    /// distance 0…2 maps to 1…5 — always below the hot store's recency-boosted
+    /// floor (+100) and competitive with vault text matches (1…6).
+    private static func memoryHit(from hit: LadybugSearchHit) -> MemoryHit {
+        let basis = max(0.0, 2.0 - hit.distance)     // 0 (opposite) … 2 (identical)
+        let title = hit.title?.isEmpty == false ? hit.title! : "ladybug neighbour"
+        let narrative = hit.path.map { "\(title) — \($0)" } ?? title
+        return MemoryHit(
+            contentHash: hit.contentHash,
+            narrative: narrative,
+            project: hit.project,
+            visibility: hit.visibility,
+            tags: hit.tags,
+            createdAt: Self.parseLadybugDate(hit.date),
+            path: hit.path,
+            source: .ladybug,
+            score: 1.0 + basis * 2.0
+        )
+    }
+
+    /// 📅 Parse the §13 `date` field (`yyyy-MM-dd`) — nil-tolerant leniency.
+    private static func parseLadybugDate(_ string: String?) -> Date? {
+        guard let string, !string.isEmpty else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        return formatter.date(from: string)
+    }
+
     // MARK: - Merge
 
-    /// 💎 Merge hot + vault hits; hot IDs/contentHashes win; rank by score desc.
-    private func mergeAndRank(hot: [MemoryHit], vault: [MemoryHit], limit: Int) -> [MemoryHit] {
+    /// 💎 Merge hot + vault + ladybug hits; earlier stages win identity
+    /// collisions (hot > vault > ladybug); rank by score desc.
+    private func mergeAndRank(hot: [MemoryHit], vault: [MemoryHit],
+                              ladybug: [MemoryHit], limit: Int) -> [MemoryHit] {
         var seenHashes = Set<String>()
         var seenPaths = Set<String>()
         var merged: [MemoryHit] = []
@@ -626,6 +711,25 @@ public actor RetrievalService {
             }
             if let path = hit.path, seenPaths.contains(path) {
                 continue
+            }
+            if let hash = hit.contentHash {
+                seenHashes.insert(hash)
+            }
+            if let path = hit.path {
+                seenPaths.insert(path)
+            }
+            merged.append(hit)
+        }
+
+        for hit in ladybug {
+            if let hash = hit.contentHash, seenHashes.contains(hash) {
+                continue
+            }
+            if let path = hit.path, seenPaths.contains(path) {
+                continue
+            }
+            if let hash = hit.contentHash {
+                seenHashes.insert(hash)
             }
             if let path = hit.path {
                 seenPaths.insert(path)

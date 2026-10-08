@@ -20,6 +20,13 @@ import Testing
 @testable import MemoryKit
 import Foundation
 
+/// 🌑 DarkLadybugSearch — deterministic §13 probe (live suite must not touch :8286).
+private struct DarkLadybugSearch: LadybugVectorSearching {
+    func search(text: String, k: Int) async -> LadybugSearchOutcome {
+        LadybugSearchOutcome(hits: [], degraded: true, reason: "dark probe (test)")
+    }
+}
+
 @Suite("🌐 Live Vault Recall (real rg, real vault)")
 struct RetrievalServiceVaultLiveTests {
 
@@ -64,7 +71,8 @@ struct RetrievalServiceVaultLiveTests {
             container: container,
             vaultURL: Self.vaultURL,
             processRunner: LocalProcessRunner(),
-            ripgrepExecutable: Self.ripgrep
+            ripgrepExecutable: Self.ripgrep,
+            ladybugSearch: DarkLadybugSearch()
         )
 
         let result = try await retrieval.recallMemory(
