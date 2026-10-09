@@ -1,9 +1,10 @@
 "use client"
 
-import { useActionState } from "react"
+import { useActionState, useEffect } from "react"
 import { useFormStatus } from "react-dom"
 import { ArrowRight, Check, Loader2 } from "lucide-react"
 import { joinWaitlist, type WaitlistState } from "@/app/actions/waitlist"
+import { playUiSound } from "@/lib/ui-sound"
 
 const ROLES = ["Engineer", "Founder", "Researcher", "Designer", "Just curious"]
 
@@ -35,6 +36,14 @@ function SubmitButton() {
 export function WaitlistForm() {
   const [state, formAction] = useActionState(joinWaitlist, initialState)
   const done = state.status === "success" || state.status === "already"
+
+  // Audio-haptic feedback for the server-action outcome: a rising arpeggio on
+  // success (including "already on the list"), a soft thud on validation
+  // errors. Fires only on transitions out of idle, so the first render is silent.
+  useEffect(() => {
+    if (state.status === "success" || state.status === "already") playUiSound("success")
+    else if (state.status === "error") playUiSound("error")
+  }, [state.status])
 
   if (done) {
     return (
@@ -82,7 +91,14 @@ export function WaitlistForm() {
               key={r}
               className="cursor-pointer rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground transition has-[:checked]:border-primary has-[:checked]:bg-primary/10 has-[:checked]:text-foreground"
             >
-              <input type="radio" name="role" value={r} className="sr-only" />
+              {/* Role chips double as radio inputs; selecting one plays a soft tap cue */}
+              <input
+                type="radio"
+                name="role"
+                value={r}
+                className="sr-only"
+                onChange={() => playUiSound("tap")}
+              />
               {r}
             </label>
           ))}

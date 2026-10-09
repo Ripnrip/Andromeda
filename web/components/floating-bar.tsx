@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Grip, Minus, Rotate3d, X } from "lucide-react"
 import { PILLARS, STATUS_LABEL, type Pillar } from "@/lib/pillars"
+import { playUiSound } from "@/lib/ui-sound"
 
 type Orientation = "horizontal" | "vertical"
 
@@ -68,12 +69,12 @@ export function FloatingBar({
     ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
   }
 
+  /** Rotate between horizontal and vertical, confirmed by a rising/falling toggle cue. */
   const toggleOrientation = () => {
-    setOrientation((o) => {
-      const next = o === "horizontal" ? "vertical" : "horizontal"
-      onOrientationChange?.(next)
-      return next
-    })
+    const next = orientation === "horizontal" ? "vertical" : "horizontal"
+    playUiSound(next === "vertical" ? "toggle-on" : "toggle-off")
+    setOrientation(next)
+    onOrientationChange?.(next)
   }
 
   useEffect(() => {
@@ -127,7 +128,10 @@ export function FloatingBar({
                   key={p.key}
                   pillar={p}
                   active={active === p.key}
-                  onClick={() => setActive(p.key)}
+                  onClick={() => {
+                    setActive(p.key)
+                    playUiSound("tap")
+                  }}
                   horizontal={isH}
                 />
               ))}
@@ -142,7 +146,14 @@ export function FloatingBar({
           <ControlButton label="Rotate bar" onClick={toggleOrientation}>
             <Rotate3d className="h-4 w-4" strokeWidth={1.75} />
           </ControlButton>
-          <ControlButton label={minimized ? "Expand" : "Minimize"} onClick={() => setMinimized((m) => !m)}>
+          {/* Minimize plays a pop cue; expanding restores with the same cue so both directions feel acknowledged */}
+          <ControlButton
+            label={minimized ? "Expand" : "Minimize"}
+            onClick={() => {
+              setMinimized((m) => !m)
+              playUiSound("pop")
+            }}
+          >
             <Minus className="h-4 w-4" strokeWidth={1.75} />
           </ControlButton>
           <ControlButton label="Close (demo)" onClick={() => {}}>
