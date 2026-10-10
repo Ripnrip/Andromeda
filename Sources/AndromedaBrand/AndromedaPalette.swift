@@ -1,9 +1,10 @@
 /**
  * 🎨 AndromedaPalette — the single source of colour truth for every Andromeda surface.
  *
- * These values are transcribed from the production web design system
- * (`web/app/globals.css`, oklch tokens) into sRGB so that terminals, SwiftUI and
- * the website all speak the same palette. Deep-space obsidian teal, one electric
+ * These values are the exact sRGB conversions of the dark-theme oklch tokens in
+ * `web/app/globals.css`, so that terminals, SwiftUI and the website all speak the
+ * same palette. `DESIGN.md` at the repo root is the agent-facing spec for the same
+ * tokens; `DesignTokenParityTests` fails if any of the three disagree. Deep-space obsidian teal, one electric
  * cyan accent, and the amber/green/slate status trio. Nothing else.
  *
  * Discipline: never introduce a colour here that does not exist in the web tokens.
@@ -59,8 +60,10 @@ public enum AndromedaPalette {
     public static let muted = BrandColor(red: 0x14, green: 0x22, blue: 0x24)
     /// `--muted-foreground` · secondary text.
     public static let mutedForeground = BrandColor(red: 0x8B, green: 0x9C, blue: 0x9E)
+    /// `--secondary` · chip / hover fill.
+    public static let secondary = BrandColor(red: 0x12, green: 0x22, blue: 0x25)
     /// `--secondary-foreground` · slightly dimmed primary text.
-    public static let secondaryForeground = BrandColor(red: 0xDC, green: 0xE8, blue: 0xE9)
+    public static let secondaryForeground = BrandColor(red: 0xDC, green: 0xE7, blue: 0xE8)
     /// `--border` · hairline.
     public static let border = BrandColor(red: 0x20, green: 0x38, blue: 0x39)
     /// `--input` · field stroke.
@@ -75,7 +78,7 @@ public enum AndromedaPalette {
     /// `--accent` · deeper teal for supporting emphasis.
     public static let accent = BrandColor(red: 0x00, green: 0xA8, blue: 0xAA)
     /// `--accent-foreground` · text on accent.
-    public static let accentForeground = BrandColor(red: 0xF7, green: 0xFC, blue: 0xFC)
+    public static let accentForeground = BrandColor(red: 0xF1, green: 0xFB, blue: 0xFB)
 
     // MARK: Status trio (+ cyan for shipped/healthy)
 
@@ -86,7 +89,7 @@ public enum AndromedaPalette {
     /// `--partial` · partial / in progress / warning.
     public static let partial = BrandColor(red: 0xE5, green: 0xC0, blue: 0x57)
     /// `--spec` · specified only / inert / not started.
-    public static let spec = BrandColor(red: 0x79, green: 0x89, blue: 0x8F)
+    public static let spec = BrandColor(red: 0x7A, green: 0x89, blue: 0x8F)
 
     /// Every token, for docs, tests and palette dumps.
     public static let all: [(name: String, color: BrandColor)] = [
@@ -96,6 +99,7 @@ public enum AndromedaPalette {
         ("popover", popover),
         ("muted", muted),
         ("muted-foreground", mutedForeground),
+        ("secondary", secondary),
         ("secondary-foreground", secondaryForeground),
         ("border", border),
         ("input", input),

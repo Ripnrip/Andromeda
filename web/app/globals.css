@@ -12,6 +12,11 @@
   -----------------------
   Derived from the logo: a glowing teal/cyan trefoil suspended in deep space.
   Palette (5 total): void black, panel slate, hairline border, cyan glow, foreground light.
+
+  This file is the oklch source of truth. DESIGN.md (repo root) and
+  Sources/AndromedaBrand/AndromedaPalette.swift carry the exact sRGB conversions;
+  DesignTokenParityTests fails CI if any of the three disagree. Change all three
+  in the same commit.
 */
 
 @theme inline {

@@ -3,8 +3,8 @@
  *
  * The macOS surfaces (Home, HUD, menu bar item, floating command center) read
  * colour from here rather than from `Color.cyan` / `Color.green` so they match
- * the website and the TUI exactly. Dark-only by construction: the design system
- * has no light palette.
+ * the website and the TUI exactly. Native surfaces are dark-only by construction;
+ * the website's light theme (`light-*` in DESIGN.md) is web-only.
  */
 
 #if canImport(SwiftUI)
@@ -25,12 +25,14 @@ public enum AndromedaTheme {
     public static let popover = Color(brand: AndromedaPalette.popover)
     public static let muted = Color(brand: AndromedaPalette.muted)
     public static let mutedForeground = Color(brand: AndromedaPalette.mutedForeground)
+    public static let secondary = Color(brand: AndromedaPalette.secondary)
     public static let secondaryForeground = Color(brand: AndromedaPalette.secondaryForeground)
     public static let border = Color(brand: AndromedaPalette.border)
     public static let input = Color(brand: AndromedaPalette.input)
     public static let primary = Color(brand: AndromedaPalette.primary)
     public static let primaryForeground = Color(brand: AndromedaPalette.primaryForeground)
     public static let accent = Color(brand: AndromedaPalette.accent)
+    public static let accentForeground = Color(brand: AndromedaPalette.accentForeground)
 
     public static let shipped = Color(brand: AndromedaPalette.shipped)
     public static let signal = Color(brand: AndromedaPalette.signal)
