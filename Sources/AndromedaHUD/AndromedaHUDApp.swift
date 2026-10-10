@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Carbon
+import AndromedaAppControl
 import AndromedaHUDCore
 
 @main
@@ -21,6 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var hudWindow: HUDWindow?
     private var statusItem: NSStatusItem?
     private var eventMonitor: Any?
+    /// The one HUD model for the whole process (HAB-838) — the glass and the
+    /// App Control plane observe the same instance.
+    private let hudModel = HUDModel()
+    /// Loopback App Control listener — a no-op unless ANDROMEDA_APP_CONTROL=1.
+    private let appControl = AppControlService()
 
     private enum Prefs {
         static let originX = "andromeda.hud.originX"
@@ -58,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupResignKeyObserver()
         setupClickOutsideMonitor()
         setupHUDNotifications()
+        armAppControl()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -200,7 +207,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func setupHUDWindow() {
-        let hostingView = AutoSizingHostingView(rootView: HUDView())
+        let hostingView = AutoSizingHostingView(rootView: HUDView(model: hudModel))
         hostingView.sizingOptions = [.intrinsicContentSize]
 
         let window = HUDWindow(
@@ -236,6 +243,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: .andromedaHUDUserDidDragWindow,
             object: nil
         )
+    }
+
+    /// 🎛️ Arms the loopback App Control plane when (and only when)
+    /// ANDROMEDA_APP_CONTROL=1 — off by default, so the resting HUD opens
+    /// no sockets (HAB-838).
+    private func armAppControl() {
+        appControl.arm(model: hudModel)
     }
 
     private func applyWindowLevel() {
