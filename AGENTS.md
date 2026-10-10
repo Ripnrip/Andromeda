@@ -18,6 +18,10 @@ content is internal. Context7 has no implementation/code presence; documentation
 references are non-prescriptive. It may only be an optional future MCP/skill adapter,
 never a core dependency.
 
+## Design system
+
+`DESIGN.md` (repo root) is the design contract for every surface — website, macOS/SwiftUI, and CLI/TUI. Read it before generating UI; never use raw colours. Token changes land in `DESIGN.md`, `web/app/globals.css`, and `Sources/AndromedaBrand/AndromedaPalette.swift` in the same commit — `DesignTokenParityTests` fails otherwise. `Packages/AndromedaUI` still has a parallel palette (BIN-271); new code uses `AndromedaBrand`.
+
 ## Project tracking
 
 **Operator/meta-agent only** (not client tool menus): Linear (`BIN-*`) ∪ Multica Habitat (`HAB-*`) ∪ Slack `#projects` (`C0BHYQQDETA`). Cross-link, don't triple-duplicate. Canonical map + **routing permutation guide**: `docs/ANIMA-PROJECT-LINKS.md` (§ Routing guide). App clients use `project.state.*` CRUD instead.

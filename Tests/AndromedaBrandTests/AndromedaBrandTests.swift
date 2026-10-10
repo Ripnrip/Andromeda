@@ -14,12 +14,12 @@ struct AndromedaPaletteTests {
         #expect(AndromedaPalette.border.hex == "#203839")
         #expect(AndromedaPalette.signal.hex == "#49DE78")
         #expect(AndromedaPalette.partial.hex == "#E5C057")
-        #expect(AndromedaPalette.spec.hex == "#79898F")
+        #expect(AndromedaPalette.spec.hex == "#7A898F")
     }
 
     @Test("palette stays disciplined and fully enumerated")
     func paletteDiscipline() {
-        #expect(AndromedaPalette.all.count == 17)
+        #expect(AndromedaPalette.all.count == 18)
         #expect(Set(AndromedaPalette.all.map(\.name)).count == AndromedaPalette.all.count)
         #expect(AndromedaPalette.shipped == AndromedaPalette.primary)
     }

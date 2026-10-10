@@ -12,6 +12,10 @@ Clients and satellite agents see `memory.*`, `infer.write`, `project.state.*` on
 
 **Operator/meta-agent only.** Track via Linear ∪ Multica ∪ Slack `#projects`. Cross-link `BIN-*` ↔ `HAB-*`. See `docs/ANIMA-PROJECT-LINKS.md` (§ Routing guide — operator routing vs client capabilities). App clients use `project.state.*`.
 
+## Design system
+
+`DESIGN.md` is the source of truth for anything visual — web (`web/`), SwiftUI, and the CLI/TUI. Read it before generating or changing UI. Use tokens only: Tailwind semantic utilities on the web, `AndromedaTheme` / `AndromedaPalette` in Swift, `AndromedaChrome` in the terminal. A token change touches `DESIGN.md`, `web/app/globals.css`, and `AndromedaPalette.swift` together; `DesignTokenParityTests` enforces it.
+
 ## Claude agent habits
 
 1. Read `ANDROMEDA-CHARTER.md` for gateway/product charter when touching Hummingbird / Autocache.
