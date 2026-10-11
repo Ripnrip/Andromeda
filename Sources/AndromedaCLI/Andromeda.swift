@@ -11,7 +11,9 @@ struct Andromeda: AsyncParsableCommand {
         commandName: "andromeda",
         abstract: "Andromeda — Swift-native control plane and Hummingbird model gateway.",
         version: AndromedaVersion.string,
-        subcommands: [Serve.self, Status.self, Brand.self, MCPHubCommand.self],
+        subcommands: [
+            Serve.self, Status.self, Brand.self, MCPHubCommand.self, MemoryChainCommand.self,
+        ],
         defaultSubcommand: Status.self
     )
 }
