@@ -16,9 +16,10 @@
   the Studio home string to the real $HOME (absolute paths only).
   Swift installer contract (BIN-101): same rewrite, no bash.
 
-  Install (typed Swift installer when BIN-101 lands; interim manual):
+  Install (typed Swift, HAB-622 / BIN-101):
     andromeda mcp-hub validate   # config sanity first
-    # render + bootstrap per the hud plist procedure
+    andromeda install-launch-agent --source ops/com.andromeda.mcp-hub.plist \
+      --destination ~/Library/LaunchAgents/com.andromeda.mcp-hub.plist --bootstrap
   Unload:
     launchctl bootout gui/$(id -u)/com.andromeda.mcp-hub
 -->
