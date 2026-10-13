@@ -31,7 +31,8 @@ colors:
   signal: "#49DE78"
   partial: "#E5C057"
   spec: "#7A898F"
-  # Light — web only. Same token names, `light-` prefix.
+  # Light — the website's light theme (plus light-background for SwiftUI
+  # previews). Same token names, `light-` prefix.
   light-background: "#F7FBFC"
   light-foreground: "#0F1D20"
   light-card: "#FFFFFF"
@@ -210,9 +211,11 @@ This file is the single source of truth for every Andromeda surface:
 | CLI / TUI | `AndromedaChrome`, `TerminalStyle` | `Sources/AndromedaBrand/AndromedaPalette.swift` |
 | Living reference | `/design` route | live CSS variables |
 
-Token names are identical across every surface. If a value changes here, it changes in `globals.css` and `AndromedaPalette.swift` in the same commit. `Tests/AndromedaBrandTests/DesignTokenParityTests.swift` converts the oklch values in `globals.css` to sRGB and fails CI if this file or `AndromedaPalette` disagrees with them.
+Token names are identical across every surface that reads them. If a value changes here, it changes in `globals.css`, `AndromedaPalette.swift` and AndromedaUI's `DesignToken.swift` in the same commit. `Tests/AndromedaBrandTests/DesignTokenParityTests.swift` converts the oklch values in `globals.css` to sRGB and fails CI if this file or `AndromedaPalette` disagrees with them.
 
 `Packages/AndromedaUI` can't import `AndromedaBrand` (the root package depends on it), so it carries its own copy as the `DesignToken` enum — each case's raw value is its name here. `Packages/AndromedaUI/Tests/AndromedaUITests/DesignTokenParityTests.swift` holds that copy to this file, so the chain web → DESIGN.md → `AndromedaPalette` and `DesignToken` is checked end to end. The package's older `Color.andromeda*` names (`andromedaTeal`, `andromedaDim`, …) are aliases for tokens.
+
+> **Not yet on the tokens.** Three older palettes still define their own values and are not covered by the parity tests: `Sources/AndromedaHUDCore/AndromedaDesignColors.swift` (the HUD — still the pre-token teal `#34E8DC` and glow `#8FFBEF`), `Sources/AndromedaDomain/DesignSystem.swift` (`AndromedaColor`, hex strings), and `Packages/AndromedaOrchestrator/Sources/AndromedaOrchestrator/OrchestratorTheme.swift`. Inside AndromedaUI, the Dreaming pillar's violets, `andromedaAlert`, and the "core" memory-kind indigo are colours outside the system. The `raw-color-literal` lint lists the `Color(…)` sites; new code reads tokens.
 
 ## Colors
 
@@ -224,7 +227,7 @@ A five-role palette — **void ground, panel slate, hairline border, cyan glow, 
 - **Border (#203839) / Input (#1A2D2F):** hairlines. Borders are 1px and quiet.
 - **Foreground (#E6F1F2):** primary text. **Muted-foreground (#8B9C9E):** secondary text, metadata, field keys.
 - **Primary (#1DE4DB):** electric cyan. The only saturated hue that leads. Used for primary actions, focus rings, eyebrows, the orbital pulse and glow. Never as a large fill behind body text.
-- **Glow (#90FAF3):** the brightest cyan — halos, breathing light, the orbital core, the companion's moon. Light, never text: use it as a stroke, glow or translucent fill. In the light theme it is `#1DE4DB` (the dark theme's primary), so the glow still reads on a bright surface.
+- **Glow (#90FAF3):** the brightest cyan — halos, breathing light, the orbital core, the companion's moon. Mostly light rather than ink — strokes, halos, translucent fills — and on dark ground only; short lit labels (a live readout, a highlighted mono word) may use it, body copy never. In the light theme it is `#1DE4DB` (the dark theme's primary), so the glow still reads on a bright surface.
 - **Accent (#00A8AA):** deeper teal for supporting emphasis — version strings, the outer halo of the trefoil. Use it as a **text or stroke color on dark ground**, not as a fill: `accent-foreground` on `accent` is only 2.78:1 and fails WCAG AA.
 
 ### Status trio

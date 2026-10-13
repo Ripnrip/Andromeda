@@ -549,10 +549,10 @@ struct AndromedaRecallPulse: View {
 
 // MARK: - Previews (one per scene, per swift-skill's #Preview-per-state rule)
 
-#Preview("Dream Field") { AndromedaDreamField().frame(width: 240, height: 144).background(AndromedaTheme.card) }
-#Preview("REM Wave (EEG)") { AndromedaRemWave().frame(width: 240, height: 144).background(AndromedaTheme.card) }
-#Preview("Braid Merge") { AndromedaBraidMerge().frame(width: 240, height: 144).background(AndromedaTheme.card) }
-#Preview("Engram Timeline") { AndromedaEngramTimeline().frame(width: 240, height: 144).background(AndromedaTheme.card) }
-#Preview("Constellation Graph") { AndromedaConstellationGraph().frame(width: 240, height: 144).background(AndromedaTheme.card) }
-#Preview("Crystal Form") { AndromedaCrystalForm().frame(width: 240, height: 144).background(AndromedaTheme.card) }
-#Preview("Recall Pulse") { AndromedaRecallPulse().frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("Dream Field") { AndromedaDreamField().frame(width: 240, height: 144).background(AndromedaTheme.background) }
+#Preview("REM Wave (EEG)") { AndromedaRemWave().frame(width: 240, height: 144).background(AndromedaTheme.background) }
+#Preview("Braid Merge") { AndromedaBraidMerge().frame(width: 240, height: 144).background(AndromedaTheme.background) }
+#Preview("Engram Timeline") { AndromedaEngramTimeline().frame(width: 240, height: 144).background(AndromedaTheme.background) }
+#Preview("Constellation Graph") { AndromedaConstellationGraph().frame(width: 240, height: 144).background(AndromedaTheme.background) }
+#Preview("Crystal Form") { AndromedaCrystalForm().frame(width: 240, height: 144).background(AndromedaTheme.background) }
+#Preview("Recall Pulse") { AndromedaRecallPulse().frame(width: 240, height: 144).background(AndromedaTheme.background) }

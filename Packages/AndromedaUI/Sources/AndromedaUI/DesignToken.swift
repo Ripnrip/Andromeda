@@ -2,10 +2,11 @@ import SwiftUI
 
 /// The Andromeda design tokens — the `colors:` set from `DESIGN.md` at the repo root.
 ///
-/// Every colour this package draws resolves to one of these cases. `rawValue` is the
-/// token's name in DESIGN.md and `hex` is its exact sRGB value, so the package speaks
-/// the same palette as the website (`web/app/globals.css`) and the macOS/terminal
-/// surfaces (`AndromedaBrand`).
+/// The full dark-theme set, plus the light-theme tokens this package uses. `rawValue` is
+/// the token's name in DESIGN.md and `hex` is its exact sRGB value, so the package
+/// speaks the same palette as the website (`web/app/globals.css`) and the
+/// macOS/terminal surfaces (`AndromedaBrand`). Colours outside the system (the Dreaming
+/// pillar's violets, `andromedaAlert`) are flagged by the `raw-color-literal` lint.
 ///
 /// This package can't import `AndromedaBrand` (the root package depends on it, so the
 /// import would be a cycle), so the values live here. `DesignTokenParityTests` fails
