@@ -123,10 +123,14 @@ strict concurrency, all shell work through the injected `ProcessRunning` seam fr
 
 **Verified:** `swift test --filter LettaMemoryIngress` (unit + optional `LETTA_LIVE_E2E=1`).
 
-**Phase 2 partial (2026-10-07):** every write runs `fact.cloaked` through
-`VisibilityFilter` before seal; injectable `TelemetryClient` emits
-`memory.ingress.write.start` / `.ok` / `.error` (+ `memory.ingress.verify.ok` when
-cliTokens verification is enabled).
+**Phase 2 partial (2026-10-07, tightened 2026-10-13):** every write runs
+`fact.cloaked` through `VisibilityFilter` before seal. Classification covers
+every rendered field (title, source, body, tags), not the body alone — a
+credential in the title cannot survive as `public`. Injectable `TelemetryClient`
+emits `memory.ingress.write.start` / `.ok` / `.error` (+ `memory.ingress.verify.ok`
+when cliTokens verification is enabled). Exported attributes are IDs, visibility,
+and status codes only: no source, slug, path, or raw error string. Failures emit
+`error_code` (`memfs_missing`, `git_failed`, …); paths and git stderr stay local.
 
 **Next:** decide daemon home (fold into an existing Andromeda long-running binary vs new
 `com.andromeda.memory-ingress`); unblock agent-side conversation verification by fixing

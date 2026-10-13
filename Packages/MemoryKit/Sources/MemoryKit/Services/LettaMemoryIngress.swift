@@ -100,6 +100,20 @@ public enum LettaIngressError: Error, LocalizedError, Sendable, Equatable {
             "🌩️ agentID '\(id)' failed the memfs charset allowlist (expected hex + hyphen)."
         }
     }
+
+    /// Bounded code for exported telemetry. Never the associated path, stderr, or title.
+    public var telemetryCode: String {
+        switch self {
+        case .memfsMissing: "memfs_missing"
+        case .emptyTitle: "empty_title"
+        case .emptyBody: "empty_body"
+        case .slugInvalid: "slug_invalid"
+        case .gitFailed: "git_failed"
+        case .verificationFailed: "verification_failed"
+        case .titleUnsafeForFrontmatter: "title_unsafe"
+        case .agentIDInvalid: "agent_id_invalid"
+        }
+    }
 }
 
 /// ✍️ The curtain-facing contract: deliver a fact into a local Letta agent's memory.
@@ -134,9 +148,12 @@ extension LettaMemoryFact {
     ///
     /// Callers may suggest `public`/`friends`, but `[cloak]` / secrets tags / credential
     /// patterns force `internal` before anything is rendered into memfs.
+    /// Title, source, and tags are rendered too — classifying the body alone lets a
+    /// credential in the title or source survive as `public`.
     public var effectiveVisibility: MemoryVisibility {
+        let classified = [title, source, body, tags.joined(separator: " ")].joined(separator: "\n")
         let resolved = VisibilityFilter.determineVisibility(
-            for: body,
+            for: classified,
             suggestedVisibility: visibility.rawValue,
             tags: tags
         )
@@ -195,12 +212,7 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
         await telemetry.emit(
             TelemetryEvent(
                 name: "memory.ingress.write.start",
-                attributes: [
-                    "agent_id": agentID,
-                    "visibility": fact.visibility.rawValue,
-                    "source": fact.source,
-                    "slug": fact.slug,
-                ]
+                attributes: Self.safeAttributes(agentID: agentID, visibility: fact.visibility)
             )
         )
 
@@ -209,13 +221,15 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
             await telemetry.emit(
                 TelemetryEvent(
                     name: "memory.ingress.write.ok",
-                    attributes: [
-                        "agent_id": agentID,
-                        "visibility": fact.visibility.rawValue,
-                        "relative_path": receipt.relativePath,
-                        "unchanged": receipt.unchanged ? "true" : "false",
-                        "commit_sha": String(receipt.commitSHA.prefix(12)),
-                    ],
+                    attributes: Self.safeAttributes(
+                        agentID: agentID,
+                        visibility: fact.visibility,
+                        extra: [
+                            "unchanged": receipt.unchanged ? "true" : "false",
+                            "commit_sha": String(receipt.commitSHA.prefix(12)),
+                            "content_hash": String(receipt.contentHash.prefix(19)),
+                        ]
+                    ),
                     status: .ok
                 )
             )
@@ -224,15 +238,37 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
             await telemetry.emit(
                 TelemetryEvent(
                     name: "memory.ingress.write.error",
-                    attributes: [
-                        "agent_id": agentID,
-                        "error": String(describing: error),
-                    ],
+                    attributes: Self.safeAttributes(
+                        agentID: agentID,
+                        visibility: fact.visibility,
+                        extra: ["error_code": Self.telemetryCode(for: error)]
+                    ),
                     status: .error
                 )
             )
             throw error
         }
+    }
+
+    /// Counts, statuses, and IDs only. Never source, title, slug, path, or raw errors.
+    private static func safeAttributes(
+        agentID: String,
+        visibility: MemoryVisibility,
+        extra: [String: String] = [:]
+    ) -> [String: String] {
+        var attributes = [
+            "agent_id": agentID,
+            "visibility": visibility.rawValue,
+        ]
+        for (key, value) in extra where !value.isEmpty {
+            attributes[key] = value
+        }
+        return attributes
+    }
+
+    /// Typed code for the exported error event. Associated payloads stay local.
+    private static func telemetryCode(for error: Error) -> String {
+        (error as? LettaIngressError)?.telemetryCode ?? "ingress_failed"
     }
 
     /// Core write path after cloak + telemetry bookends.
@@ -312,11 +348,11 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
             await telemetry.emit(
                 TelemetryEvent(
                     name: "memory.ingress.verify.ok",
-                    attributes: [
-                        "agent_id": agentID,
-                        "relative_path": relativePath,
-                        "total_tokens": String(report.total_tokens),
-                    ],
+                    attributes: Self.safeAttributes(
+                        agentID: agentID,
+                        visibility: fact.visibility,
+                        extra: ["total_tokens": String(report.total_tokens)]
+                    ),
                     status: .ok
                 )
             )
