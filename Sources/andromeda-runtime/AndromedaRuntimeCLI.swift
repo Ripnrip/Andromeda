@@ -75,6 +75,9 @@ struct Serve: AsyncParsableCommand {
     @Flag(name: .long, help: "Allow write operations (GitHub POST/PATCH/PUT/DELETE, Slack writes) through the tools broker. Env: ANDROMEDA_TOOLS_AUTOMATION=1.")
     var automationAllowed = false
 
+    @Flag(name: .long, help: "Host core-memory ingress inside this serve process. Requires the MCP bearer — the runtime binds the tailnet. Env: ANDROMEDA_MEMORY_INGRESS=1. Does not install a LaunchAgent.")
+    var memoryIngress = false
+
     func run() async throws {
         LoggingSystem.bootstrap { label in
             var handler = StreamLogHandler.standardOutput(label: label)
@@ -132,11 +135,20 @@ struct Serve: AsyncParsableCommand {
             )
         }
 
+        let hostIngress = memoryIngress || env["ANDROMEDA_MEMORY_INGRESS"] == "1"
+        if hostIngress, mcpConfiguration == nil {
+            throw ValidationError(
+                "memory ingress requires ANDROMEDA_MCP_BEARER_TOKEN — serve binds 0.0.0.0 and will not expose unauthenticated writes"
+            )
+        }
+        let ingress = hostIngress ? MemoryIngressHost.make(logger: logger) : nil
+
         let server = try AndromedaRuntimeServer(
             configuration: AndromedaRuntimeConfiguration(host: host, port: port, mcp: mcpConfiguration),
             journalFileURL: URL(fileURLWithPath: journalPath),
             vaultDirectoryURL: vaultDir.map { URL(fileURLWithPath: $0) },
             qdrantBaseURL: qdrantBaseURL,
+            lettaIngress: ingress,
             logger: logger
         )
         try await server.run()
