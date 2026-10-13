@@ -253,6 +253,35 @@ public struct NoOpTelemetryClient: TelemetryClient {
     ) async {}
 }
 
+/// 🧪 In-memory recorder for hermetic telemetry assertions.
+public actor RecordingTelemetryClient: TelemetryClient {
+    private var events: [TelemetryEvent] = []
+
+    public init() {}
+
+    public func emit(_ event: TelemetryEvent) async {
+        events.append(event)
+    }
+
+    public func startSpan(_ name: String, attributes: [String: String]) async -> TelemetrySpanHandle {
+        TelemetrySpanHandle(name: name, attributes: attributes)
+    }
+
+    public func endSpan(
+        _ handle: TelemetrySpanHandle,
+        status: TelemetrySpanStatus,
+        attributes: [String: String]
+    ) async {
+        _ = handle
+        _ = status
+        _ = attributes
+    }
+
+    public func snapshot() -> [TelemetryEvent] { events }
+
+    public func names() -> [String] { events.map(\.name) }
+}
+
 // MARK: - OSLog
 
 /// 📜 Console.app / unified logging sink.
