@@ -38,7 +38,7 @@ cd Packages/AndromedaUI && swift test
 
 ## Foundations
 
-- **Palette** — `DesignToken` (every colour in `DESIGN.md`, by its spec name). The older
+- **Palette** — `DesignToken` (every dark-theme colour in `DESIGN.md`, by its spec name). The older
   `Color.andromeda{Void, Panel, Teal, Glow, Live, Muted, Amber, Dim, Ink}` names are aliases:
   `background`, `card`, `primary`, `glow`, `signal`, `muted-foreground`, `partial`, `spec`, `foreground`.
   The companion HUD's `AndromedaTheme.*` mirrors the spec's names one-for-one.

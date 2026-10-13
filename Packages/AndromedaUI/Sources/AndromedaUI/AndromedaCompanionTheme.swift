@@ -26,7 +26,7 @@ public enum AndromedaTheme {
     /// Deep teal for supporting emphasis. Not for halos — that's `glow`.
     public static let accent = DesignToken.accent.color
 
-    /// Brightest cyan — halos, breathing glows, the moon, the eye.
+    /// Brightest cyan — halos, breathing glows, the moon, the eye, short lit labels.
     public static let glow = DesignToken.glow.color
 
     /// Signal — live green for active nodes, answer retrieval.

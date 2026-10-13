@@ -92,6 +92,7 @@ private enum DesignSpecColors {
         var inColors = false
         for line in lines.dropFirst() {
             if line == "---" { break }
+            if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
             if !line.hasPrefix(" ") {
                 inColors = line.hasPrefix("colors:")
                 continue

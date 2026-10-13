@@ -8,7 +8,8 @@ language: swift
 severity: warning  # existing sites are visible debt; flip to error once cleared
 ignores:
   - "**/Tests/**"
-  - "Sources/AndromedaBrand/**"
+  - "Sources/AndromedaBrand/AndromedaPalette.swift"
+  - "Sources/AndromedaBrand/AndromedaTheme+SwiftUI.swift"
   - "Packages/AndromedaUI/Sources/AndromedaUI/DesignToken.swift"
 message: Colour literal — use a design token (AndromedaTheme / DesignToken); see DESIGN.md.
 rule:
@@ -21,3 +22,7 @@ rule:
     - pattern: 'Color(hue: $H, saturation: $S, brightness: $B, opacity: $O)'
     - pattern: 'Color(white: $W)'
     - pattern: 'Color(white: $W, opacity: $O)'
+    - pattern: 'Color(.displayP3, red: $R, green: $G, blue: $B)'
+    - pattern: 'Color(.displayP3, red: $R, green: $G, blue: $B, opacity: $O)'
+    - pattern: 'Color.init(red: $R, green: $G, blue: $B)'
+    - pattern: 'Color.init(red: $R, green: $G, blue: $B, opacity: $O)'
