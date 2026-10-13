@@ -33,6 +33,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-glow: var(--glow);
 
   /* Neutrals */
   --color-muted: var(--muted);
@@ -79,6 +80,10 @@
   --accent: oklch(0.5 0.11 196);
   --accent-foreground: oklch(0.99 0.005 200);
 
+  /* Glow — the brightest cyan, for halos and breathing light. On a bright
+     surface it is the dark theme's primary, so the light still reads. */
+  --glow: oklch(0.83 0.14 190);
+
   --secondary: oklch(0.94 0.008 210);
   --secondary-foreground: oklch(0.28 0.02 210);
 
@@ -110,6 +115,8 @@
 
   --accent: oklch(0.66 0.12 196);
   --accent-foreground: oklch(0.98 0.01 200);
+
+  --glow: oklch(0.92 0.1 190);
 
   --secondary: oklch(0.24 0.022 210);
   --secondary-foreground: oklch(0.92 0.012 200);
