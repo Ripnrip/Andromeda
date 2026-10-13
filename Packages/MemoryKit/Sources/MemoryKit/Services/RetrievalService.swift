@@ -30,6 +30,11 @@ public struct RecallQuery: Sendable, Equatable {
     public var limit: Int
     /// When true, attempt vault ripgrep if hot results are below `limit`.
     public var includeVaultFallback: Bool
+    /// When true, augment the text needle with semantic neighbours from the
+    /// operator's index backend (fail-open). Provider selection stays behind
+    /// the Andromeda curtain — callers opt into *semantic recall*, not into a
+    /// named index (AGENTS.md capability hiding).
+    public var includeSemanticFallback: Bool
 
     // 🌟 The Seeker's Brief - Assemble the lantern with sensible defaults
     public init(
@@ -40,7 +45,8 @@ public struct RecallQuery: Sendable, Equatable {
         dateFrom: Date? = nil,
         dateTo: Date? = nil,
         limit: Int = 20,
-        includeVaultFallback: Bool = true
+        includeVaultFallback: Bool = true,
+        includeSemanticFallback: Bool = true
     ) {
         self.text = text
         self.tags = tags
@@ -50,6 +56,7 @@ public struct RecallQuery: Sendable, Equatable {
         self.dateTo = dateTo
         self.limit = max(1, limit)
         self.includeVaultFallback = includeVaultFallback
+        self.includeSemanticFallback = includeSemanticFallback
     }
 }
 
@@ -58,6 +65,10 @@ public struct MemoryHit: Sendable, Identifiable, Equatable {
     public enum Source: String, Sendable, Equatable {
         case hotStore
         case vault
+        /// Semantic neighbour from the index backend (Ladybug §13 today) —
+        /// vault notes + thin-metadata cache nodes, fail-open probe.
+        /// Provider-neutral by charter; the brand stays behind the curtain.
+        case semantic
     }
 
     public let id: UUID
@@ -109,19 +120,30 @@ public struct RecallResult: Sendable, Equatable {
     /// True when vault ripgrep was skipped (missing path) or failed open.
     public let vaultDegraded: Bool
     public let degradationReason: String?
+    /// Semantic neighbours contributed by the index probe (§13).
+    public let semanticHitCount: Int
+    /// True when the index backend was unreachable/unhealthy/malformed (fail-open).
+    public let semanticDegraded: Bool
+    public let semanticDegradationReason: String?
 
     public init(
         hits: [MemoryHit],
         hotHitCount: Int,
         vaultHitCount: Int,
         vaultDegraded: Bool,
-        degradationReason: String? = nil
+        degradationReason: String? = nil,
+        semanticHitCount: Int = 0,
+        semanticDegraded: Bool = false,
+        semanticDegradationReason: String? = nil
     ) {
         self.hits = hits
         self.hotHitCount = hotHitCount
         self.vaultHitCount = vaultHitCount
         self.vaultDegraded = vaultDegraded
         self.degradationReason = degradationReason
+        self.semanticHitCount = semanticHitCount
+        self.semanticDegraded = semanticDegraded
+        self.semanticDegradationReason = semanticDegradationReason
     }
 }
 
@@ -310,6 +332,8 @@ public actor RetrievalService {
     private let processRunner: any ProcessRunning
     private let ripgrepExecutable: String
     private let fileManager: FileManager
+    /// 🐞 Injectable Ladybug index probe (`:8286`) — §13 fail-open semantic stage.
+    private let ladybugSearch: any LadybugVectorSearching
 
     /// 🔮 Bind the librarian to a hot vault and optional Obsidian path.
     /// - Parameters:
@@ -318,28 +342,33 @@ public actor RetrievalService {
     ///   - processRunner: Injectable runner (mock in tests; `LocalProcessRunner` in prod).
     ///   - ripgrepExecutable: Path to `rg` binary.
     ///   - fileManager: Injected for vault-existence checks.
+    ///   - ladybugSearch: Injectable Ladybug index probe; default binds `127.0.0.1:8286`,
+    ///     an unreachable server degrades recall, never fails it (§13 constraint 2).
     public init(
         container: SwiftDataContainer,
         vaultURL: URL? = nil,
         processRunner: any ProcessRunning = LocalProcessRunner(),
         ripgrepExecutable: String = "/opt/homebrew/bin/rg",
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        ladybugSearch: any LadybugVectorSearching = LadybugVectorSearch()
     ) {
         self.container = container
         self.vaultURL = vaultURL
         self.processRunner = processRunner
         self.ripgrepExecutable = ripgrepExecutable
         self.fileManager = fileManager
+        self.ladybugSearch = ladybugSearch
     }
 
-    /// 🔍 recall_memory — hot store first, optional vault ripgrep fallback, never Qdrant/Ladybug.
+    /// 🔍 recall_memory — hot store first, optional vault + Ladybug fallbacks.
+    /// Qdrant is never required; Ladybug is semantic augmentation, not a requirement.
     @discardableResult
     public func recallMemory(_ query: RecallQuery) async throws -> RecallResult {
         guard hasSearchableCriteria(query) else {
             throw RetrievalServiceError.emptyQuery
         }
 
-        print("🌐 ✨ RECALL_MEMORY AWAKENS! limit=\(query.limit) vaultFallback=\(query.includeVaultFallback)")
+        print("🌐 ✨ RECALL_MEMORY AWAKENS! limit=\(query.limit) vaultFallback=\(query.includeVaultFallback) semanticFallback=\(query.includeSemanticFallback)")
 
         // 🎨 Act I — query the hot ledger with structured filters
         let hotHits = try await searchHotStore(query)
@@ -367,8 +396,32 @@ public actor RetrievalService {
             }
         }
 
+        // 🔮 Act II½ — semantic index probe (vault notes + §13 cache nodes).
+        //     Runs independently of the vault stage whenever a text needle exists;
+        //     fail-open — a dark or malformed backend narrows recall, never fails it.
+        //     The same structured constraints the hot store honours (project,
+        //     visibility, tags, dates) prune the neighbours: an exact-filter
+        //     query must not leak hits from outside its scope (review r4213544620).
+        var semanticHits: [MemoryHit] = []
+        var semanticDegraded = false
+        var semanticReason: String?
+        let shouldProbeSemantic = query.includeSemanticFallback && !textNeedle.isEmpty
+        if shouldProbeSemantic {
+            let outcome = await ladybugSearch.search(text: textNeedle, k: query.limit)
+            semanticHits = outcome.hits
+                .map { Self.memoryHit(from: $0) }
+                .filter { Self.passesStructuredFilters(query: query, hit: $0) }
+            semanticDegraded = outcome.degraded
+            semanticReason = outcome.reason
+            if semanticDegraded {
+                print("🔮 ⚠️ Semantic stage degraded — \(semanticReason ?? "unknown")")
+            } else {
+                print("🔮 Index whispered back \(semanticHits.count) in-scope semantic neighbours")
+            }
+        }
+
         // 🌟 Act III — merge, dedupe, rank; hot store wins identity collisions
-        let merged = mergeAndRank(hot: hotHits, vault: vaultHits, limit: query.limit)
+        let merged = mergeAndRank(hot: hotHits, vault: vaultHits, semantic: semanticHits, limit: query.limit)
         print("🎉 ✨ RECALL_MEMORY MASTERPIECE COMPLETE! hits=\(merged.count)")
 
         return RecallResult(
@@ -376,7 +429,10 @@ public actor RetrievalService {
             hotHitCount: hotHits.count,
             vaultHitCount: vaultHits.count,
             vaultDegraded: vaultDegraded,
-            degradationReason: degradationReason
+            degradationReason: degradationReason,
+            semanticHitCount: semanticHits.count,
+            semanticDegraded: semanticDegraded,
+            semanticDegradationReason: semanticReason
         )
     }
 
@@ -602,10 +658,106 @@ public actor RetrievalService {
         return hits
     }
 
+    // MARK: - Semantic Stage
+
+    /// 🔮 Crystallize an index neighbour into a MemoryHit.
+    ///
+    /// Cache hits are thin metadata (§13) — `narrative` carries the join
+    /// pointer (title + source path), never the note body. Score: cosine
+    /// distance 0…2 maps to 1…5 — always below the hot store's recency-boosted
+    /// floor (+100) and competitive with vault text matches (1…6).
+    private static func memoryHit(from hit: LadybugSearchHit) -> MemoryHit {
+        let basis = max(0.0, 2.0 - hit.distance)     // 0 (opposite) … 2 (identical)
+        let title = hit.title?.isEmpty == false ? hit.title! : "index neighbour"
+        let narrative = hit.path.map { "\(title) — \($0)" } ?? title
+        return MemoryHit(
+            contentHash: hit.contentHash,
+            narrative: narrative,
+            project: hit.project,
+            visibility: hit.visibility,
+            tags: hit.tags,
+            createdAt: parseLadybugDate(hit.date),
+            path: hit.path,
+            source: .semantic,
+            score: 1.0 + basis * 2.0
+        )
+    }
+
+    /// 🧮 Structured-filter predicate applied to semantic neighbours so an
+    /// exact-scoped query never leaks hits from outside its scope — the §13
+    /// metadata carries the same dimensions the hot store filters on.
+    /// Semantics mirror the hot store: project/visibility exact, tags
+    /// all-present, `dateFrom`/`dateTo` inclusive bounds on the record date.
+    /// Neighbours with a missing dimension fail a filter on that dimension
+    /// (cache rows are thin; an unknown project is not a match).
+    private static func passesStructuredFilters(query: RecallQuery, hit: MemoryHit) -> Bool {
+        if let project = query.project, hit.project != project {
+            return false
+        }
+        if let visibility = query.visibility, hit.visibility != visibility {
+            return false
+        }
+        if let requiredTags = query.tags, !requiredTags.isEmpty {
+            let present = Set(hit.tags)
+            if !requiredTags.allSatisfy({ present.contains($0) }) {
+                return false
+            }
+        }
+        if let from = query.dateFrom {
+            guard let date = hit.createdAt, date >= from else { return false }
+        }
+        if let to = query.dateTo {
+            guard let date = hit.createdAt, date <= to else { return false }
+        }
+        return true
+    }
+
+    /// 📅 Parse the §13 `date` field (`yyyy-MM-dd`) — nil-tolerant leniency.
+    private static func parseLadybugDate(_ string: String?) -> Date? {
+        guard let string, !string.isEmpty else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        return formatter.date(from: string)
+    }
+
+    /// 🧭 Normalize a path to its vault-relative form for cross-stage dedup:
+    /// strip a leading vault-root prefix, drop `private/var` symlinking noise,
+    /// collapse duplicate separators, and remove a leading `./`. Case is kept
+    /// (the vault is case-sensitive by contract).
+    private static func normalizedVaultPath(_ path: String, vaultRoot: String?) -> String {
+        var candidate = path
+        if let root = vaultRoot, !root.isEmpty, candidate.hasPrefix(root) {
+            candidate = String(candidate.dropFirst(root.count))
+        } else {
+            // Absolute vault paths when no vaultURL was injected — strip the
+            // home prefix so both spellings converge on the relative form.
+            let home = NSString(string: "~/").expandingTildeInPath
+            if candidate.hasPrefix(home) {
+                candidate = String(candidate.dropFirst(home.count))
+            }
+        }
+        while candidate.hasPrefix("/") {
+            candidate = String(candidate.dropFirst())
+        }
+        while candidate.hasPrefix("./") {
+            candidate = String(candidate.dropFirst(2))
+        }
+        return candidate
+    }
+
     // MARK: - Merge
 
-    /// 💎 Merge hot + vault hits; hot IDs/contentHashes win; rank by score desc.
-    private func mergeAndRank(hot: [MemoryHit], vault: [MemoryHit], limit: Int) -> [MemoryHit] {
+    /// 💎 Merge hot + vault + semantic hits; earlier stages win identity
+    /// collisions (hot > vault > semantic); rank by score desc.
+    ///
+    /// Path comparisons run on a normalized vault-relative form: ripgrep emits
+    /// absolute paths anchored at `vaultURL`, the index backend stores §13
+    /// `source_path` relative to the vault root — the raw strings never match,
+    /// so the same note would surface twice (review r4213544630).
+    private func mergeAndRank(hot: [MemoryHit], vault: [MemoryHit],
+                              semantic: [MemoryHit], limit: Int) -> [MemoryHit] {
         var seenHashes = Set<String>()
         var seenPaths = Set<String>()
         var merged: [MemoryHit] = []
@@ -615,7 +767,7 @@ public actor RetrievalService {
                 seenHashes.insert(hash)
             }
             if let path = hit.path {
-                seenPaths.insert(path)
+                seenPaths.insert(Self.normalizedVaultPath(path, vaultRoot: vaultURL?.path))
             }
             merged.append(hit)
         }
@@ -624,11 +776,30 @@ public actor RetrievalService {
             if let hash = hit.contentHash, seenHashes.contains(hash) {
                 continue
             }
-            if let path = hit.path, seenPaths.contains(path) {
+            if let path = hit.path {
+                if seenPaths.contains(Self.normalizedVaultPath(path, vaultRoot: vaultURL?.path)) {
+                    continue
+                }
+                seenPaths.insert(Self.normalizedVaultPath(path, vaultRoot: vaultURL?.path))
+            }
+            if let hash = hit.contentHash {
+                seenHashes.insert(hash)
+            }
+            merged.append(hit)
+        }
+
+        for hit in semantic {
+            if let hash = hit.contentHash, seenHashes.contains(hash) {
                 continue
             }
             if let path = hit.path {
-                seenPaths.insert(path)
+                if seenPaths.contains(Self.normalizedVaultPath(path, vaultRoot: vaultURL?.path)) {
+                    continue
+                }
+                seenPaths.insert(Self.normalizedVaultPath(path, vaultRoot: vaultURL?.path))
+            }
+            if let hash = hit.contentHash {
+                seenHashes.insert(hash)
             }
             merged.append(hit)
         }
