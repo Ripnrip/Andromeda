@@ -213,4 +213,20 @@ public struct LaunchEntity: Sendable, Equatable, Identifiable, Codable {
         self.purpose = purpose
         self.isOpsOnly = isOpsOnly
     }
+
+    /// Core-memory ingress hosted by `andromeda-runtime serve`.
+    /// `plistPath` is a hosted marker, not a LaunchAgent — fleet law forbids a second daemon.
+    public static func hostedMemoryIngress() -> LaunchEntity {
+        LaunchEntity(
+            slug: "svc.memory-ingress",
+            label: "com.andromeda.memory-ingress",
+            kind: .service,
+            plistPath: "hosted:andromeda-runtime",
+            schedule: .keepAlive,
+            status: .running,
+            hostRole: .hub,
+            purpose: "Core-memory ingress hosted by andromeda-runtime serve (no separate daemon)",
+            isOpsOnly: true
+        )
+    }
 }
