@@ -2,25 +2,28 @@ import SwiftUI
 
 // MARK: - Palette
 
+/// The package's historical colour names, each now a `DesignToken` — call sites keep
+/// their names, every value comes from DESIGN.md. New code may use `DesignToken`
+/// directly.
 public extension Color {
-    /// Deep-space backdrop.
-    static let andromedaVoid  = Color(red: 0.012, green: 0.043, blue: 0.047)
-    /// Panel / raised surface.
-    static let andromedaPanel = Color(red: 0.016, green: 0.051, blue: 0.055)
-    /// Primary accent.
-    static let andromedaTeal  = Color(red: 0.204, green: 0.910, blue: 0.863)
-    /// Bright highlight / glow.
-    static let andromedaGlow  = Color(red: 0.561, green: 0.984, blue: 0.937)
-    /// Success / live green.
-    static let andromedaLive  = Color(red: 0.243, green: 0.878, blue: 0.549)
-    /// Muted label.
-    static let andromedaMuted = Color(red: 0.498, green: 0.639, blue: 0.620)
-    /// Partial / warning amber — single declaration (was duplicated in ControlBar + MemoryKinds).
-    static let andromedaAmber = Color(red: 0.910, green: 0.784, blue: 0.290)
-    /// Spec / inert dim teal-gray.
-    static let andromedaDim   = Color(red: 0.290, green: 0.427, blue: 0.408)
-    /// Primary readable ink on dark surfaces (near-white cyan).
-    static let andromedaInk   = Color(red: 0.918, green: 1.0, blue: 0.984)
+    /// Deep-space backdrop → `background`.
+    static let andromedaVoid  = DesignToken.background.color
+    /// Panel / raised surface → `card`.
+    static let andromedaPanel = DesignToken.card.color
+    /// Primary accent → `primary`.
+    static let andromedaTeal  = DesignToken.primary.color
+    /// Bright highlight / glow → `glow`.
+    static let andromedaGlow  = DesignToken.glow.color
+    /// Success / live green → `signal`.
+    static let andromedaLive  = DesignToken.signal.color
+    /// Muted label → `muted-foreground`.
+    static let andromedaMuted = DesignToken.mutedForeground.color
+    /// Partial / warning amber → `partial`.
+    static let andromedaAmber = DesignToken.partial.color
+    /// Spec / inert / idle → `spec`.
+    static let andromedaDim   = DesignToken.spec.color
+    /// Primary readable ink on dark surfaces → `foreground`.
+    static let andromedaInk   = DesignToken.foreground.color
 }
 
 // MARK: - Timing tokens
@@ -50,7 +53,7 @@ public struct AndromedaSurface: View {
     public var body: some View {
         let base = scheme == .dark
             ? Color.andromedaVoid
-            : Color(red: 0.925, green: 0.957, blue: 0.953)
+            : DesignToken.lightBackground.color
         base.overlay(
             RadialGradient(
                 colors: [Color.andromedaTeal.opacity(scheme == .dark ? 0.10 : 0.16), .clear],

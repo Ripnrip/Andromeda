@@ -108,7 +108,7 @@ struct AndromedaOrbitDots: View {
 
 struct AndromedaParticleDrift: View {
     var count: Int = 7
-    var color: Color = AndromedaTheme.accent
+    var color: Color = AndromedaTheme.glow
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -150,7 +150,7 @@ struct AndromedaParticleDrift: View {
 // MARK: - 5. BreathingGlow — a slow, calm pulse behind an icon or pill
 
 struct AndromedaBreathingGlow: View {
-    var color: Color = AndromedaTheme.accent
+    var color: Color = AndromedaTheme.glow
     var intensity: Double = 0.7
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -225,7 +225,7 @@ struct AndromedaMarchingSignal: View {
 // MARK: - 8. RotatingRing — a dashed ring in slow, constant rotation
 
 struct AndromedaRotatingRing: View {
-    var color: Color = AndromedaTheme.accent
+    var color: Color = AndromedaTheme.glow
     var lineWidth: CGFloat = 1.5
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -246,7 +246,7 @@ struct AndromedaRotatingRing: View {
 struct AndromedaVectorGrid: View {
     var cols: Int = 5
     var rows: Int = 3
-    var color: Color = AndromedaTheme.accent
+    var color: Color = AndromedaTheme.glow
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -277,7 +277,7 @@ struct AndromedaVectorGrid: View {
 
 struct AndromedaTokenStream: View {
     var count: Int = 5
-    var color: Color = AndromedaTheme.accent
+    var color: Color = AndromedaTheme.glow
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -379,7 +379,7 @@ struct AndromedaCountUp: View {
 
 struct AndromedaProgressFill: View {
     var color: Color = AndromedaTheme.primary
-    var trackColor: Color = AndromedaTheme.border
+    var trackColor: Color = AndromedaTheme.spec
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -417,7 +417,7 @@ struct AndromedaProgressFill: View {
             .font(AndromedaTheme.Font.mono(size: 11))
             .foregroundStyle(AndromedaTheme.foreground)
             .padding(.horizontal, 9).padding(.vertical, 4)
-            .background(AndromedaTheme.accent.opacity(0.18), in: Capsule())
+            .background(AndromedaTheme.glow.opacity(0.18), in: Capsule())
     }
     .frame(width: 240, height: 144).background(AndromedaTheme.card)
 }

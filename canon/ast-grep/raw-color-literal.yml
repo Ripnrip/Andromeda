@@ -1,0 +1,23 @@
+# Canon law: every colour comes from the design tokens in DESIGN.md — never a
+# literal. Swift reads them through AndromedaBrand (`AndromedaTheme` /
+# `AndromedaPalette`) or, inside Packages/AndromedaUI, `DesignToken`. A literal
+# here is a colour the parity tests can't see, so it drifts silently.
+# Only the token files themselves may spell a colour out.
+id: raw-color-literal
+language: swift
+severity: warning  # existing sites are visible debt; flip to error once cleared
+ignores:
+  - "**/Tests/**"
+  - "Sources/AndromedaBrand/**"
+  - "Packages/AndromedaUI/Sources/AndromedaUI/DesignToken.swift"
+message: Colour literal — use a design token (AndromedaTheme / DesignToken); see DESIGN.md.
+rule:
+  any:
+    - pattern: 'Color(red: $R, green: $G, blue: $B)'
+    - pattern: 'Color(red: $R, green: $G, blue: $B, opacity: $O)'
+    - pattern: 'Color(.sRGB, red: $R, green: $G, blue: $B)'
+    - pattern: 'Color(.sRGB, red: $R, green: $G, blue: $B, opacity: $O)'
+    - pattern: 'Color(hue: $H, saturation: $S, brightness: $B)'
+    - pattern: 'Color(hue: $H, saturation: $S, brightness: $B, opacity: $O)'
+    - pattern: 'Color(white: $W)'
+    - pattern: 'Color(white: $W, opacity: $O)'
