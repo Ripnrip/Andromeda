@@ -240,7 +240,7 @@ struct MCPRouteTests {
     }
 
     /// Valid JSON that is not an envelope must keep the coding path.
-    @Test("valid JSON missing method is -32600 with the missing key, not -32700")
+    @Test("valid JSON missing method is -32600 with the missing key and the caller's id, not -32700")
     func invalidEnvelopeKeepsCodingPath() async throws {
         try await makeApp().test(.router) { client in
             try await client.execute(
@@ -255,7 +255,43 @@ struct MCPRouteTests {
                 let body = String(buffer: response.body)
                 #expect(body.contains("-32600"))
                 #expect(body.contains("method"))
+                #expect(body.contains(#""id":7"#))
                 #expect(!body.contains("-32700"))
+            }
+        }
+    }
+
+    /// A string id is detectable too and must ride the -32600 home; ids that
+    /// are not spec-legal scalars stay null so clients can't mis-correlate.
+    @Test("-32600 echoes string ids, but non-scalar ids stay null")
+    func invalidEnvelopeSalvagesLegalIDsOnly() async throws {
+        try await makeApp().test(.router) { client in
+            try await client.execute(
+                uri: "/mcp",
+                method: .post,
+                headers: [
+                    .contentType: "application/json",
+                    .authorization: "Bearer \(Self.bearerToken)",
+                ],
+                body: ByteBuffer(string: #"{"jsonrpc":"2.0","id":"req-42"}"#)
+            ) { response in
+                let body = String(buffer: response.body)
+                #expect(body.contains("-32600"))
+                #expect(body.contains(#""id":"req-42""#))
+            }
+
+            try await client.execute(
+                uri: "/mcp",
+                method: .post,
+                headers: [
+                    .contentType: "application/json",
+                    .authorization: "Bearer \(Self.bearerToken)",
+                ],
+                body: ByteBuffer(string: #"{"jsonrpc":"2.0","id":{"nested":true}}"#)
+            ) { response in
+                let body = String(buffer: response.body)
+                #expect(body.contains("-32600"))
+                #expect(body.contains(#""id":null"#))
             }
         }
     }
