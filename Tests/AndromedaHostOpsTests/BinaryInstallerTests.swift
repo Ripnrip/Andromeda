@@ -332,10 +332,14 @@ struct BinaryInstallerTests {
         let oldDylibInode = try #require(FileManager.default.attributesOfItem(atPath: oldDylib.path)[.systemFileNumber] as? Int)
 
         let destPath = destination.path
+        let liveMarker = destDir.appendingPathComponent("dest-existed-at-publish")
         let installer = BinaryInstaller(renamePaths: { old, new in
-            // Fail only the staged-binary publish, not dest park/restore
-            // (HAB-629 parks dest first; restore also renames onto destPath).
+            // Fail only the staged-binary publish. The live path must still
+            // exist at that moment — park is a hard link, not a rename-away.
             if new == destPath, URL(fileURLWithPath: old).lastPathComponent.contains(".install-") {
+                if FileManager.default.fileExists(atPath: destPath) {
+                    FileManager.default.createFile(atPath: liveMarker.path, contents: Data())
+                }
                 errno = EACCES
                 return -1
             }
@@ -344,6 +348,7 @@ struct BinaryInstallerTests {
         await #expect(throws: BinaryInstaller.InstallError.self) {
             _ = try await installer.install(source: source, destination: destination)
         }
+        #expect(FileManager.default.fileExists(atPath: liveMarker.path))
 
         let newBinInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
         #expect(newBinInode == oldBinInode)

@@ -477,9 +477,9 @@ public actor LaunchAgentInstaller {
             }
         }
 
-        // Park previous dest, then publish staging. A failed bootstrap+load
-        // restores the parked inode (HAB-632). Same-volume rename, matching
-        // AppBundleInstaller HAB-630 / BinaryInstaller HAB-629.
+        // Keep the previous plist inode via a hard link, then rename the
+        // staging file onto the live path. Moving the live path aside first
+        // opens an ENOENT window (HAB-632).
         let stagingURL = destinationDirectory
             .appendingPathComponent(".\(destination.lastPathComponent).install-\(UUID().uuidString).tmp")
         do {
@@ -495,12 +495,12 @@ public actor LaunchAgentInstaller {
             let parked = destinationDirectory
                 .appendingPathComponent(".\(destination.lastPathComponent).rollback-\(UUID().uuidString).tmp")
             do {
-                try fileManager.moveItem(at: destination, to: parked)
+                try fileManager.linkItem(at: destination, to: parked)
                 backupURL = parked
             } catch {
                 try? fileManager.removeItem(at: stagingURL)
                 throw InstallError.writeFailed(
-                    "park(\(destination.path) -> \(parked.path)): \(error.localizedDescription)"
+                    "link(\(destination.path) -> \(parked.path)): \(error.localizedDescription)"
                 )
             }
         } else {
@@ -508,27 +508,27 @@ public actor LaunchAgentInstaller {
         }
 
         func rollbackPublish() {
-            if fileManager.fileExists(atPath: destination.path) {
-                let orphan = destinationDirectory
-                    .appendingPathComponent(".\(destination.lastPathComponent).orphan-\(UUID().uuidString).tmp")
-                do {
-                    try fileManager.moveItem(at: destination, to: orphan)
-                    try? fileManager.removeItem(at: orphan)
-                } catch {
-                    try? fileManager.removeItem(at: destination)
-                }
-            }
             if let backupURL, fileManager.fileExists(atPath: backupURL.path) {
-                try? fileManager.moveItem(at: backupURL, to: destination)
+                let destInode = (try? fileManager.attributesOfItem(atPath: destination.path)[.systemFileNumber]) as? Int
+                let backupInode = (try? fileManager.attributesOfItem(atPath: backupURL.path)[.systemFileNumber]) as? Int
+                if destInode != nil, destInode == backupInode {
+                    try? fileManager.removeItem(at: backupURL)
+                } else if rename(backupURL.path, destination.path) != 0 {
+                    try? fileManager.removeItem(at: destination)
+                    _ = rename(backupURL.path, destination.path)
+                }
+            } else if !replacedExisting, fileManager.fileExists(atPath: destination.path) {
+                try? fileManager.removeItem(at: destination)
             }
             try? fileManager.removeItem(at: stagingURL)
         }
 
-        do {
-            try fileManager.moveItem(at: stagingURL, to: destination)
-        } catch {
+        if rename(stagingURL.path, destination.path) != 0 {
+            let detail = String(cString: strerror(errno))
             rollbackPublish()
-            throw InstallError.writeFailed(error.localizedDescription)
+            throw InstallError.writeFailed(
+                "rename(\(stagingURL.path) -> \(destination.path)): \(detail)"
+            )
         }
 
         var bootstrapped = false
