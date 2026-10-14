@@ -4,6 +4,16 @@
 > **Tickets:** Multica HAB-602 cloak lane · umbrella `3b17466e`  
 > **Related:** `VisibilityFilter`, `LETTA-MEMORY-INGRESS.md`, ADR-0020
 
+> **🔒 Curtain placement (review 5513453513 P2-4).** This document is
+> **operator-side only** — it lives behind the curtain and is never rendered,
+> serialized, or excerpted onto client surfaces. Every provider / topology
+> identifier below (memory providers, index brands, host paths, endpoints) is
+> operator-internal detail. Client-facing surfaces must refer to these
+> capabilities exclusively by their opaque curtain ids (`destination.*`
+> capability rows in `KnowledgeSyncPlan`, `skill.*` catalog ids); the
+> brand→capability mapping lives server-side in
+> `Packages/MemoryKit/Sources/MemoryKit/Registry/KnowledgeSyncPlan.swift`.
+
 Operator gate before any shared-memory cutover. Clients never see cloak brands —
 Andromeda enforces visibility behind the curtain.
 
