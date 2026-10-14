@@ -247,9 +247,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// 🎛️ Arms the loopback App Control plane when (and only when)
     /// ANDROMEDA_APP_CONTROL=1 — off by default, so the resting HUD opens
-    /// no sockets (HAB-838).
+    /// no sockets (HAB-838). Async: armed state publishes only after the
+    /// bind succeeds (HAB-866 review).
     private func armAppControl() {
-        appControl.arm(model: hudModel)
+        Task { await appControl.arm(model: hudModel) }
     }
 
     private func applyWindowLevel() {

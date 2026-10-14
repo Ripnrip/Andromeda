@@ -1,6 +1,8 @@
 import AndromedaAppControl
 import AndromedaHUDCore
+import AppKit
 import Foundation
+import Hummingbird
 import MemoryKit
 import Testing
 
@@ -22,6 +24,26 @@ struct HUDModelAppControlTests {
     }
 
     // MARK: - Dispatch ≡ click path
+
+    @Test("submit-query is the text-submission Enter branch — no activation side effects (contract honesty)")
+    func submitIsTextBranchOnly() async throws {
+        // HAB-866 review parity note: `hud.submit-query` deliberately drives
+        // only the text-submission branch of Enter (field mirror +
+        // `submitQuery`). The row-activation branches — recent-query fill,
+        // memory-hit open/copy, project-item copy — are human selection
+        // gestures with clipboard/NSWorkspace side effects and stay
+        // human-only. Proof: dispatching submit never touches the
+        // pasteboard, while still mirroring the field.
+        let model = makeModel()
+        let pasteboard = NSPasteboard.general
+        let changeCountBefore = pasteboard.changeCount
+
+        _ = await HUDModelAppControlDispatcher(model: model)
+            .dispatch(.submitQuery(query: "recall something"))
+
+        #expect(pasteboard.changeCount == changeCountBefore)
+        #expect(model.fieldQuery == "recall something")
+    }
 
     @Test("dispatch(submit) ≡ Enter path: same outcome, recents, and field mirror")
     func submitEquivalence() async throws {
@@ -157,6 +179,51 @@ struct HUDModelAppControlTests {
         #expect(decoded.capturedAt > 1_700_000_000)
     }
 
+    // MARK: - Bind lifecycle (HAB-866 review P2)
+
+    @Test("arm() publishes armed only after bind and recovers after failure")
+    func armBindLifecycle() async throws {
+        let port = 18_791 + Int.random(in: 100...1_000)
+        let environment = [
+            "ANDROMEDA_APP_CONTROL": "1",
+            "ANDROMEDA_APP_CONTROL_PORT": String(port),
+        ]
+
+        // 1. Squat the port with a live listener.
+        let bindSignal = BindSignal()
+        let squatter = Application(
+            router: Router(context: BasicRequestContext.self),
+            configuration: .init(
+                address: .hostname("127.0.0.1", port: port),
+                serverName: "test-squatter"
+            ),
+            onServerRunning: { _ in bindSignal.fire() }
+        )
+        let squatterTask = Task.detached(priority: .background) {
+            try await squatter.runService(gracefulShutdownSignals: [])
+        }
+        #expect(await bindSignal.wait(timeout: .seconds(5)), "squatter must bind first")
+
+        // 2. arm() against an occupied port: must return (not hang), leave
+        //    the service disarmed, and log instead of trapping.
+        let service = AppControlService()
+        await service.arm(model: makeModel(), environment: environment)
+        #expect(!service.isArmed, "armed may only publish after a successful bind")
+
+        // 3. Free the port, retry: the second arm() is a genuine retry —
+        //    not the no-op a stuck-armed implementation would be.
+        squatterTask.cancel()
+        _ = try? await squatterTask.value
+        await service.arm(model: makeModel(), environment: environment)
+        #expect(service.isArmed, "arm() must recover after a failed bind")
+
+        // 4. Idempotent while armed; disarm clears for teardown.
+        await service.arm(model: makeModel(), environment: environment)
+        #expect(service.isArmed)
+        service.disarm()
+        #expect(!service.isArmed)
+    }
+
     // MARK: - Screenshotter
 
     @Test("screenshotter renders PNG bytes from the live view tree")
@@ -192,5 +259,53 @@ private final class NotificationFlag: NSObject {
 
     func remove() {
         NotificationCenter.default.removeObserver(self)
+    }
+}
+
+/// One-shot "the listener bound" signal with a timeout-bounded wait —
+/// keeps the bind-lifecycle test from hanging if a bind never happens.
+private final class BindSignal: @unchecked Sendable {
+    private let lock = NSLock()
+    private var fired = false
+    private let stream: AsyncStream<Void>
+    private let continuation: AsyncStream<Void>.Continuation
+
+    init() {
+        let (stream, continuation) = AsyncStream<Void>.makeStream()
+        self.stream = stream
+        self.continuation = continuation
+    }
+
+    func fire() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !fired else { return }
+        fired = true
+        continuation.yield()
+        continuation.finish()
+    }
+
+    var hasFired: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return fired
+    }
+
+    func wait(timeout: Duration) async -> Bool {
+        if hasFired { return true }
+        return await withTaskGroup(of: Bool.self) { group in
+            let stream = self.stream
+            group.addTask {
+                for await _ in stream { return true }
+                return self.hasFired
+            }
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return self.hasFired
+            }
+            let result = await group.next() ?? false
+            group.cancelAll()
+            return result
+        }
     }
 }

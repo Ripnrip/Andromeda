@@ -4,10 +4,10 @@ import Hummingbird
 import Logging
 
 /**
- * 🎭 The App Control Route - The Stage Door on Ring Road
+ * 🎭 The App Control Route - The Stage Door Behind Three Locks
  *
- * "No bearer guards this door — the moat *is* the wall.
- *  Loopback only, env-gated, and every knock is named."
+ * "Bearer, content, origin — every knock is named, and twice-checked.
+ *  Loopback is where the door stands, not who may open it."
  *
  * - The Spellbinding Museum Director of App Control
  */
@@ -15,29 +15,31 @@ import Logging
 /// `/state`, `/actions`, `/action`, `/screenshot` routes for the HUD process's
 /// App Control plane (HAB-838, pillar 3 applied to the glass).
 ///
-/// ## Why no bearer
+/// ## Fail-closed posture (HAB-866)
 ///
-/// Unlike the runtime control plane (which binds `0.0.0.0` on the tailnet and
-/// therefore needs the MCP bearer), this listener is constructed to bind
-/// **127.0.0.1 only** and exists only when `ANDROMEDA_APP_CONTROL=1` armed it.
-/// The moat is the bind address; the gate is the env var. If either posture
-/// ever changes — broader bind, port forwarding — a bearer becomes mandatory
-/// before merge, not after.
+/// Every route clears ``AppControlGuard``'s triple lock before doing any
+/// work: a valid **bearer token**, an acceptable **Origin/Host** pair, and —
+/// for `POST /action` — an `application/json` **Content-Type** checked
+/// before the body is ever parsed. The 127.0.0.1 bind is a placement
+/// constraint, not an authentication boundary; the guard is the boundary.
 public struct AppControlRoute: Sendable {
     private let state: any AppControlStateSourcing
     private let actions: any AppControlDispatching
     private let screenshotter: any AppControlScreenshotting
+    private let gate: AppControlGuard
     private let logger: Logger
 
     public init(
         state: any AppControlStateSourcing,
         actions: any AppControlDispatching,
         screenshotter: any AppControlScreenshotting,
+        gate: AppControlGuard,
         logger: Logger = Logger(label: "andromeda.app-control")
     ) {
         self.state = state
         self.actions = actions
         self.screenshotter = screenshotter
+        self.gate = gate
         self.logger = logger
     }
 
@@ -45,10 +47,14 @@ public struct AppControlRoute: Sendable {
         let state = state
         let actions = actions
         let screenshotter = screenshotter
+        let gate = gate
         let logger = logger
 
         // GET /state — the curated snapshot of the glass.
-        router.get("/state") { _ , _ -> Response in
+        router.get("/state") { request, _ -> Response in
+            if let rejection = gate.authorize(request.headers, authority: request.head.authority) {
+                return Self.reject(rejection, logger: logger)
+            }
             do {
                 let snapshot = try await state.snapshot()
                 return try Self.encodeJSON(snapshot)
@@ -62,7 +68,11 @@ public struct AppControlRoute: Sendable {
         }
 
         // POST /action — typed dispatch, one switch, no strings.
+        // The triple lock plus a content-type demand, all before parsing.
         router.post("/action") { request, _ -> Response in
+            if let rejection = gate.authorize(request.headers, authority: request.head.authority, requireJSON: true) {
+                return Self.reject(rejection, logger: logger)
+            }
             let decoded = await Self.decodeAction(from: request)
             let action: AppControlAction
             switch decoded {
@@ -82,7 +92,10 @@ public struct AppControlRoute: Sendable {
         }
 
         // GET /actions — the catalogue, generated from the one true list.
-        router.get("/actions") { _, _ -> Response in
+        router.get("/actions") { request, _ -> Response in
+            if let rejection = gate.authorize(request.headers, authority: request.head.authority) {
+                return Self.reject(rejection, logger: logger)
+            }
             let catalogue: [String: [String]] = [
                 "actions": AppControlVerb.allCases.map(\.rawValue).sorted(),
             ]
@@ -91,7 +104,10 @@ public struct AppControlRoute: Sendable {
 
         // GET /screenshot — the glass as PNG bytes, rendered by ImageRenderer
         // from the app's own view tree. Never `screencapture` (TCC + strangers).
-        router.get("/screenshot") { _, _ -> Response in
+        router.get("/screenshot") { request, _ -> Response in
+            if let rejection = gate.authorize(request.headers, authority: request.head.authority) {
+                return Self.reject(rejection, logger: logger)
+            }
             do {
                 let png = try await screenshotter.pngData()
                 var headers = HTTPFields()
@@ -114,11 +130,44 @@ public struct AppControlRoute: Sendable {
         return "unknown action '\(name)' — known: \(known)"
     }
 
+    /// Rejection → response. The offending value rides the envelope for the
+    /// operator's log; the expected token never does.
+    private static func reject(_ rejection: AppControlGuard.Rejection, logger: Logger) -> Response {
+        let message: String
+        let status: HTTPResponse.Status
+        var headers = HTTPFields()
+        switch rejection {
+        case .bearerRequired:
+            message = "unauthorized: Authorization: Bearer <token> is required (token file: ~/.andromeda/app-control-token, 0600)"
+            status = .unauthorized
+            headers[.wwwAuthenticate] = #"Bearer realm="andromeda-app-control""#
+        case .bearerInvalid:
+            message = "unauthorized: bearer token did not match"
+            status = .unauthorized
+            headers[.wwwAuthenticate] = #"Bearer realm="andromeda-app-control", error="invalid_token""#
+        case let .originForbidden(origin):
+            message = "forbidden: Origin '\(origin)' is not a loopback origin"
+            status = .forbidden
+        case let .hostForbidden(host):
+            message = "forbidden: Host '\(host)' must be a loopback literal (127.0.0.1 or localhost, optional port)"
+            status = .forbidden
+        case let .mediaTypeUnsupported(presented):
+            message = "unsupported media type: Content-Type must be application/json (got '\(presented)')"
+            status = .unsupportedMediaType
+        }
+        logger.warning(
+            "🚫 app-control request rejected",
+            metadata: ["reason": .string(message)]
+        )
+        return errorResponse(message, status: status, headers: headers)
+    }
+
     /// Decoded action from a request body: `.valid` carries the typed case,
     /// `.unparseable`/`.missingPayload` stay malformed-payload 400s;
     /// `.unknown` is syntactically valid but semantically unprocessable (422).
     /// `submit-query` without a non-empty `query` is a payload error, not an
-    /// unknown action.
+    /// unknown action. Only reached after the guard confirmed
+    /// `application/json` — the content type is checked before this runs.
     private enum DecodedAction {
         case valid(AppControlAction)
         case unparseable
@@ -168,8 +217,18 @@ public struct AppControlRoute: Sendable {
     /// Error envelope built with `JSONEncoder` — never string interpolation,
     /// which corrupts JSON when the message carries quotes, newlines, or
     /// backslash sequences.
-    private static func errorResponse(_ message: String, status: HTTPResponse.Status) -> Response {
-        encodeRaw(jsonData(["error": message]), status: status)
+    private static func errorResponse(
+        _ message: String,
+        status: HTTPResponse.Status,
+        headers extra: HTTPFields = HTTPFields()
+    ) -> Response {
+        var headers = HTTPFields()
+        headers[.contentType] = "application/json"
+        for field in extra {
+            headers.append(field)
+        }
+        let data = (try? JSONEncoder().encode(["error": message])) ?? Data("{}".utf8)
+        return Response(status: status, headers: headers, body: .init(byteBuffer: .init(data: data)))
     }
 
     private static func badRequest(_ message: String) -> Response {
