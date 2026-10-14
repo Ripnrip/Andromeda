@@ -234,6 +234,28 @@ struct MCPRouteTests {
                 #expect(response.status == .ok)
                 let body = String(buffer: response.body)
                 #expect(body.contains("-32700"))
+                #expect(!body.contains("-32600"))
+            }
+        }
+    }
+
+    /// Valid JSON that is not an envelope must keep the coding path.
+    @Test("valid JSON missing method is -32600 with the missing key, not -32700")
+    func invalidEnvelopeKeepsCodingPath() async throws {
+        try await makeApp().test(.router) { client in
+            try await client.execute(
+                uri: "/mcp",
+                method: .post,
+                headers: [
+                    .contentType: "application/json",
+                    .authorization: "Bearer \(Self.bearerToken)",
+                ],
+                body: ByteBuffer(string: #"{"jsonrpc":"2.0","id":7}"#)
+            ) { response in
+                let body = String(buffer: response.body)
+                #expect(body.contains("-32600"))
+                #expect(body.contains("method"))
+                #expect(!body.contains("-32700"))
             }
         }
     }
