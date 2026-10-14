@@ -48,6 +48,16 @@ public struct IngressBackendError: Error, Sendable, Equatable {
     public init(errorCode: String) {
         self.errorCode = errorCode
     }
+
+    /// Curtain code. Storage brands stay in telemetry; clients never see them.
+    public static func clientCode(from telemetryCode: String) -> String {
+        let lowered = telemetryCode.lowercased()
+        let brands = ["memfs", "git", "letta", "ladybug", "qdrant", "postgres", "swiftgate"]
+        if brands.contains(where: { lowered.contains($0) }) {
+            return "ingress_failed"
+        }
+        return telemetryCode
+    }
 }
 
 /// Seam the long-running runtime uses to host ingress without a second daemon.
@@ -87,7 +97,7 @@ public actor LettaIngressMCPToolServer: MCPToolServing {
                 isError: true
             )
         } catch let error as IngressBackendError {
-            return Self.opaqueFailure(errorCode: error.errorCode)
+            return Self.opaqueFailure(errorCode: IngressBackendError.clientCode(from: error.errorCode))
         } catch {
             return Self.opaqueFailure(errorCode: "ingress_failed")
         }

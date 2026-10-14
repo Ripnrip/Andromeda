@@ -86,11 +86,21 @@ struct LettaIngressMCPToolServerTests {
         ])
         #expect(result.isError)
         let text = try #require(result.content.first?.text)
-        #expect(text.contains(#""error_code":"memfs_missing""#))
+        #expect(text.contains(#""error_code":"ingress_failed""#))
+        #expect(!text.contains("memfs"))
+        #expect(!text.contains("git"))
         #expect(!text.contains("/Users/"))
         #expect(!text.contains("lc-local-backend"))
         #expect(!text.contains("stderr"))
         #expect(!text.contains("Memory ingress failed"))
+    }
+
+    /// Request-shaped codes stay specific. Only storage brands collapse.
+    @Test("request codes pass and git_failed collapses")
+    func clientCodesStayNeutral() {
+        #expect(IngressBackendError.clientCode(from: "empty_title") == "empty_title")
+        #expect(IngressBackendError.clientCode(from: "git_failed") == "ingress_failed")
+        #expect(IngressBackendError.clientCode(from: "verification_failed") == "verification_failed")
     }
 
     /// A raw LocalizedError must not forward path/stderr through the curtain.

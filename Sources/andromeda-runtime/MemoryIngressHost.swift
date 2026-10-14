@@ -53,8 +53,8 @@ struct MemoryIngressHost: LettaIngressHandling {
                 unchanged: receipt.unchanged
             )
         } catch let error as LettaIngressError {
-            // Paths and git stderr stay local; clients get the telemetry code only.
-            throw IngressBackendError(errorCode: error.telemetryCode)
+            // Detailed codes stay in telemetry. Clients get a brand-free code.
+            throw IngressBackendError(errorCode: IngressBackendError.clientCode(from: error.telemetryCode))
         } catch {
             throw IngressBackendError(errorCode: "ingress_failed")
         }
