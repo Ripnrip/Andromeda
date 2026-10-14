@@ -1197,37 +1197,236 @@ public actor LaunchAgentInstaller {
         return paths
     }
 
-    /// True when the path standardizes to LaunchServices `open`.
+    /// launchd's PATH when the plist does not set one. `env open` resolves here.
+    public static let launchdDefaultPath = "/usr/bin:/bin:/usr/sbin:/sbin"
+
+    /// Absolute path with symlinks resolved. Relative tokens stay relative —
+    /// launchd does not resolve them against the installer's CWD.
+    public static func resolvedExecutablePath(_ path: String) -> String {
+        guard path.hasPrefix("/") else { return path }
+        return URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+    }
+
+    /// True when the path is LaunchServices `open`, including a symlink to it.
+    /// A bare `open` is not itself the binary; `env`/`command` resolution handles that.
     public static func isLaunchServicesOpen(_ path: String) -> Bool {
-        URL(fileURLWithPath: path).standardizedFileURL.path == "/usr/bin/open"
+        resolvedExecutablePath(path) == "/usr/bin/open"
+    }
+
+    /// True when the path is `/usr/bin/osascript`, including a symlink to it.
+    public static func isOsascript(_ path: String) -> Bool {
+        resolvedExecutablePath(path) == "/usr/bin/osascript"
     }
 
     /// Fail-closed `/usr/bin/open` check used only when bootstrapping
     /// (HAB-686 / HAB-688). Scans Program and every ProgramArguments
     /// slot so `/usr/bin/arch -arm64 /usr/bin/open` cannot bypass
-    /// argv[0]-only inspection. Missing Program is left to
-    /// `validateProgram`.
+    /// argv[0]-only inspection. Also resolves `/usr/bin/env open`,
+    /// `/usr/bin/command open`, and symlinks to `open`. Missing Program
+    /// is left to `validateProgram`.
     public static func validateProgramNotOpen(_ dict: [String: Any]) throws {
-        for path in programInvocationPaths(from: dict) {
+        for path in effectiveExecutablePaths(from: dict) {
             if isLaunchServicesOpen(path) {
                 throw InstallError.programUsesOpen(path)
             }
         }
     }
 
-    /// True when the path standardizes to `/usr/bin/osascript`.
-    public static func isOsascript(_ path: String) -> Bool {
-        URL(fileURLWithPath: path).standardizedFileURL.path == "/usr/bin/osascript"
-    }
-
     /// Fail-closed `/usr/bin/osascript` check used only when bootstrapping
-    /// (HAB-687 / HAB-688). Same argv-wide scan as `validateProgramNotOpen`.
+    /// (HAB-687 / HAB-688). Same resolution as `validateProgramNotOpen`.
     public static func validateProgramNotOsascript(_ dict: [String: Any]) throws {
-        for path in programInvocationPaths(from: dict) {
+        for path in effectiveExecutablePaths(from: dict) {
             if isOsascript(path) {
                 throw InstallError.programUsesOsascript(path)
             }
         }
+    }
+
+    /// Paths that will actually be exec'd: absolute argv slots (symlink-resolved)
+    /// plus the utility `/usr/bin/env` or `/usr/bin/command` will run.
+    public static func effectiveExecutablePaths(from dict: [String: Any]) -> [String] {
+        let configured = environmentPathComponents(from: dict)?.joined(separator: ":")
+        return effectiveExecutablePaths(in: programInvocationPaths(from: dict), pathEnv: configured)
+    }
+
+    public static func effectiveExecutablePaths(in tokens: [String], pathEnv: String?) -> [String] {
+        var resolved: [String] = []
+        var peels = 0
+        for (index, token) in tokens.enumerated() {
+            if token.hasPrefix("/") {
+                resolved.append(resolvedExecutablePath(token))
+            }
+            guard peels < 8 else { continue }
+            let following = Array(tokens[(index + 1)...])
+            if isEnvWrapper(token) {
+                peels += 1
+                var arguments = following
+                if let head = arguments.first, isEnvWrapper(head) {
+                    arguments.removeFirst()
+                }
+                let parsed = parseEnvUtility(arguments, pathEnv: pathEnv)
+                if let command = parsed.command {
+                    let path = resolveCommand(command, pathEnv: parsed.pathEnv)
+                    resolved.append(path)
+                    if isCommandWrapper(path) {
+                        let peeled = parseCommandUtility(parsed.remaining, pathEnv: parsed.pathEnv)
+                        if let inner = peeled.command {
+                            resolved.append(resolveCommand(inner, pathEnv: peeled.pathEnv))
+                        }
+                    }
+                }
+            } else if isCommandWrapper(token) {
+                peels += 1
+                let parsed = parseCommandUtility(following, pathEnv: pathEnv)
+                if let command = parsed.command {
+                    resolved.append(resolveCommand(command, pathEnv: parsed.pathEnv))
+                }
+            }
+        }
+        return resolved
+    }
+
+    public static func isEnvWrapper(_ path: String) -> Bool {
+        resolvedExecutablePath(path) == "/usr/bin/env"
+    }
+
+    public static func isCommandWrapper(_ path: String) -> Bool {
+        let resolved = resolvedExecutablePath(path)
+        return resolved == "/usr/bin/command" || resolved == "/bin/command"
+    }
+
+    /// First existing PATH entry for a bare command. Absolute commands are symlink-resolved.
+    public static func resolveCommand(_ command: String, pathEnv: String?) -> String {
+        if command.hasPrefix("/") {
+            return resolvedExecutablePath(command)
+        }
+        guard !command.contains("/") else { return command }
+        let search = (pathEnv?.isEmpty == false) ? pathEnv! : launchdDefaultPath
+        for component in search.split(separator: ":", omittingEmptySubsequences: false) {
+            let dir = String(component).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard dir.hasPrefix("/") else { continue }
+            let candidate = URL(fileURLWithPath: dir).appendingPathComponent(command).path
+            if FileManager.default.fileExists(atPath: candidate) {
+                return resolvedExecutablePath(candidate)
+            }
+        }
+        return command
+    }
+
+    private struct ParsedUtility {
+        var command: String?
+        var pathEnv: String?
+        var remaining: [String]
+    }
+
+    /// macOS `env` utility token. Options are only recognized before assignments.
+    private static func parseEnvUtility(_ arguments: [String], pathEnv: String?) -> ParsedUtility {
+        var index = 0
+        var override = pathEnv
+        var optionsDone = false
+        while index < arguments.count {
+            let token = arguments[index]
+            if !optionsDone && (token == "-i" || token == "-v" || token == "-0") {
+                index += 1
+                continue
+            }
+            if !optionsDone && (token == "-C" || token == "-u") {
+                index += 2
+                continue
+            }
+            if !optionsDone && token == "-P" {
+                if index + 1 < arguments.count { override = arguments[index + 1] }
+                index += 2
+                continue
+            }
+            if !optionsDone && token == "-S" {
+                guard index + 1 < arguments.count else {
+                    return ParsedUtility(command: nil, pathEnv: override, remaining: [])
+                }
+                return parseEnvUtility(splitEnvS(arguments[index + 1]), pathEnv: override)
+            }
+            if !optionsDone && token.hasPrefix("-") && token != "-" {
+                break
+            }
+            if isEnvAssignment(token) {
+                optionsDone = true
+                index += 1
+                continue
+            }
+            break
+        }
+        guard index < arguments.count else {
+            return ParsedUtility(command: nil, pathEnv: override, remaining: [])
+        }
+        return ParsedUtility(
+            command: arguments[index],
+            pathEnv: override,
+            remaining: Array(arguments[(index + 1)...])
+        )
+    }
+
+    private static func parseCommandUtility(_ arguments: [String], pathEnv: String?) -> ParsedUtility {
+        var index = 0
+        var override = pathEnv
+        while index < arguments.count {
+            let token = arguments[index]
+            if token == "-p" {
+                override = launchdDefaultPath
+                index += 1
+                continue
+            }
+            if token == "-v" || token == "-V" {
+                index += 1
+                continue
+            }
+            break
+        }
+        guard index < arguments.count else {
+            return ParsedUtility(command: nil, pathEnv: override, remaining: [])
+        }
+        return ParsedUtility(
+            command: arguments[index],
+            pathEnv: override,
+            remaining: Array(arguments[(index + 1)...])
+        )
+    }
+
+    private static func isEnvAssignment(_ token: String) -> Bool {
+        guard let eq = token.firstIndex(of: "="), eq != token.startIndex else { return false }
+        return !token.hasPrefix("/") && !token.hasPrefix("-")
+    }
+
+    /// `env -S` splits on unquoted spaces and tabs. Quotes are stripped, not executed.
+    private static func splitEnvS(_ string: String) -> [String] {
+        var parts: [String] = []
+        var current = ""
+        var quote: Character?
+        for character in string {
+            if let active = quote {
+                if character == active {
+                    quote = nil
+                } else {
+                    current.append(character)
+                }
+                continue
+            }
+            if character == "'" || character == "\"" {
+                quote = character
+                continue
+            }
+            if character == " " || character == "\t" {
+                if !current.isEmpty {
+                    parts.append(current)
+                    current = ""
+                }
+                continue
+            }
+            current.append(character)
+        }
+        if !current.isEmpty {
+            parts.append(current)
+        }
+        return parts
     }
 
     /// Prefixes refused in EnvironmentVariables on bootstrap (HAB-689).
