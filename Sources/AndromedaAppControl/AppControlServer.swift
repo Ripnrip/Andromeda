@@ -187,7 +187,12 @@ public final class AppControlService {
             logger: logger,
             onServerRunning: { await bindGate.succeed() }
         )
-        let serviceTask = Task.detached(priority: .background) {
+        // Utility, not .background: bind readiness is awaited by @MainActor
+        // callers (armed state, tests) — a background-QoS task is CPU/IO
+        // throttled under load, which priority-inverts everyone waiting on
+        // the gate (run 38562796680: the bind result took ~15s to surface
+        // on a saturated runner).
+        let serviceTask = Task.detached(priority: .utility) {
             do {
                 // No signal handling of our own: the HUD process owns its
                 // lifetime; cancellation drives graceful shutdown.

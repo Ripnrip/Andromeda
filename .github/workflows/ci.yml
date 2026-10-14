@@ -228,24 +228,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          args=(--skip HUDRecallE2ESnapshotTests --skip ProjectionEndToEndTests --skip QdrantProjectionTests --skip HUDViewSnapshotTests --skip HUDComponentSnapshotTests --skip HUDComponentsSnapshotTests --skip HUDResultsViewSnapshotTests --skip HUDChainHealthViewSnapshotTests --skip HUDIdentifierTests)
+          args=(--skip HUDRecallE2ESnapshotTests --skip ProjectionEndToEndTests --skip QdrantProjectionTests --skip HUDViewSnapshotTests --skip HUDComponentSnapshotTests --skip HUDComponentsSnapshotTests --skip HUDResultsViewSnapshotTests --skip HUDChainHealthViewSnapshotTests --skip HUDIdentifierTests --skip HUDModelAppControlTests)
           swift test "${args[@]}"
 
       # The main-actor monopolists — hosted-AX walks + AppKit snapshot rendering —
       # hold the main thread for tens of seconds on hosted runners (the identifier
       # walk alone ran 43.5s in 37174849882). They get a serial step of their own so
-      # they can never co-run with the ceiling-bound unit tests above. Type-name
-      # filters OR together; verified: exactly these 6 suites / 42 tests selected.
+      # they can never co-run with the ceiling-bound unit tests above. That includes
+      # HUDModelAppControlTests: its ImageRenderer screenshot is a synchronous
+      # main-actor AppKit render (~7s solo, 13s+ co-run; run 38562796680) and the
+      # suite is @MainActor end to end — it starved the project.state 15s watchdog
+      # from a parallel lane. Type-name filters OR together; verified: exactly
+      # these 7 suites / 52 tests selected.
       - name: Test (root package, main-actor heavy suites)
         if: steps.scope.outputs.run_root == 'true' && steps.snapshots.outputs.record != 'true'
         shell: bash
         run: |
           set -euo pipefail
-          out=$(swift test --filter HUDIdentifierTests --filter HUDViewSnapshotTests --filter HUDComponentSnapshotTests --filter HUDComponentsSnapshotTests --filter HUDResultsViewSnapshotTests --filter HUDChainHealthViewSnapshotTests)
+          out=$(swift test --filter HUDIdentifierTests --filter HUDViewSnapshotTests --filter HUDComponentSnapshotTests --filter HUDComponentsSnapshotTests --filter HUDResultsViewSnapshotTests --filter HUDChainHealthViewSnapshotTests --filter HUDModelAppControlTests)
           printf '%s\n' "$out"
           # Fake-green guard: a renamed suite would empty this filter set and pass
           # with 0 tests — fail loudly instead. (grep, not rg — runners may lack rg.)
-          printf '%s\n' "$out" | grep -q 'in 6 suites' || { echo 'heavy-suite selection shrank — expected 6 suites; update the filters above'; exit 1; }
+          printf '%s\n' "$out" | grep -q 'in 7 suites' || { echo 'heavy-suite selection shrank — expected 7 suites; update the filters above'; exit 1; }
 
       # Compile gate BEFORE the tolerant record steps. Record mode fails the
       # test runs on purpose (continue-on-error below), which also swallows
