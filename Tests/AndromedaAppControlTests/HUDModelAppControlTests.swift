@@ -199,7 +199,10 @@ struct HUDModelAppControlTests {
             ),
             onServerRunning: { _ in bindSignal.fire() }
         )
-        let squatterTask = Task.detached(priority: .background) {
+        // Utility, not .background: the test awaits this bind via a 5s
+        // bindSignal — a throttled background task can blow that budget on a
+        // saturated runner and fail the suite spuriously.
+        let squatterTask = Task.detached(priority: .utility) {
             try await squatter.runService(gracefulShutdownSignals: [])
         }
         #expect(await bindSignal.wait(timeout: .seconds(5)), "squatter must bind first")
