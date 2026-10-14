@@ -175,8 +175,8 @@ enum LaneRule: CaseIterable {
         case .tests:
             return [.prefix(RepoPath.tests)]
         case .designTokens:
-            // Outside every package, but the root and AndromedaUI parity tests read
-            // them; a token edit must not be classified as docs-only and skip them.
+            // Outside every package, but the root, AndromedaUI and Orchestrator parity
+            // tests read them; a token edit must not be classified as docs-only.
             return [.exact(RepoPath.designSpec), .exact(RepoPath.webThemeTokens)]
         case .memoryKit:
             return [
@@ -234,7 +234,7 @@ enum LaneRule: CaseIterable {
         case .rootPackage, .sources, .tests:
             [.runRoot]
         case .designTokens:
-            [.runRoot, .runAndromedaUI]
+            [.runRoot, .runAndromedaUI, .runOrchestrator]
         case .memoryKit:
             [.runRoot, .runMemoryKit]
         case .anima:

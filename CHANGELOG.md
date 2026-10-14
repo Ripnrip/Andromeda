@@ -2,6 +2,19 @@
 
 All notable changes to Andromeda will be documented here.
 
+## 2026-10-14 — Every Swift colour on the design tokens (BIN-271 wave 2)
+
+### Added
+- `alert` token (`#FB817A` dark, `#BE2E31` light) across `globals.css`, DESIGN.md, `AndromedaPalette` / `AndromedaTheme` and both package `DesignToken` copies — the one destructive hue, for failed / blocked / contradicted. `BrandStatus.failed` (word FAILED) uses it.
+- Orchestrator `DesignToken` mirror (dark + light) with a parity test; `OrchestratorPalette` is built from it.
+
+### Changed
+- HUD colours are aliases of `AndromedaTheme` (AndromedaHUDCore depends on AndromedaBrand). A yellow fleet / chain status now renders `partial` amber instead of alert-red or system orange; a server that isn't listening renders `spec` (offline) instead of alert.
+- `raw-color-literal` canon lint is an **error**: a colour literal outside the token files fails CI. The Dreaming / memory-graph illustration colours are annotated exceptions in one block.
+
+### Deprecated
+- `AndromedaDomain.AndromedaColor` — use `AndromedaPalette` / `AndromedaTheme`. Its cases now carry their token values and are parity-tested.
+
 ## 2026-08-26 — Plans vault: memory bridge + herd-gather roadmaps (HAB-365 / HAB-362)
 
 **Tone hat:** Archivist with a lantern 🏮

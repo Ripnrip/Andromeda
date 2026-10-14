@@ -136,7 +136,7 @@ struct HUDChainHealthView: View {
     private var statusColor: Color {
         switch report.overall {
         case .green: return .andromedaLive
-        case .yellow: return .orange
+        case .yellow: return .andromedaPartial
         case .red: return .andromedaAlert
         case .unknown: return .andromedaMuted
         }
@@ -214,7 +214,7 @@ struct HUDChainServerRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
             Circle()
-                .fill(server.probe.isListening ? Color.andromedaLive : Color.andromedaAlert)
+                .fill(server.probe.isListening ? Color.andromedaLive : Color.andromedaOffline)
                 .frame(width: 8, height: 8)
                 .padding(.top, 3)
                 .accessibilityHidden(true)
@@ -229,7 +229,7 @@ struct HUDChainServerRow: View {
                     Spacer(minLength: 0)
                     Text(server.probe.isListening ? "listening" : "no hub")
                         .font(.caption2)
-                        .foregroundStyle(server.probe.isListening ? Color.andromedaLive : Color.andromedaAlert)
+                        .foregroundStyle(server.probe.isListening ? Color.andromedaLive : Color.andromedaOffline)
                 }
                 Text(detailLine)
                     .font(.caption2)

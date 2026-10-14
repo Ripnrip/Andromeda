@@ -310,7 +310,7 @@ struct HUDFleetPulseChip: View {
     private var color: Color {
         switch pulse.status {
         case .green: return .andromedaLive
-        case .yellow: return .andromedaAlert
+        case .yellow: return .andromedaPartial
         case .red: return .andromedaAlert
         case .unknown: return .andromedaMuted
         }
@@ -530,7 +530,7 @@ struct HUDStatusRow: View {
         if tinted { return AnyShapeStyle(.tint) }
         switch emphasis {
         case .secondary: return AnyShapeStyle(.secondary)
-        case .warning: return AnyShapeStyle(.orange)
+        case .warning: return AnyShapeStyle(Color.andromedaPartial)
         }
     }
 
