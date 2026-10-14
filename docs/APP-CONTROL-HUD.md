@@ -15,7 +15,7 @@ the glass: identifiers first, curated state, typed dispatch, one funnel.
 
 ## Arming the plane
 
-One gate, one moat:
+One gate, one moat, three locks:
 
 ```console
 ANDROMEDA_APP_CONTROL=1 AndromedaHUD            # port 8791
@@ -24,17 +24,46 @@ ANDROMEDA_APP_CONTROL_PORT=8799 AndromedaHUD    # override (tests, parallel runs
 
 1. **`ANDROMEDA_APP_CONTROL=1`** at launch — off by default; the resting HUD
    opens no sockets.
-2. **Bind address `127.0.0.1`** — hardcoded. Unlike the runtime control plane
-   (which binds `0.0.0.0` on the tailnet and therefore demands the MCP
-   bearer), this listener is loopback-only, so no bearer is minted. **If the
-   posture ever broadens beyond loopback — bind change, port forward, SSH
-   tunnel — a bearer becomes mandatory before merge.**
+2. **Bind address `127.0.0.1`** — hardcoded, a placement constraint.
+3. **The triple lock (HAB-866)** — the bind address is *not* an
+   authentication boundary (DNS rebinding resolves foreign names to
+   127.0.0.1; any local process can dial loopback), so every request must
+   clear all three locks below before any handler runs.
+
+## The triple lock (fail closed)
+
+| Lock | Rule | Failure |
+|------|------|---------|
+| **Bearer** | Every route requires `Authorization: Bearer <token>` matching the token minted at arm time. | 401 + `WWW-Authenticate` |
+| **Origin/Host** | A present `Origin` must be loopback (`127.0.0.1` / `localhost` / `[::1]`, any port); `Origin: null` is rejected; no `Origin` (curl, same-origin tooling) is allowed. The request's Host/authority must be a loopback literal with optional port. | 403 |
+| **Content-Type** | `POST /action` must declare `application/json` — checked **before** the body is parsed. | 415 |
+
+### The token flow
+
+- At arm time the HUD loads-or-mints a 256-bit random token and persists it
+  at **`~/.andromeda/app-control-token`** with `0600` permissions
+  (directory `0700`).
+- **Out-of-band distribution**: the loopback HUD client runs as the same
+  user on the same machine and reads the file directly. The token never
+  rides a socket.
+- If the file cannot be read or written, an ephemeral token is minted
+  instead — undiscoverable by any client, which fails closed (the door
+  stays shut) rather than shipping an open listener.
+- Token comparison is constant-time.
+
+```console
+TOKEN=$(cat ~/.andromeda/app-control-token)
+curl -H "Authorization: Bearer $TOKEN" -H "Host: 127.0.0.1" \
+     -H "Content-Type: application/json" \
+     -d '{"action":"hud.focus-search"}' http://127.0.0.1:8791/action
+```
 
 ## Naming law
 
-This is **App Control** (`ANDROMEDA_APP_CONTROL`, loopback, no bearer) — not
-the **Control Plane** (`ANDROMEDA_CONTROL_PLANE` + MCP bearer, tailnet).
-Different doors, different keys, on purpose.
+This is **App Control** (`ANDROMEDA_APP_CONTROL`, loopback bind + bearer +
+Origin/Host allowlist + content-type law) — not the **Control Plane**
+(`ANDROMEDA_CONTROL_PLANE` + MCP bearer, tailnet). Different doors, both
+keyed, on purpose.
 
 ## The state contract (v1)
 
@@ -60,10 +89,17 @@ version.
 
 | Verb | Effect (the exact on-glass path) |
 |------|----------------------------------|
-| `hud.submit-query` | Mirror the field, then `HUDModel.submitQuery(query)` — the Enter path |
+| `hud.submit-query` | Mirror the field, then `HUDModel.submitQuery(query)` — the **text-submission branch** of Enter |
 | `hud.focus-search` | Post `.andromedaHUDFocusSearch` — the status-item / hotkey path |
 | `hud.dismiss-results` | `cancelInFlightWork()` + `dismissResults()` — the Escape path |
 | `hud.refresh-fleet-pulse` | `refreshFleetPulse()` — the boot refresh |
+
+Parity note: Enter's *row-activation* branches (recent-query fill,
+memory-hit open/copy, project-item copy) are human selection gestures over
+view-local selection state with clipboard/NSWorkspace side effects — they
+are deliberately not remotable, so `hud.submit-query` is documented and
+tested as the text-submission branch only (the parity test proves the
+pasteboard is untouched).
 
 Typed `AppControlVerb` (`CaseIterable`) + `AppControlAction` (payloads) — one
 list; `GET /actions` and unknown-action responses generate from it. Unknown

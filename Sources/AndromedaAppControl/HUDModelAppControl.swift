@@ -99,8 +99,12 @@ public struct HUDModelAppControlDispatcher: AppControlDispatching {
     public func dispatch(_ action: AppControlAction) async -> AppControlOutcome {
         switch action {
         case let .submitQuery(query):
-            // 🌟 The exact Enter path: field first, then submit — so the glass
-            // and the outcome panel tell the same story.
+            // 🌟 The text-submission branch of Enter — field first, then
+            // `submitQuery` — so the glass and the outcome panel tell the
+            // same story. The Enter path's row-activation branches
+            // (recent-fill, hit/project activation) are human selection
+            // gestures with clipboard/NSWorkspace side effects and are
+            // deliberately not remotable (HAB-866 review parity note).
             await MainActor.run { model.fieldQuery = query }
             await model.submitQuery(query)
             return AppControlOutcome(action: action.name, status: .ok, detail: "submitted ‘\(query)’")

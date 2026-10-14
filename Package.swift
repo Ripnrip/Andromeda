@@ -263,8 +263,6 @@ let package = Package(
             name: "AndromedaAppControl",
             dependencies: [
                 "AndromedaHUDCore",
-                "AndromedaMCPHub",
-                .product(name: "MemoryKit", package: "MemoryKit"),
                 .product(name: "Hummingbird", package: "hummingbird"),
                 .product(name: "Logging", package: "swift-log"),
             ],

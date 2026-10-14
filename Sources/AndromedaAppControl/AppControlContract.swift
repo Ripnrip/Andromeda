@@ -95,7 +95,12 @@ public struct AppControlSnapshot: Codable, Sendable, Equatable {
 /// `AppControlVerb.allCases` is the single list every surface (HTTP
 /// `GET /actions`, future MCP tools) generates from, so no two callers drift.
 public enum AppControlVerb: String, Sendable, CaseIterable, Codable {
-    /// Type + submit a query — exactly the Enter path (`HUDModel.submitQuery`).
+    /// Type + submit a query — the **text-submission branch** of Enter
+    /// (`HUDModel.submitQuery`): mirror the field, then submit. The Enter
+    /// path's *row-activation* branches (recent-query fill, memory-hit and
+    /// project-item activation with their clipboard/NSWorkspace side
+    /// effects) are human selection gestures over view-local state and are
+    /// deliberately not remotable.
     case submitQuery = "hud.submit-query"
     /// Expand the pill and focus the field — the status-item / hotkey show path.
     case focusSearch = "hud.focus-search"
