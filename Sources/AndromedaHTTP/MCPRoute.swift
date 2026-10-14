@@ -55,12 +55,51 @@ public struct MCPRoute: Sendable {
             let body = try? await request.body.collect(upTo: 4 * 1024 * 1024)
             let data = body.map { Data($0.readableBytesView) } ?? Data()
 
-            guard let payload = try? JSONDecoder().decode(MCPPayload.self, from: data) else {
+            switch Self.decodePayload(data) {
+            case let .success(payload):
+                return await Self.dispatch(
+                    payload,
+                    broker: broker,
+                    serverName: serverName,
+                    serverVersion: serverVersion
+                )
+            case .parse:
                 return Self.rpcResponse(
                     JSONRPCMessage.failure(id: .null, code: -32700, message: "Parse error")
                 )
+            case let .invalid(evidence):
+                return Self.rpcResponse(
+                    JSONRPCMessage.failure(
+                        id: .null,
+                        code: -32600,
+                        message: "Invalid request: \(evidence)"
+                    )
+                )
             }
+        }
+    }
 
+    /// Syntax failures stay `-32700`. Valid JSON that is not an envelope
+    /// answers `-32600` with the coding path, so the client can fix the frame.
+    private static func decodePayload(_ data: Data) -> PayloadDecode {
+        guard (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)) != nil else {
+            return .parse
+        }
+        do {
+            return .success(try JSONDecoder().decode(MCPPayload.self, from: data))
+        } catch let error as DecodingError {
+            return .invalid(error.brief)
+        } catch {
+            return .invalid("invalid request")
+        }
+    }
+
+    private static func dispatch(
+        _ payload: MCPPayload,
+        broker: any MCPToolServing,
+        serverName: String,
+        serverVersion: String
+    ) async -> Response {
             switch payload {
             case let .single(envelope):
                 if envelope.id == nil {
@@ -80,7 +119,6 @@ public struct MCPRoute: Sendable {
                 }
                 return Self.rpcBatchResponse(messages)
             }
-        }
     }
 
     // MARK: - Method handling
@@ -161,6 +199,32 @@ public struct MCPRoute: Sendable {
 }
 
 // MARK: - JSON-RPC wire types
+
+private enum PayloadDecode {
+    case success(MCPPayload)
+    case parse
+    case invalid(String)
+}
+
+private extension DecodingError {
+    /// Coding path a client can fix, instead of an opaque parse error.
+    var brief: String {
+        func path(_ context: Context) -> String {
+            let joined = context.codingPath.map(\.stringValue).joined(separator: ".")
+            return joined.isEmpty ? "root" : joined
+        }
+        switch self {
+        case .keyNotFound(let key, let context):
+            return "missing key '\(key.stringValue)' at \(path(context))"
+        case .valueNotFound(_, let context):
+            return "unexpected null at \(path(context))"
+        case .typeMismatch(_, let context), .dataCorrupted(let context):
+            return "\(localizedDescription) at \(path(context))"
+        @unknown default:
+            return localizedDescription
+        }
+    }
+}
 
 private enum MCPPayload: Decodable {
     case single(JSONRPCEnvelope)
