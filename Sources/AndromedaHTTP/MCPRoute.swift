@@ -67,10 +67,10 @@ public struct MCPRoute: Sendable {
                 return Self.rpcResponse(
                     JSONRPCMessage.failure(id: .null, code: -32700, message: "Parse error")
                 )
-            case let .invalid(evidence):
+            case let .invalid(evidence, id):
                 return Self.rpcResponse(
                     JSONRPCMessage.failure(
-                        id: .null,
+                        id: id,
                         code: -32600,
                         message: "Invalid request: \(evidence)"
                     )
@@ -81,6 +81,8 @@ public struct MCPRoute: Sendable {
 
     /// Syntax failures stay `-32700`. Valid JSON that is not an envelope
     /// answers `-32600` with the coding path, so the client can fix the frame.
+    /// A detectable id (number or string) is salvaged and echoed — the spec
+    /// requires it for correlation, or the caller leaves the request pending.
     private static func decodePayload(_ data: Data) -> PayloadDecode {
         guard (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)) != nil else {
             return .parse
@@ -88,10 +90,37 @@ public struct MCPRoute: Sendable {
         do {
             return .success(try JSONDecoder().decode(MCPPayload.self, from: data))
         } catch let error as DecodingError {
-            return .invalid(error.brief)
+            return .invalid(error.brief, id: Self.salvageID(from: data))
         } catch {
-            return .invalid("invalid request")
+            return .invalid("invalid request", id: Self.salvageID(from: data))
         }
+    }
+
+    /// Lenient second pass after an envelope decode failure: only spec-legal
+    /// ids (number or string) are echoed; null, absent, or non-scalar ids
+    /// leave the reply `id`-less (`.null`), as do non-object frames (a batch
+    /// has no single detectable id).
+    private static func salvageID(from data: Data) -> JSONValue {
+        struct Salvage: Decodable {
+            let id: JSONValue?
+
+            private enum CodingKeys: String, CodingKey { case id }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                if let number = try? container.decode(Double.self, forKey: .id) {
+                    id = .number(number)
+                } else if let string = try? container.decode(String.self, forKey: .id) {
+                    id = .string(string)
+                } else {
+                    id = nil
+                }
+            }
+        }
+        guard let salvage = try? JSONDecoder().decode(Salvage.self, from: data) else {
+            return .null
+        }
+        return salvage.id ?? .null
     }
 
     private static func dispatch(
@@ -203,7 +232,7 @@ public struct MCPRoute: Sendable {
 private enum PayloadDecode {
     case success(MCPPayload)
     case parse
-    case invalid(String)
+    case invalid(String, id: JSONValue)
 }
 
 private extension DecodingError {
