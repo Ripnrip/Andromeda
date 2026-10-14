@@ -40,4 +40,16 @@ struct StatuslineTests {
     func garbageIsNil() {
         #expect(StatusPayloadDecoder.decode(Data("not-json".utf8)) == nil)
     }
+
+    /// A wrong-typed field must name the coding path instead of a silent nil.
+    @Test("wrong-typed model keeps the coding path")
+    func wrongTypeKeepsPath() {
+        let result = StatusPayloadDecoder.evidence(Data(#"{"model":1}"#.utf8))
+        guard case let .failure(failure) = result else {
+            Issue.record("expected a decode failure")
+            return
+        }
+        #expect(failure.evidence.contains("model"))
+        #expect(!failure.evidence.isEmpty)
+    }
 }
