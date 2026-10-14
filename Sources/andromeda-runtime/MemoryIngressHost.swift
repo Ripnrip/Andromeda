@@ -32,36 +32,31 @@ struct MemoryIngressHost: LettaIngressHandling {
     }
 
     /// Maps a curtain request onto a tagged fact. Unknown visibility never reaches git.
+    /// Backend receipts keep path/SHA on the host; the MCP curtain only sees opaque ids.
     func write(_ request: LettaIngressRequest) async throws -> LettaIngressReceipt {
         guard let visibility = MemoryVisibility(rawValue: request.visibility) else {
-            throw MemoryIngressHostError.visibilityRejected(request.visibility)
+            throw IngressBackendError(errorCode: "visibility_rejected")
         }
-        let receipt = try await writer.write(
-            LettaMemoryFact(
-                title: request.title,
-                body: request.body,
-                visibility: visibility,
-                tags: request.tags,
-                source: request.source
-            ),
-            to: request.agentID
-        )
-        return LettaIngressReceipt(
-            agentID: receipt.agentID,
-            relativePath: receipt.relativePath,
-            commitSHA: receipt.commitSHA,
-            unchanged: receipt.unchanged
-        )
-    }
-}
-
-enum MemoryIngressHostError: LocalizedError {
-    case visibilityRejected(String)
-
-    var errorDescription: String? {
-        switch self {
-        case let .visibilityRejected(value):
-            "visibility '\(value)' is not a known cloak tag"
+        do {
+            let receipt = try await writer.write(
+                LettaMemoryFact(
+                    title: request.title,
+                    body: request.body,
+                    visibility: visibility,
+                    tags: request.tags,
+                    source: request.source
+                ),
+                to: request.agentID
+            )
+            return LettaIngressReceipt(
+                agentID: receipt.agentID,
+                unchanged: receipt.unchanged
+            )
+        } catch let error as LettaIngressError {
+            // Paths and git stderr stay local; clients get the telemetry code only.
+            throw IngressBackendError(errorCode: error.telemetryCode)
+        } catch {
+            throw IngressBackendError(errorCode: "ingress_failed")
         }
     }
 }
