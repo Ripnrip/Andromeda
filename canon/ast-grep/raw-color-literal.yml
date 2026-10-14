@@ -5,12 +5,13 @@
 # Only the token files themselves may spell a colour out.
 id: raw-color-literal
 language: swift
-severity: warning  # existing sites are visible debt; flip to error once cleared
+severity: error  # every Swift colour comes from a token; exceptions are annotated inline
 ignores:
   - "**/Tests/**"
   - "Sources/AndromedaBrand/AndromedaPalette.swift"
   - "Sources/AndromedaBrand/AndromedaTheme+SwiftUI.swift"
   - "Packages/AndromedaUI/Sources/AndromedaUI/DesignToken.swift"
+  - "Packages/AndromedaOrchestrator/Sources/AndromedaOrchestrator/DesignToken.swift"
 message: Colour literal — use a design token (AndromedaTheme / DesignToken); see DESIGN.md.
 rule:
   any:

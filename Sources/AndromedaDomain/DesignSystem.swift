@@ -6,32 +6,54 @@ import Foundation
 
 // MARK: - Color palette
 
-/// Near-black cool neutrals carry the system; a single teal glow does the accenting.
-/// Green is reserved for live/healthy status only.
+/// The original v1 palette as CSS hex strings, now pinned to the design tokens.
+///
+/// Superseded by the token system in `DESIGN.md`: Swift surfaces read
+/// `AndromedaPalette` / `AndromedaTheme` (AndromedaBrand), the web reads
+/// `globals.css`. Each case keeps its v1 name and now carries the matching
+/// token's value, so anything still reading it gets the shared palette.
+/// `DesignTokenParityTests` holds every case to DESIGN.md.
+@available(*, deprecated, message: "Use AndromedaPalette / AndromedaTheme from AndromedaBrand (see DESIGN.md).")
 public enum AndromedaColor: String, Sendable, CaseIterable {
-    /// #030B0C — primary background (void)
-    case void = "#030B0C"
-    /// #040D0E — deep panel surface
-    case panel = "#040D0E"
-    /// #0D1A1B — elevated surface / app icon bg
-    case surface = "#0D1A1B"
-    /// #34E8DC — primary accent (teal)
-    case teal = "#34E8DC"
-    /// #8FFBEF — hover / glow
-    case glow = "#8FFBEF"
-    /// #3EE08C — healthy / live status only
-    case live = "#3EE08C"
-    /// #E9FBF8 — primary text (ink)
-    case ink = "#E9FBF8"
-    /// #7FA39E — muted / secondary text
-    case muted = "#7FA39E"
-    /// #5F8D88 — dimmer muted (labels, eyebrows)
-    case mutedDim = "#5F8D88"
-    /// #FF9D94 — degraded / alert
-    case alert = "#FF9D94"
+    /// `background` — primary ground (void).
+    case void = "#040F12"
+    /// `card` — panel surface.
+    case panel = "#081619"
+    /// `secondary` — elevated / filled surface.
+    case surface = "#122225"
+    /// `primary` — the cyan accent.
+    case teal = "#1DE4DB"
+    /// `glow` — halo / hover light.
+    case glow = "#90FAF3"
+    /// `signal` — live / healthy status only.
+    case live = "#49DE78"
+    /// `foreground` — primary text (ink).
+    case ink = "#E6F1F2"
+    /// `muted-foreground` — secondary text.
+    case muted = "#8B9C9E"
+    /// `spec` — dimmer labels, inert structure.
+    case mutedDim = "#7A898F"
+    /// `alert` — failed / blocked.
+    case alert = "#FB817A"
 
-    /// RGBA line color used for borders — 13% opacity teal.
-    public static let line = "rgba(94,234,222,.13)"
+    /// Hairline border: `primary` at 13% opacity.
+    public static let line = "rgba(29,228,219,.13)"
+
+    /// The DESIGN.md token this case is pinned to.
+    public var token: String {
+        switch self {
+        case .void: "background"
+        case .panel: "card"
+        case .surface: "secondary"
+        case .teal: "primary"
+        case .glow: "glow"
+        case .live: "signal"
+        case .ink: "foreground"
+        case .muted: "muted-foreground"
+        case .mutedDim: "spec"
+        case .alert: "alert"
+        }
+    }
 
     /// CSS hex string (uppercase to match the design system spec).
     public var cssHex: String { rawValue.uppercased() }

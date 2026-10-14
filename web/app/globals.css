@@ -49,6 +49,7 @@
   --color-partial: var(--partial);
   --color-spec: var(--spec);
   --color-signal: var(--signal);
+  --color-alert: var(--alert);
 
   --font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
@@ -98,6 +99,8 @@
   --partial: oklch(0.55 0.13 80);
   --spec: oklch(0.55 0.015 220);
   --signal: oklch(0.5 0.15 150);
+  /* Alert — failed, blocked, contradicted. The one destructive hue. */
+  --alert: oklch(0.53 0.18 25);
 }
 
 .dark {
@@ -132,6 +135,7 @@
   --partial: oklch(0.82 0.13 90);
   --spec: oklch(0.62 0.02 220);
   --signal: oklch(0.8 0.19 150);
+  --alert: oklch(0.74 0.15 25);
 }
 
 @layer base {
