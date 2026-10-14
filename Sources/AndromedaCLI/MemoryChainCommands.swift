@@ -71,6 +71,9 @@ struct MemoryChainCommand: AsyncParsableCommand {
         @Option(name: .long, help: "Reader agent id for recall narrative.")
         var reader: String = "agent-b"
 
+        @Option(name: .long, help: "Durable run key: re-running with the same key after a pass is a no-op (idempotent retries).")
+        var runKey: String?
+
         func run() async throws {
             if !skipAgentToAgent {
                 MemoryChainCommand.diagnostics.info("🩺 running agent-to-agent curtain proof")
@@ -79,7 +82,8 @@ struct MemoryChainCommand: AsyncParsableCommand {
                     surface: surface,
                     path: path,
                     writerAgent: writer,
-                    readerAgent: reader
+                    readerAgent: reader,
+                    runKey: runKey
                 )
                 Self.printLeg(state, id: MemoryChainProofLegID.agentToAgent.rawValue)
             }
@@ -109,11 +113,21 @@ struct MemoryChainCommand: AsyncParsableCommand {
 }
 
 /// CLI-local curtain adapter (same contract as HUDCore `CurtainAgentToAgentSurface`).
+///
+/// Reader identity is authorized against `AgentMemoryReadPolicy` (PR #91 review
+/// P2-2), mirroring the HUDCore surface: the proof narrative is retained
+/// deliberately shared so the cross-agent recall is an asserted policy.
 private struct CLICurtainAgentSurface: AgentToAgentMemoryProving, Sendable {
     private let curtain: MemoryComplexityCurtain
+    private let policy: AgentMemoryReadPolicy
+    private let attribution = CLIWriterAttribution()
 
-    init(curtain: MemoryComplexityCurtain) {
+    init(
+        curtain: MemoryComplexityCurtain,
+        policy: AgentMemoryReadPolicy = .sharedAcrossAgents
+    ) {
         self.curtain = curtain
+        self.policy = policy
     }
 
     static func makeEphemeral() async throws -> CLICurtainAgentSurface {
@@ -125,14 +139,32 @@ private struct CLICurtainAgentSurface: AgentToAgentMemoryProving, Sendable {
             narrative: narrative,
             project: project,
             agent: writerAgent,
-            provenance: MemoryVerb.retain.rawValue
+            provenance: MemoryVerb.retain.rawValue,
+            visibility: policy.retentionVisibility,
+            tags: ["memory-chain-proof"]
         )
+        await attribution.record(memoryID: receipt.memoryID, writer: writerAgent)
         return receipt.memoryID
     }
 
     func recallContains(query: String, memoryID: UUID, readerAgent: String) async -> Bool {
-        _ = readerAgent
+        guard let writer = await attribution.writer(for: memoryID) else { return false }
+        guard policy.authorizes(reader: readerAgent, writer: writer) else { return false }
         let response = await curtain.recall(query: query)
         return response.hits.contains(where: { $0.id == memoryID })
+    }
+}
+
+/// Remembers which agent retained each memory id, so reads can be authorized
+/// (CLI-local mirror of HUDCore `MemoryWriterAttribution`).
+private actor CLIWriterAttribution {
+    private var writers: [UUID: String] = [:]
+
+    func record(memoryID: UUID, writer: String) {
+        writers[memoryID] = writer
+    }
+
+    func writer(for memoryID: UUID) -> String? {
+        writers[memoryID]
     }
 }

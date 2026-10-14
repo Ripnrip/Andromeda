@@ -20,7 +20,42 @@ public protocol AgentToAgentMemoryProving: Sendable {
     /// Persist a narrative attributed to `writerAgent`. Returns the durable memory id.
     func retain(narrative: String, project: String, writerAgent: String) async throws -> UUID
     /// Recall as `readerAgent`. Returns true when `memoryID` appears in hits.
+    ///
+    /// Implementations MUST authorize `readerAgent` against the surface's
+    /// `AgentMemoryReadPolicy` (PR #91 review P2-2) — the reader identity is a
+    /// typed allow/deny input, never a discardable parameter.
     func recallContains(query: String, memoryID: UUID, readerAgent: String) async -> Bool
+}
+
+/// Who may read a memory retained through the proof surface (PR #91 review
+/// P2-2): the agent-to-agent leg is *deliberately* shared — the cross-agent
+/// read is an asserted policy, not an oversight.
+public enum AgentMemoryReadPolicy: String, Sendable, Equatable, CaseIterable {
+    /// Narrative is retained `visibility: "shared"`; any agent may read it.
+    /// This is the proof-leg default: the whole point of the leg is that a
+    /// *different* agent can recall what the writer retained.
+    case sharedAcrossAgents
+    /// Narrative is retained `visibility: "private"`; only the writer may
+    /// read it. Cross-agent recall returns false (deny), not a silent hit.
+    case writerOnly
+
+    /// Visibility the surface must stamp on retains under this policy.
+    public var retentionVisibility: String {
+        switch self {
+        case .sharedAcrossAgents: "shared"
+        case .writerOnly: "private"
+        }
+    }
+
+    /// Typed allow/deny for one (reader, writer) pair.
+    public func authorizes(reader: String, writer: String) -> Bool {
+        switch self {
+        case .sharedAcrossAgents:
+            true
+        case .writerOnly:
+            reader == writer
+        }
+    }
 }
 
 /// Optional Ladybug chain probe (health now; upsert/query may stay pending).
@@ -46,6 +81,17 @@ public enum MemoryChainProofRunner: Sendable {
     /// Acceptance (HAB-602 § Proof / HAB-600): writer retains a unique narrative;
     /// a different reader agent recalls it by content. Pass only when the hit
     /// is found — otherwise `fail` (attempted) rather than silent pending.
+    ///
+    /// Cancellation (PR #91 review P2-3): a cancelled run rethrows
+    /// `CancellationError` without recording a fail leg and without touching
+    /// the proof document — cancellation is not a proof result.
+    ///
+    /// Idempotency (PR #91 review P2-3): pass a durable `runKey` to make
+    /// retries safe. When the leg already recorded a pass under the same key,
+    /// the run short-circuits (no second durable retain); the narrative token
+    /// is derived from the key, so retains from retried attempts of one run
+    /// are identical and traceable. Without a key each invocation is a fresh
+    /// attempt (documented, not idempotent).
     public static func runAgentToAgent(
         surface: any AgentToAgentMemoryProving,
         path: String = MemoryChainProofStore.defaultPath,
@@ -53,12 +99,26 @@ public enum MemoryChainProofRunner: Sendable {
         writerAgent: String = "agent-a",
         readerAgent: String = "agent-b",
         now: Date = Date(),
-        nonce: String? = nil
+        nonce: String? = nil,
+        runKey: String? = nil
     ) async throws -> MemoryChainProofState {
-        let token = nonce ?? makeNonce(now: now)
+        // Idempotent replay: a pass recorded under this run key is already
+        // proven — do not create another durable retain for it.
+        if let runKey,
+           let prior = try alreadyPassedLegState(id: MemoryChainProofLegID.agentToAgent.rawValue,
+                                                 runKey: runKey, path: path) {
+            return prior
+        }
+
+        // Deterministic token for keyed runs: retries re-emit the same
+        // narrative (same outbox content hash) so duplicates are contained
+        // and deducible downstream.
+        let token = nonce ?? runKey ?? makeNonce(now: now)
         let narrative =
             "HAB-602 agent-to-agent proof token \(token) — curtain verbs across agents"
         let query = "HAB-602 agent-to-agent proof token \(token)"
+
+        try Task.checkCancellation()
 
         let leg: MemoryChainProofLeg
         do {
@@ -72,13 +132,17 @@ public enum MemoryChainProofRunner: Sendable {
                 memoryID: memoryID,
                 readerAgent: readerAgent
             )
+            // State mutation happens after this point — a cancel that raced
+            // the leg must not be recorded as a proof result.
+            try Task.checkCancellation()
             if found {
                 leg = MemoryChainProofLeg(
                     id: MemoryChainProofLegID.agentToAgent.rawValue,
                     status: .pass,
                     at: now,
                     detail:
-                        "\(writerAgent) retain → \(readerAgent) recall hit \(memoryID.uuidString) (\(token))"
+                        "\(writerAgent) retain → \(readerAgent) recall hit \(memoryID.uuidString) (\(token))",
+                    runKey: runKey
                 )
             } else {
                 leg = MemoryChainProofLeg(
@@ -86,36 +150,70 @@ public enum MemoryChainProofRunner: Sendable {
                     status: .fail,
                     at: now,
                     detail:
-                        "\(readerAgent) recall missed memory \(memoryID.uuidString) for token \(token)"
+                        "\(readerAgent) recall missed memory \(memoryID.uuidString) for token \(token)",
+                    runKey: runKey
                 )
             }
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
+            if Task.isCancelled { throw CancellationError() }
             leg = MemoryChainProofLeg(
                 id: MemoryChainProofLegID.agentToAgent.rawValue,
                 status: .fail,
                 at: now,
-                detail: "retain failed: \(error.localizedDescription)"
+                detail: "retain failed: \(error.localizedDescription)",
+                runKey: runKey
             )
         }
 
         return try mergeAndSave(leg: leg, path: path, now: now)
     }
 
-    /// Run the Ladybug index leg (honest pending when unreachable).
+    /// Runs the Ladybug index leg (honest pending when unreachable).
+    ///
+    /// Cancellation propagates: a cancelled caller gets `CancellationError`
+    /// and the proof document is left untouched (PR #91 review P2-3).
     public static func runLadybugIndex(
         probe: any LadybugIndexProving,
         path: String = MemoryChainProofStore.defaultPath,
         now: Date = Date()
     ) async throws -> MemoryChainProofState {
         let leg = await probe.prove(now: now)
+        try Task.checkCancellation()
         return try mergeAndSave(leg: leg, path: path, now: now)
     }
 
     /// Merge one leg into existing proof state (preserving other legs) and save.
+    ///
+    /// The whole read-merge-write is a cross-process transaction (PR #91
+    /// review P1-1): an exclusive `flock` on `<path>.lock` serializes
+    /// concurrent legs — whether from parallel Tasks in this process or a
+    /// simultaneously running `andromeda memory-chain prove` — so neither
+    /// merge can be lost. The save itself publishes via atomic rename.
     public static func mergeAndSave(
         leg: MemoryChainProofLeg,
         path: String,
         now: Date = Date()
+    ) throws -> MemoryChainProofState {
+        // The lock file must only ever be created inside the ADR-0020 sandbox;
+        // for paths outside it, fall through and let save() throw the honest
+        // sandbox refusal rather than creating files elsewhere.
+        if MemoryChainProofStore.isInsideSandbox(path) {
+            let expanded = (path as NSString).expandingTildeInPath
+            let lock = try CrossProcessFileLock.acquire(lockFilePath: expanded + ".lock")
+            defer { lock.release() }
+            return try mergeAndSaveUnlocked(leg: leg, path: path, now: now)
+        }
+        return try mergeAndSaveUnlocked(leg: leg, path: path, now: now)
+    }
+
+    /// The merge body — caller must already hold the transaction lock (or be
+    /// intentionally outside the sandbox, where save refuses the write).
+    private static func mergeAndSaveUnlocked(
+        leg: MemoryChainProofLeg,
+        path: String,
+        now: Date
     ) throws -> MemoryChainProofState {
         let prior = try MemoryChainProofStore.load(from: path)
         var byID: [String: MemoryChainProofLeg] = [:]
@@ -141,6 +239,19 @@ public enum MemoryChainProofRunner: Sendable {
         )
         try MemoryChainProofStore.save(state, to: path)
         return state
+    }
+
+    /// Returns the prior state when leg `id` already recorded a pass under
+    /// `runKey` — the idempotent-replay short-circuit for keyed runs.
+    private static func alreadyPassedLegState(
+        id: String,
+        runKey: String,
+        path: String
+    ) throws -> MemoryChainProofState? {
+        guard let prior = try MemoryChainProofStore.load(from: path) else { return nil }
+        guard let leg = prior.legs.first(where: { $0.id == id }) else { return nil }
+        guard leg.status == .pass, leg.runKey == runKey else { return nil }
+        return prior
     }
 }
 
