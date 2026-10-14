@@ -237,6 +237,51 @@ struct BinaryInstallerTests {
         #expect(leftovers.isEmpty)
     }
 
+    /// A previous install's dylib is not trusted because the name exists.
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func unsignedReusedDestinationCompanionFailsClosed() async throws {
+        let root = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sourceDir = root.appendingPathComponent("src")
+        let destDir = root.appendingPathComponent("dest")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+
+        let dummyC = sourceDir.appendingPathComponent("dummy.c")
+        try "void dummy(void) {}\n".write(to: dummyC, atomically: true, encoding: .utf8)
+        let dylib = sourceDir.appendingPathComponent("libcompanion.dylib")
+        let clang = LiveShell()
+        let libBuild = try await clang.execute([
+            "/usr/bin/clang", "-dynamiclib",
+            "-install_name", "@loader_path/libcompanion.dylib",
+            "-o", dylib.path, dummyC.path,
+        ])
+        #expect(libBuild.success)
+
+        let mainC = sourceDir.appendingPathComponent("main.c")
+        try "int main(void) { return 0; }\n".write(to: mainC, atomically: true, encoding: .utf8)
+        let source = sourceDir.appendingPathComponent("victim")
+        let link = try await clang.execute([
+            "/usr/bin/clang", "-o", source.path, mainC.path, dylib.path,
+            "-Wl,-rpath,@loader_path",
+        ])
+        #expect(link.success)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: source.path)
+
+        let reused = destDir.appendingPathComponent("libcompanion.dylib")
+        try FileManager.default.copyItem(at: dylib, to: reused)
+        let stripped = try await clang.execute(["/usr/bin/codesign", "--remove-signature", reused.path])
+        #expect(stripped.success)
+        try FileManager.default.removeItem(at: dylib)
+
+        let destination = destDir.appendingPathComponent("dest-bin")
+        let installer = BinaryInstaller()
+        await #expect(throws: BinaryInstaller.InstallError.self) {
+            _ = try await installer.install(source: source, destination: destination)
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+    }
+
     @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
     func adjacentLoaderPathDylibIsCopiedSignedAndPublished() async throws {
         let root = makeTempDir()

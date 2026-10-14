@@ -269,6 +269,18 @@ public actor BinaryInstaller {
             throw cleanupAndThrow(.missingRequiredLinkedLibrary(detail))
         }
 
+        do {
+            try await verifyReusedDestinationCompanions(
+                libraries: libraries,
+                sourceDirectory: sourceDirectory,
+                destinationDirectory: destinationDirectory
+            )
+        } catch let error as InstallError {
+            throw cleanupAndThrow(error)
+        } catch {
+            throw cleanupAndThrow(.verificationFailed(error.localizedDescription))
+        }
+
         let companions: [PlannedCompanion]
         do {
             companions = try stageCompanions(
@@ -607,6 +619,57 @@ public actor BinaryInstaller {
             )
         }
         return libraries
+    }
+
+    /// A dest-adjacent dylib that the source does not ship is still part of the
+    /// published generation. Existence is not a signature. Verify it, and walk
+    /// its nested required loads, before publish.
+    private func verifyReusedDestinationCompanions(
+        libraries: [LinkedLibrary],
+        sourceDirectory: URL,
+        destinationDirectory: URL
+    ) async throws {
+        var seen: Set<String> = []
+        var queue: [String] = []
+        func enqueueReused(_ libraries: [LinkedLibrary]) {
+            for library in libraries where !library.isWeak {
+                guard let name = library.adjacentFileName else { continue }
+                let sourceURL = sourceDirectory.appendingPathComponent(name)
+                if fileManager.fileExists(atPath: sourceURL.path) { continue }
+                let destURL = destinationDirectory.appendingPathComponent(name)
+                guard fileManager.fileExists(atPath: destURL.path) else { continue }
+                if seen.insert(name).inserted {
+                    queue.append(name)
+                }
+            }
+        }
+        enqueueReused(libraries)
+        var index = 0
+        while index < queue.count {
+            let name = queue[index]
+            index += 1
+            let destURL = destinationDirectory.appendingPathComponent(name)
+            let verify = try await shell.execute(["codesign", "--verify", "--strict", destURL.path])
+            guard verify.success else {
+                throw InstallError.verificationFailed("reused \(name): \(verify.output)")
+            }
+            let nested = try await loadLinkedLibraries(at: destURL)
+            for library in nested where !library.isWeak {
+                guard let nestedName = library.adjacentFileName else { continue }
+                let nestedSource = sourceDirectory.appendingPathComponent(nestedName)
+                let nestedDest = destinationDirectory.appendingPathComponent(nestedName)
+                let inSource = fileManager.fileExists(atPath: nestedSource.path)
+                let inDest = fileManager.fileExists(atPath: nestedDest.path)
+                guard inSource || inDest else {
+                    throw InstallError.missingRequiredLinkedLibrary(
+                        "reused \(name) requires \(library.installName)"
+                    )
+                }
+                if inDest, !inSource, seen.insert(nestedName).inserted {
+                    queue.append(nestedName)
+                }
+            }
+        }
     }
 
     /// Required (non-weak) libraries that would not resolve after publish.
