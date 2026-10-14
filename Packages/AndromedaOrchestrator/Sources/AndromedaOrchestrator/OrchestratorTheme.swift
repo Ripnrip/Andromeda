@@ -33,12 +33,14 @@ public struct OrchestratorPalette: Sendable {
     }
 }
 
-// Declared in an extension so the memberwise initializer stays available.
+/// Declared in an extension so the memberwise initializer stays available.
 extension OrchestratorPalette {
     /// Fills every role from its design token, reading one theme's values.
     /// The memberwise call is exhaustive, so a new role can't be left unmapped.
     init(tokens value: (DesignToken) -> UInt32) {
-        func color(_ token: DesignToken) -> Color { Color(token: value(token)) }
+        func color(_ token: DesignToken) -> Color {
+            Color(token: value(token))
+        }
         self.init(
             void: color(.background),
             chrome: color(.popover),

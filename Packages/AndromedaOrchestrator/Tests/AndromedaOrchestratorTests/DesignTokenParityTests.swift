@@ -1,6 +1,6 @@
+@testable import AndromedaOrchestrator
 import Foundation
 import Testing
-@testable import AndromedaOrchestrator
 
 /// Holds the console's `DesignToken` copy to the `colors:` map in DESIGN.md.
 ///
@@ -48,7 +48,9 @@ private func hexString(_ value: UInt32) -> String {
 /// DESIGN.md must open with YAML front matter; anything else fails the suite.
 private struct MalformedSpec: Error, CustomStringConvertible {
     let path: String
-    var description: String { "DESIGN.md has no YAML front matter at \(path)" }
+    var description: String {
+        "DESIGN.md has no YAML front matter at \(path)"
+    }
 }
 
 /// The `colors:` map from DESIGN.md's YAML front matter.
@@ -57,11 +59,11 @@ private enum DesignSpecColors {
     /// `Packages/AndromedaOrchestrator/Tests/AndromedaOrchestratorTests/<this file>`.
     static var url: URL {
         URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // AndromedaOrchestratorTests
-            .deletingLastPathComponent()  // Tests
-            .deletingLastPathComponent()  // AndromedaOrchestrator
-            .deletingLastPathComponent()  // Packages
-            .deletingLastPathComponent()  // repo root
+            .deletingLastPathComponent() // AndromedaOrchestratorTests
+            .deletingLastPathComponent() // Tests
+            .deletingLastPathComponent() // AndromedaOrchestrator
+            .deletingLastPathComponent() // Packages
+            .deletingLastPathComponent() // repo root
             .appendingPathComponent("DESIGN.md")
     }
 
@@ -75,8 +77,12 @@ private enum DesignSpecColors {
         var colors: [String: String] = [:]
         var inColors = false
         for line in lines.dropFirst() {
-            if line == "---" { break }
-            if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
+            if line == "---" {
+                break
+            }
+            if line.trimmingCharacters(in: .whitespaces).isEmpty {
+                continue
+            }
             if !line.hasPrefix(" ") {
                 inColors = line.hasPrefix("colors:")
                 continue
