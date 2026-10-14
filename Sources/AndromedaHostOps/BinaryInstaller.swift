@@ -313,10 +313,10 @@ public actor BinaryInstaller {
         // the signed inode here — it is what the rename below publishes.
         let signedInode = inodeNumber(at: stagingURL)
 
-        // 7. Atomic publish: companions first (park previous companion inodes,
-        //    then rename staged copies in). Park the previous dest executable
-        //    next, then rename the staged binary last. Any publish failure
-        //    restores parked dest + companions (HAB-628 / HAB-629).
+        // 7. Atomic publish. Previous inodes are hard-linked aside so the live
+        //    path never disappears. `rename(2)` onto the existing path is the
+        //    switch. A failure restores those links without unlinking dest first
+        //    (HAB-628 / HAB-629).
         let publishedCompanions: [PublishedCompanion]
         do {
             publishedCompanions = try publishCompanions(companions, stagedURLs: &stagedURLs)
@@ -537,34 +537,41 @@ public actor BinaryInstaller {
         )
     }
 
-    /// Move an existing dest companion aside so its inode can be restored.
+    /// Hard-link the live file aside. `rename(2)` of the live path would make
+    /// the installed command vanish until the later publish rename (ENOENT).
+    /// The extra link keeps that inode at the destination the whole time.
     private func parkExistingCompanion(_ destinationURL: URL, fileName: String) throws -> URL? {
         guard fileManager.fileExists(atPath: destinationURL.path) else { return nil }
         let backupURL = destinationURL.deletingLastPathComponent()
             .appendingPathComponent(".\(fileName).rollback-\(UUID().uuidString).tmp")
-        let result = renamePaths(destinationURL.path, backupURL.path)
+        let result = link(destinationURL.path, backupURL.path)
         guard result == 0 else {
             let detail = String(cString: strerror(errno))
             throw InstallError.publishFailed(
-                "park(\(destinationURL.path) -> \(backupURL.path)): \(detail)"
+                "link(\(destinationURL.path) -> \(backupURL.path)): \(detail)"
             )
         }
         return backupURL
     }
 
-    /// Restore parked companion inodes and drop any newly published copies.
+    /// Restore a previous inode without unlinking the live path first.
+    /// Same-inode backup means publish never replaced dest — drop the extra link.
     private func rollbackPublishedCompanions(_ published: [PublishedCompanion]) {
         for item in published.reversed() {
-            if fileManager.fileExists(atPath: item.destinationURL.path) {
-                let orphan = item.destinationURL.deletingLastPathComponent()
-                    .appendingPathComponent(".\(item.fileName).orphan-\(UUID().uuidString).tmp")
-                if renamePaths(item.destinationURL.path, orphan.path) == 0 {
-                    try? fileManager.removeItem(at: orphan)
-                } else {
+            guard let backup = item.backupURL, fileManager.fileExists(atPath: backup.path) else {
+                if fileManager.fileExists(atPath: item.destinationURL.path) {
                     try? fileManager.removeItem(at: item.destinationURL)
                 }
+                continue
             }
-            if let backup = item.backupURL, fileManager.fileExists(atPath: backup.path) {
+            let destInode = inodeNumber(at: item.destinationURL)
+            let backupInode = inodeNumber(at: backup)
+            if destInode != nil, destInode == backupInode {
+                try? fileManager.removeItem(at: backup)
+                continue
+            }
+            if renamePaths(backup.path, item.destinationURL.path) != 0 {
+                try? fileManager.removeItem(at: item.destinationURL)
                 _ = renamePaths(backup.path, item.destinationURL.path)
             }
         }
