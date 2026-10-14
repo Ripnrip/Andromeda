@@ -2151,6 +2151,85 @@ struct LaunchAgentInstallerTests {
         #expect(calls.isEmpty)
     }
 
+    /// `/usr/bin/env open` is the same LaunchServices exec. Bare name, not a path.
+    @Test
+    func bootstrapEnvBareOpenFailsClosedBeforeLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: openProgramPlist(
+                program: "/usr/bin/env",
+                extraArguments: ["open", "-a", "AndromedaHUD"]
+            )
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    @Test
+    func envBareOpenAndSymlinkResolveToProhibitedBinaries() throws {
+        #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            try LaunchAgentInstaller.validateProgramNotOpen([
+                "Program": "/usr/bin/env",
+                "ProgramArguments": ["/usr/bin/env", "open", "-a", "AndromedaHUD"],
+            ])
+        }
+        #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            try LaunchAgentInstaller.validateProgramNotOpen([
+                "Program": "/usr/bin/env",
+                "ProgramArguments": ["/usr/bin/env", "FOO=1", "open"],
+            ])
+        }
+        #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            try LaunchAgentInstaller.validateProgramNotOsascript([
+                "Program": "/usr/bin/env",
+                "ProgramArguments": ["/usr/bin/env", "-S", "osascript -e return"],
+            ])
+        }
+        #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            try LaunchAgentInstaller.validateProgramNotOpen([
+                "Program": "/usr/bin/command",
+                "ProgramArguments": ["/usr/bin/command", "open"],
+            ])
+        }
+
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let link = dir.appendingPathComponent("not-open")
+        try FileManager.default.createSymbolicLink(
+            at: link,
+            withDestinationURL: URL(fileURLWithPath: "/usr/bin/open")
+        )
+        #expect(LaunchAgentInstaller.isLaunchServicesOpen(link.path))
+        #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            try LaunchAgentInstaller.validateProgramNotOpen(["Program": link.path])
+        }
+
+        // Negative: env running a non-prohibited absolute utility stays allowed.
+        try LaunchAgentInstaller.validateProgramNotOpen([
+            "Program": "/usr/bin/env",
+            "ProgramArguments": ["/usr/bin/env", "/usr/bin/true"],
+        ])
+        try LaunchAgentInstaller.validateProgramNotOsascript([
+            "Program": "/usr/bin/env",
+            "ProgramArguments": ["/usr/bin/env", "/usr/bin/true"],
+        ])
+    }
+
     @Test
     func bootstrapArchWrappingDotSlashOpenFailsClosed() async throws {
         let dir = makeTempDir()
