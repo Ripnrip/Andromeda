@@ -28,19 +28,35 @@ public struct LettaIngressRequest: Sendable, Equatable {
     }
 }
 
-/// Proof a hosted ingress write sealed. `commitSHA` is the backend receipt,
-/// not a brand clients are expected to interpret.
+/// Curtain-facing proof a hosted ingress write sealed.
+/// Opaque ids + outcome only — never memfs path, commit SHA, or git stderr.
 public struct LettaIngressReceipt: Sendable, Equatable, Codable {
     public let agentID: String
-    public let relativePath: String
-    public let commitSHA: String
     public let unchanged: Bool
 
-    public init(agentID: String, relativePath: String, commitSHA: String, unchanged: Bool) {
+    public init(agentID: String, unchanged: Bool) {
         self.agentID = agentID
-        self.relativePath = relativePath
-        self.commitSHA = commitSHA
         self.unchanged = unchanged
+    }
+}
+
+/// Backend failure mapped to a stable code before it crosses the MCP curtain.
+/// Associated payloads (paths, stderr) stay on the host side.
+public struct IngressBackendError: Error, Sendable, Equatable {
+    public let errorCode: String
+
+    public init(errorCode: String) {
+        self.errorCode = errorCode
+    }
+
+    /// Curtain code. Storage brands stay in telemetry; clients never see them.
+    public static func clientCode(from telemetryCode: String) -> String {
+        let lowered = telemetryCode.lowercased()
+        let brands = ["memfs", "git", "letta", "ladybug", "qdrant", "postgres", "swiftgate"]
+        if brands.contains(where: { lowered.contains($0) }) {
+            return "ingress_failed"
+        }
+        return telemetryCode
     }
 }
 
@@ -64,6 +80,7 @@ public actor LettaIngressMCPToolServer: MCPToolServing {
     public func listTools() async -> [ToolDefinition] { [Self.definition] }
 
     /// Validates required fields, then delegates. Untagged writes are rejected here.
+    /// Success and failure payloads stay curtain-safe: no path, SHA, or raw diagnostics.
     public func callTool(name: String, arguments: [String: JSONValue]) async -> ToolCallResult {
         guard name == Self.toolName else {
             return ToolCallResult(text: "Unknown memory capability: \(name)", isError: true)
@@ -73,11 +90,16 @@ public actor LettaIngressMCPToolServer: MCPToolServing {
             let receipt = try await handler.write(request)
             let data = try JSONEncoder().encode(receipt)
             return ToolCallResult(text: String(decoding: data, as: UTF8.self))
-        } catch {
+        } catch let error as IngressToolError {
+            // Client-shaped validation only — never backend paths or git stderr.
             return ToolCallResult(
-                text: "Memory ingress failed: \(error.localizedDescription)",
+                text: error.errorDescription ?? "invalid_argument",
                 isError: true
             )
+        } catch let error as IngressBackendError {
+            return Self.opaqueFailure(errorCode: IngressBackendError.clientCode(from: error.errorCode))
+        } catch {
+            return Self.opaqueFailure(errorCode: "ingress_failed")
         }
     }
 
@@ -107,6 +129,12 @@ public actor LettaIngressMCPToolServer: MCPToolServing {
             tags: tags,
             source: (source?.isEmpty == false) ? source! : "authenticated-agent"
         )
+    }
+
+    /// Stable JSON error for clients. Codes only — no localizedDescription.
+    private static func opaqueFailure(errorCode: String) -> ToolCallResult {
+        let payload = #"{"error_code":"\#(errorCode)"}"#
+        return ToolCallResult(text: payload, isError: true)
     }
 
     private static let definition = ToolDefinition(
