@@ -3,7 +3,6 @@ import AndromedaCore
 import AndromedaGateway
 import AndromedaHostOps
 import ArgumentParser
-import Darwin
 import Foundation
 import Logging
 
@@ -13,7 +12,16 @@ struct Andromeda: AsyncParsableCommand {
         commandName: "andromeda",
         abstract: "Andromeda — Swift-native control plane and Hummingbird model gateway.",
         version: AndromedaVersion.string,
-        subcommands: [Serve.self, Status.self, Brand.self, InstallCLI.self, InstallApp.self, InstallLaunchAgent.self, MCPHubCommand.self],
+        subcommands: [
+            Serve.self,
+            Status.self,
+            Brand.self,
+            InstallCLI.self,
+            InstallApp.self,
+            InstallLaunchAgent.self,
+            MCPHubCommand.self,
+            MemoryChainCommand.self,
+        ],
         defaultSubcommand: Status.self
     )
 }

@@ -56,10 +56,22 @@ public enum Capture {
         // Reinstalls may have rewritten the lockfile; restore the committed
         // state so the NEXT capture's checkout can never be blocked by a
         // locally-modified file (e.g. a PR that changes package-lock.json).
-        _ = try? Shell.runChecked(
-            ["git", "checkout", "-q", "--", "package-lock.json", "web/package-lock.json"],
-            cwd: root
-        )
+        // Pathspecs must be filtered to files that exist: `git checkout --`
+        // fails atomically when ANY pathspec matches nothing (web/package-
+        // lock.json does not exist in this repo), and a swallowed failure
+        // here leaves the tree dirty — exactly what aborts the next
+        // capture's `git checkout <sha>` on lockfile-touching PRs.
+        let lockfiles = ["package-lock.json", "web/package-lock.json"]
+            .filter { FileManager.default.fileExists(atPath: root.appendingPathComponent($0).path) }
+        if !lockfiles.isEmpty {
+            do {
+                try Shell.runChecked(["git", "checkout", "-q", "--"] + lockfiles, cwd: root)
+            } catch {
+                // Best-effort by design (shots are already taken), but loud:
+                // a silent failure here cost a full CI cycle to diagnose.
+                log("lockfile restore failed (non-fatal): \(error)")
+            }
+        }
         log("captured \(options.side)")
         return ShellResult(exitCode: 0, stdout: "", stderr: "")
     }

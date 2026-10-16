@@ -68,6 +68,15 @@ private enum MockRunnerError: Error {
     case boom
 }
 
+/// 🌑 DarkLadybugSearch — deterministic §13 probe for pre-existing rituals.
+/// Injected everywhere so the suite never touches a live :8286 index server
+/// (Studio runs one; un-injected tests would flake on real semantic hits).
+private struct DarkLadybugSearch: LadybugVectorSearching {
+    func search(text: String, k: Int) async -> LadybugSearchOutcome {
+        LadybugSearchOutcome(hits: [], degraded: true, reason: "dark probe (test)")
+    }
+}
+
 // MARK: - Suite
 
 @Suite("🔍 The Recall Memory Retrieval Rituals")
@@ -143,7 +152,8 @@ struct RetrievalServiceTests {
         let retrieval = RetrievalService(
             container: vault,
             vaultURL: nil,
-            processRunner: runner
+            processRunner: runner,
+            ladybugSearch: DarkLadybugSearch()
         )
 
         let result = try await retrieval.recallMemory(
@@ -186,7 +196,8 @@ struct RetrievalServiceTests {
         let retrieval = RetrievalService(
             container: vault,
             vaultURL: nil,
-            processRunner: MockProcessRunner()
+            processRunner: MockProcessRunner(),
+            ladybugSearch: DarkLadybugSearch()
         )
 
         let result = try await retrieval.recallMemory(
@@ -219,7 +230,8 @@ struct RetrievalServiceTests {
 
         let retrieval = RetrievalService(
             container: vault,
-            processRunner: MockProcessRunner()
+            processRunner: MockProcessRunner(),
+            ladybugSearch: DarkLadybugSearch()
         )
 
         let result = try await retrieval.recallMemory(
@@ -297,7 +309,8 @@ struct RetrievalServiceTests {
         let retrieval = RetrievalService(
             container: vault,
             vaultURL: missingVault,
-            processRunner: runner
+            processRunner: runner,
+            ladybugSearch: DarkLadybugSearch()
         )
 
         let result = try await retrieval.recallMemory(
@@ -320,7 +333,8 @@ struct RetrievalServiceTests {
         let retrieval = RetrievalService(
             container: vault,
             vaultURL: nil,
-            processRunner: runner
+            processRunner: runner,
+            ladybugSearch: DarkLadybugSearch()
         )
 
         let result = try await retrieval.recallMemory(
@@ -346,7 +360,8 @@ struct RetrievalServiceTests {
         let retrieval = RetrievalService(
             container: vault,
             vaultURL: fixtureVault,
-            processRunner: runner
+            processRunner: runner,
+            ladybugSearch: DarkLadybugSearch()
         )
 
         let result = try await retrieval.recallMemory(
@@ -381,7 +396,8 @@ struct RetrievalServiceTests {
         let retrieval = RetrievalService(
             container: vault,
             vaultURL: fixtureVault,
-            processRunner: runner
+            processRunner: runner,
+            ladybugSearch: DarkLadybugSearch()
         )
 
         let result = try await retrieval.recallMemory(
@@ -399,7 +415,7 @@ struct RetrievalServiceTests {
     @Test("🚫 Empty query throws — lantern refuses the void")
     func testEmptyQueryThrows() async throws {
         let vault = try makeVault()
-        let retrieval = RetrievalService(container: vault, processRunner: MockProcessRunner())
+        let retrieval = RetrievalService(container: vault, processRunner: MockProcessRunner(), ladybugSearch: DarkLadybugSearch())
 
         await #expect(throws: RetrievalServiceError.self) {
             try await retrieval.recallMemory(RecallQuery())
@@ -433,7 +449,8 @@ struct RetrievalServiceTests {
         let retrieval = RetrievalService(
             container: vault,
             vaultURL: URL(fileURLWithPath: "/tmp/anima-task6-missing-vault"),
-            processRunner: runner
+            processRunner: runner,
+            ladybugSearch: DarkLadybugSearch()
         )
 
         let result = try await retrieval.recallMemory(
@@ -479,7 +496,8 @@ struct RetrievalServiceTests {
         let retrieval = RetrievalService(
             container: vault,
             vaultURL: fixtureVault,
-            processRunner: runner
+            processRunner: runner,
+            ladybugSearch: DarkLadybugSearch()
         )
 
         let result = try await retrieval.recallMemory(

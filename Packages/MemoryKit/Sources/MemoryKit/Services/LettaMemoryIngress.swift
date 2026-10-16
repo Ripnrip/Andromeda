@@ -100,6 +100,20 @@ public enum LettaIngressError: Error, LocalizedError, Sendable, Equatable {
             "🌩️ agentID '\(id)' failed the memfs charset allowlist (expected hex + hyphen)."
         }
     }
+
+    /// Bounded code for exported telemetry. Never the associated path, stderr, or title.
+    public var telemetryCode: String {
+        switch self {
+        case .memfsMissing: "memfs_missing"
+        case .emptyTitle: "empty_title"
+        case .emptyBody: "empty_body"
+        case .slugInvalid: "slug_invalid"
+        case .gitFailed: "git_failed"
+        case .verificationFailed: "verification_failed"
+        case .titleUnsafeForFrontmatter: "title_unsafe"
+        case .agentIDInvalid: "agent_id_invalid"
+        }
+    }
 }
 
 /// ✍️ The curtain-facing contract: deliver a fact into a local Letta agent's memory.
@@ -129,6 +143,37 @@ struct MemoryTokenReport: Decodable, Sendable {
     let files: [FileEntry]
 }
 
+extension LettaMemoryFact {
+    /// Resolve cloak/credential forcing via `VisibilityFilter` (Phase 2 cloak gate).
+    ///
+    /// Callers may suggest `public`/`friends`, but `[cloak]` / secrets tags / credential
+    /// patterns force `internal` before anything is rendered into memfs.
+    /// Title, source, and tags are rendered too — classifying the body alone lets a
+    /// credential in the title or source survive as `public`.
+    public var effectiveVisibility: MemoryVisibility {
+        let classified = [title, source, body, tags.joined(separator: " ")].joined(separator: "\n")
+        let resolved = VisibilityFilter.determineVisibility(
+            for: classified,
+            suggestedVisibility: visibility.rawValue,
+            tags: tags
+        )
+        return MemoryVisibility(rawValue: resolved) ?? .private
+    }
+
+    /// Fact with cloak-enforced visibility applied (idempotent).
+    public var cloaked: LettaMemoryFact {
+        let enforced = effectiveVisibility
+        guard enforced != visibility else { return self }
+        return LettaMemoryFact(
+            title: title,
+            body: body,
+            visibility: enforced,
+            tags: tags,
+            source: source
+        )
+    }
+}
+
 /// 🌟 GitBackedLettaWriter — the local-first ingress implementation.
 ///
 /// Writes `system/knowledge/<slug>.md` into the agent's git-backed memfs and
@@ -146,19 +191,88 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
     private let memfsRoot: URL
     private let runner: any ProcessRunning
     private let verification: IngressVerification
+    private let telemetry: any TelemetryClient
 
     public init(
         memfsRoot: URL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".letta/lc-local-backend/memfs", isDirectory: true),
         runner: any ProcessRunning = LocalProcessRunner(timeoutSeconds: 15),
-        verification: IngressVerification = .gitOnly
+        verification: IngressVerification = .gitOnly,
+        telemetry: any TelemetryClient = NoOpTelemetryClient()
     ) {
         self.memfsRoot = memfsRoot
         self.runner = runner
         self.verification = verification
+        self.telemetry = telemetry
     }
 
     public func write(_ fact: LettaMemoryFact, to agentID: String) async throws -> LettaMemoryReceipt {
+        // Cloak gate before any disk/git work — never seal a public-tagged cloak body.
+        let fact = fact.cloaked
+        await telemetry.emit(
+            TelemetryEvent(
+                name: "memory.ingress.write.start",
+                attributes: Self.safeAttributes(agentID: agentID, visibility: fact.visibility)
+            )
+        )
+
+        do {
+            let receipt = try await writeSealed(fact, to: agentID)
+            await telemetry.emit(
+                TelemetryEvent(
+                    name: "memory.ingress.write.ok",
+                    attributes: Self.safeAttributes(
+                        agentID: agentID,
+                        visibility: fact.visibility,
+                        extra: [
+                            "unchanged": receipt.unchanged ? "true" : "false",
+                            "commit_sha": String(receipt.commitSHA.prefix(12)),
+                            "content_hash": String(receipt.contentHash.prefix(19)),
+                        ]
+                    ),
+                    status: .ok
+                )
+            )
+            return receipt
+        } catch {
+            await telemetry.emit(
+                TelemetryEvent(
+                    name: "memory.ingress.write.error",
+                    attributes: Self.safeAttributes(
+                        agentID: agentID,
+                        visibility: fact.visibility,
+                        extra: ["error_code": Self.telemetryCode(for: error)]
+                    ),
+                    status: .error
+                )
+            )
+            throw error
+        }
+    }
+
+    /// Counts, statuses, and IDs only. Never source, title, slug, path, or raw errors.
+    private static func safeAttributes(
+        agentID: String,
+        visibility: MemoryVisibility,
+        extra: [String: String] = [:]
+    ) -> [String: String] {
+        var attributes = [
+            "agent_id": agentID,
+            "visibility": visibility.rawValue,
+        ]
+        for (key, value) in extra where !value.isEmpty {
+            attributes[key] = value
+        }
+        return attributes
+    }
+
+    /// Typed code for the exported error event. Associated payloads stay local.
+    private static func telemetryCode(for error: Error) -> String {
+        (error as? LettaIngressError)?.telemetryCode ?? "ingress_failed"
+    }
+
+    /// Core write path after cloak + telemetry bookends.
+    private func writeSealed(_ fact: LettaMemoryFact, to agentID: String) async throws -> LettaMemoryReceipt {
         guard !fact.title.trimmingCharacters(in: .whitespaces).isEmpty else { throw LettaIngressError.emptyTitle }
         guard !fact.body.trimmingCharacters(in: .whitespaces).isEmpty else { throw LettaIngressError.emptyBody }
         let slug = fact.slug
@@ -193,7 +307,13 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
         {
             // Idempotency: identical fact already sealed — report, don't duplicate.
             let sha = try await gitRevParseHead(at: memoryRoot)
-            return LettaMemoryReceipt(agentID: agentID, relativePath: relativePath, commitSHA: sha, contentHash: hash, unchanged: true)
+            return LettaMemoryReceipt(
+                agentID: agentID,
+                relativePath: relativePath,
+                commitSHA: sha,
+                contentHash: hash,
+                unchanged: true
+            )
         }
 
         try FileManager.default.createDirectory(
@@ -221,12 +341,30 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
             let report = try await lettaTokens(agentID: agentID, lettaJS: lettaJS, node: node)
             guard report.files.contains(where: { $0.path == relativePath }) else {
                 throw LettaIngressError.verificationFailed(
-                    reason: "letta memory tokens does not count \(relativePath) in-context (total=\(report.total_tokens), files=\(report.files.map(\.path)))"
+                    reason:
+                        "letta memory tokens does not count \(relativePath) in-context (total=\(report.total_tokens), files=\(report.files.map(\.path)))"
                 )
             }
+            await telemetry.emit(
+                TelemetryEvent(
+                    name: "memory.ingress.verify.ok",
+                    attributes: Self.safeAttributes(
+                        agentID: agentID,
+                        visibility: fact.visibility,
+                        extra: ["total_tokens": String(report.total_tokens)]
+                    ),
+                    status: .ok
+                )
+            )
         }
 
-        return LettaMemoryReceipt(agentID: agentID, relativePath: relativePath, commitSHA: sha, contentHash: hash, unchanged: false)
+        return LettaMemoryReceipt(
+            agentID: agentID,
+            relativePath: relativePath,
+            commitSHA: sha,
+            contentHash: hash,
+            unchanged: false
+        )
     }
 
     // MARK: - Rendering & hashing
@@ -261,7 +399,7 @@ public actor GitBackedLettaWriter: LettaMemoryWriting {
 
     static func contentHash(of text: String) -> String {
         let digest = SHA256.hash(data: Data(text.utf8))
-        return "sha256:" + digest.map { String(format: "%02x", $0) }.joined()
+        return "sha256:" + digest.hexLowercase
     }
 
     // MARK: - Input hardening (Cursor security review 2026-09-05: HIGH + MEDIUM)

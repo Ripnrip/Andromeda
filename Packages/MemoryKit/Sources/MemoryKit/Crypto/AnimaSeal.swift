@@ -54,7 +54,7 @@ public struct AnimaBlock: Sendable, Codable, Equatable {
     public static func computeSeal(contentHash: String, previousSeal: String) -> String {
         let combined = contentHash + previousSeal
         let digest = SHA256.hash(data: Data(combined.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
+        return digest.hexLowercase
     }
 }
 

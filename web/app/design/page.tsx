@@ -204,6 +204,38 @@ export default function DesignPage() {
             </span>
           </div>
         </Block>
+
+        {/* Native craft */}
+        <Block
+          title="Native craft"
+          desc="Swift & SwiftUI work follows one consolidated resource: docs/SWIFT-UI-DESIGN-RESOURCE.md. Every native surface is drivable by agents and CI, previews stay hot, and canon rules apply before review."
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            {[
+              "Drivable UI · /state /action /screenshot",
+              "Inject hot reload · DEBUG-only",
+              "Xcode Previews · parity + matrices",
+              "SF Symbols & typography",
+              "Fleet Swift Canon",
+              "15-question review gate",
+            ].map((c) => (
+              <span
+                key={c}
+                className="rounded-full border border-border bg-card px-3 py-1.5 font-mono text-xs"
+              >
+                {c}
+              </span>
+            ))}
+          </div>
+          <a
+            href="https://github.com/Ripnrip/Andromeda/blob/main/docs/SWIFT-UI-DESIGN-RESOURCE.md"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-5 inline-flex items-center gap-2 rounded-xl border border-border bg-card px-5 py-3 font-medium transition-colors hover:border-primary/50"
+          >
+            Read the resource ↗
+          </a>
+        </Block>
       </div>
 
       <SiteFooter />

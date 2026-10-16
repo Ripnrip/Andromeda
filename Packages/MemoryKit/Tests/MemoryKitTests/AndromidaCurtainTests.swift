@@ -34,8 +34,14 @@ struct MemoryVerbSurfaceTests {
             return
         }
         #expect(!journalHot)
-        #expect(CurtainWriteKindResolver.resolve(capabilityAlias: "infer.write") == .inferAliasDeprecated)
-        #expect(CurtainWriteKindResolver.resolve(capabilityAlias: "session dump") == .sessionDump)
+        #expect(CurtainWriteKindResolver.resolve(
+            capabilityAlias: MemoryCompatibilityAlias.inferWrite.rawValue
+        ) == .inferAliasDeprecated)
+        #expect(CurtainWriteKindResolver.resolve(
+            capabilityAlias: MemoryCompatibilityAlias.sessionDumpSpaced.rawValue
+        ) == .sessionDump)
+        #expect(MemoryCompatibilityAlias.inferWrite.verb == .retain)
+        #expect(!MemoryCompatibilityAlias.memoryJournalDotted.isHotPath)
     }
 }
 
