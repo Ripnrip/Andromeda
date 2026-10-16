@@ -2,6 +2,7 @@ import AndromedaMCPHub
 import ArgumentParser
 import Foundation
 import Logging
+import MemoryKit
 
 #if canImport(OSLog)
     import os
@@ -9,8 +10,8 @@ import Logging
 struct MCPHubCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "mcp-hub",
-        abstract: "Shared MCP hub — host upstream servers behind per-agent shims.",
-        subcommands: [Run.self, Validate.self, Status.self],
+        abstract: "Shared MCP hub: validate, status, and orphan lifecycle.",
+        subcommands: [Run.self, Validate.self, Status.self, Reap.self, Watch.self],
         defaultSubcommand: Status.self
     )
 
@@ -115,7 +116,7 @@ struct MCPHubCommand: AsyncParsableCommand {
             let configuration = try MCPHubCommand.loadConfiguration(path: config)
             for server in configuration.servers {
                 let socketPath = configuration.socketPath(for: server.id)
-                let probe = Self.probeListening(path: socketPath)
+                let probe = HubSocketProbe.probeListening(path: socketPath)
                 let marker = probe.isListening ? "🟢" : "⚪️"
                 print("\(marker) \(server.id) — \(socketPath)\(probe.isListening ? " (listening)" : " (no hub)")")
                 if let refusal = probe.refusalReason {
@@ -129,80 +130,64 @@ struct MCPHubCommand: AsyncParsableCommand {
             let telemetryPath = configuration.telemetryLogPath
             print("📊 telemetry: \(telemetryPath)")
         }
-
-        /// A stale socket pathname survives crashes — existence is not
-        /// health (Codex P2). Probe by connecting: a live listener accepts;
-        /// a dead file refuses. Typed outcome + errno so the caller logs
-        /// WHY, not just that (BofA review ask: no silent Bool here).
-        static func probeListening(path: String) -> ProbeOutcome {
-            let expanded = (path as NSString).expandingTildeInPath
-            let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-            guard fd >= 0 else { return .socketCreationFailed(errno: errno) }
-            defer { close(fd) }
-            var addr = sockaddr_un()
-            addr.sun_family = sa_family_t(AF_UNIX)
-            let pathBytes = Array(expanded.utf8)
-            guard pathBytes.count < MemoryLayout.size(ofValue: addr.sun_path) else {
-                return .pathTooLong
-            }
-            withUnsafeMutableBytes(of: &addr.sun_path) { dest in
-                _ = pathBytes.withUnsafeBufferPointer { src in
-                    memcpy(dest.baseAddress!, src.baseAddress!, pathBytes.count)
-                }
-            }
-            let result = withUnsafePointer(to: &addr) { pointer in
-                pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
-                    Darwin.connect(fd, sockaddrPointer, socklen_t(MemoryLayout<sockaddr_un>.size))
-                }
-            }
-            guard result == 0 else { return .connectFailed(errno: errno) }
-            return .listening
-        }
     }
 }
 
-// MARK: - Socket probe outcome
+// MARK: - Orphan reap
 
-// Why a socket is (not) listening — every failure mode the probe
+extension MCPHubCommand {
+    /// `andromeda mcp-hub reap` — classify orphaned MCP servers and reap them.
+    /// Dry-run by default; `--apply` sends signals. Every decision is logged
+    /// to the unified log (`infra.mcp.reap`) per fleet visibility rules.
+    struct Reap: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Find orphaned MCP servers (dead-broker zombies) and reap them. Dry-run unless --apply."
+        )
 
-// can hit, as a typed value instead of a bare Bool that erases
+        @Flag(help: "Actually send SIGTERM/SIGKILL. Without this, classify and report only.")
+        var apply: Bool = false
 
-// the difference (Q3: honest about cost and failure).
+        @Option(
+            parsing: .upToNextOption,
+            help: "PIDs to spare even if classified orphaned (intentional PPID-1 daemons, e.g. the claude-mem worker). Repeatable."
+        )
+        var spare: [Int32] = []
 
-enum ProbeOutcome: Sendable, Equatable {
-    case listening
+        func run() async throws {
+            let reaper = MCPOrphanReaper()
+            // LOUD ps failure (review #5): a dead snapshot must abort with a
+            // clear error, never report a false "zero orphans" clean sweep.
+            guard let rows = ShellMCPProcessTable.snapshotRows() else {
+                throw ValidationError("ps snapshot failed — cannot classify safely; refusing to run (no false clean sweep)")
+            }
+            let report = await reaper.reap(rows: rows, apply: apply, sparePIDs: Set(spare))
 
-    // socket() failed — kernel out of descriptors, etc.
-
-    case socketCreationFailed(errno: Int32)
-
-    // Path longer than sockaddr_un.sun_path (~104 bytes).
-
-    case pathTooLong
-
-    // connect() refused — dead/stale socket file, or no hub
-
-    // bound. errno names which (ECONNREFUSED vs ENOENT vs …).
-
-    case connectFailed(errno: Int32)
-
-    var isListening: Bool {
-        if case .listening = self {
-            return true
-        }
-
-        return false
-    }
-
-    var refusalReason: String? {
-        switch self {
-        case .listening: nil
-
-        case let .socketCreationFailed(errno): "socket() failed (errno \(errno))"
-
-        case .pathTooLong: "path exceeds sun_path capacity"
-
-        case let .connectFailed(errno): "connect refused (errno \(errno))"
+            print("mcp-hub reap — \(report.dryRun ? "DRY RUN" : "APPLIED") at \(report.ranAt.formatted(.iso8601))")
+            print("scanned MCP-looking processes: \(report.classifications.count)")
+            for entry in report.classifications {
+                let pid = entry.process.pid
+                let rss = String(format: "%.1f", entry.process.memoryMB)
+                switch entry.verdict {
+                case let .orphaned(reason):
+                    if report.spared.contains(pid) {
+                        print("  🛡️ spared pid \(pid) (\(rss) MB) — orphaned but allowlisted — \(reason)")
+                    } else {
+                        print("  🧟 orphaned pid \(pid) (\(rss) MB) — \(reason)")
+                    }
+                case let .owned(brokerPID, brokerCommand):
+                    print("  🔒 owned pid \(pid) (\(rss) MB) — broker \(brokerPID): \(brokerCommand.prefix(60))")
+                case let .unknown(reason):
+                    print("  ❓ unknown pid \(pid) (\(rss) MB) — \(reason)")
+                }
+            }
+            print("orphans: \(report.orphanCount) | reaped: \(report.reaped.count) | failed: \(report.failed.count) | spared: \(report.spared.count)")
+            // Hint gated on dryRun (review #6): a real --apply with 0 reaped
+            // is a FAILURE, not a dry-run — say so, never suggest --apply again.
+            if report.dryRun, report.orphanCount > 0, report.reaped.isEmpty {
+                print("⚠️ dry-run: re-run with --apply to reap the orphans above.")
+            } else if !report.dryRun, !report.failed.isEmpty {
+                print("❌ apply ran but \(report.failed.count) signal(s) failed — see infra.mcp.reap logs; NOT a dry-run.")
+            }
         }
     }
 }

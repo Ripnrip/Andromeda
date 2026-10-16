@@ -41,7 +41,7 @@ struct CaptureServiceTests {
         #expect(hashA.hasPrefix("sha256:"))
 
         let digest = SHA256.hash(data: Data(narrative.utf8))
-        let expectedHex = digest.map { String(format: "%02x", $0) }.joined()
+        let expectedHex = digest.hexLowercase
         #expect(hashA == "sha256:\(expectedHex)")
 
         let different = CaptureService.contentHash(for: "A different tale entirely.")

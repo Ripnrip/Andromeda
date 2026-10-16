@@ -232,6 +232,23 @@ struct AndromedaMCPTests {
         #expect(responses[1].contains("Invalid request"))
     }
 
+    @Test("malformed tool params are -32602 invalid params, not -32700/-32600, id echoed")
+    func malformedParamsAreInvalidParamsNotOtherCodes() throws {
+        // `arguments.pattern` is typed String; sending a number is a valid
+        // envelope with an invalid params shape — the three-way split this PR
+        // created must classify it -32602 with the id detectable, and never
+        // collapse upward to -32700 (syntax) or -32600 (envelope).
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+            #"{"jsonrpc":"2.0","id":99,"method":"tools/call","params":{"name":"code.search","arguments":{"pattern":123}}}"#,
+        ], fixtureName: "invalid-params")
+        #expect(responses.count == 2)
+        #expect(responses[1].contains(#"-32602"#), "expected -32602: \(responses[1])")
+        #expect(!responses[1].contains("-32700"), "must not be a parse error")
+        #expect(!responses[1].contains("-32600"), "must not be an invalid-request error")
+        #expect(responses[1].contains(#""id":99"#), "request id must survive the params failure")
+    }
+
     @Test("ping requests get an empty result with the id echoed")
     func pingResponds() throws {
         let responses = try runExchange([
@@ -278,6 +295,75 @@ struct AndromedaMCPTests {
         #expect(responses.count == 2, "got \(responses.count): \(responses)")
         #expect(responses[1].contains(#""id":null"#))
         #expect(responses[1].contains("-32700"))
+    }
+
+    @Test("request missing jsonrpc 2.0 is an invalid request, not dispatched")
+    func missingJSONRPCVersionRejected() throws {
+        // The envelope names its version; a request that omits it must not
+        // silently dispatch (issue #52 §8 — the field was decoded but never
+        // validated, so a version-less or wrong-version frame was answered
+        // as if well-formed).
+        let responses = try runExchange([
+            #"{"id":11,"method":"tools/list"}"#,
+            #"{"jsonrpc":"1.0","id":12,"method":"tools/list"}"#,
+        ], fixtureName: "jsonrpc-version")
+        #expect(responses.count == 2, "got \(responses.count): \(responses)")
+        #expect(responses[0].contains("-32600"), "got: \(responses[0])")
+        #expect(responses[0].contains(#""id":11"#), "got: \(responses[0])")
+        #expect(responses[1].contains("-32600"), "got: \(responses[1])")
+        #expect(responses[1].contains(#""id":12"#), "got: \(responses[1])")
+    }
+
+    @Test("valid JSON with an invalid envelope is -32600 and salvages the id")
+    func invalidEnvelopeSalvagesID() throws {
+        // -32700 is reserved for non-JSON bytes. A well-formed JSON object
+        // that fails the envelope shape (here: no `method`) is an INVALID
+        // REQUEST (-32600), and the client's id must be echoed so it can
+        // correlate the failure instead of orphaning a request it already
+        // sent (issue #52 §8 — first-pass failures were collapsed to -32700
+        // with a null id).
+        let responses = try runExchange([
+            #"{"jsonrpc":"2.0","id":5,"params":{}}"#,
+        ], fixtureName: "envelope-salvage")
+        #expect(responses.count == 1, "got \(responses.count): \(responses)")
+        #expect(responses[0].contains("-32600"), "got: \(responses[0])")
+        #expect(!responses[0].contains("-32700"), "got: \(responses[0])")
+        #expect(responses[0].contains(#""id":5"#), "got: \(responses[0])")
+    }
+
+    @Test("top-level JSON scalars are -32600 invalid requests, not -32700")
+    func scalarFramesAreInvalidRequestsNotParseErrors() throws {
+        // Syntax-gate scope (codex P2 on #90): `42`, `"x"`, `true`, `null`
+        // are syntactically valid JSON — a JSON-RPC peer rejecting them does
+        // so at the ENVELOPE layer (-32600, no id to echo), never the parse
+        // layer (-32700, reserved for bytes that are not JSON at all).
+        let responses = try runExchange([
+            "42",
+            "\"x\"",
+            "true",
+            "null",
+        ], fixtureName: "scalar-frames", expectedResponses: 4)
+        #expect(responses.count == 4, "got \(responses.count): \(responses)")
+        for response in responses {
+            #expect(response.contains("-32600"), "got: \(response)")
+            #expect(!response.contains("-32700"), "got: \(response)")
+        }
+    }
+
+    @Test("wrong-version frames are -32600 even in notification form")
+    func versionCheckPrecedesNotificationSilence() throws {
+        // Envelope order (codex P2 on #90): a frame that is not JSON-RPC 2.0
+        // is not a valid notification either. A version-less (or 1.0) frame
+        // with an omitted id must NOT be swallowed by notification silence —
+        // it answers -32600 so the sender learns its version is required.
+        let responses = try runExchange([
+            #"{"method":"ping"}"#,
+            #"{"jsonrpc":"1.0","method":"ping"}"#,
+        ], fixtureName: "version-before-silence", expectedResponses: 2)
+        #expect(responses.count == 2, "got \(responses.count): \(responses)")
+        for response in responses {
+            #expect(response.contains("-32600"), "got: \(response)")
+        }
     }
 
     @Test("symlinks pivoting outside the workspace root are rejected")

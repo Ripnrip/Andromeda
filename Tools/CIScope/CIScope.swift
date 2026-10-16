@@ -74,6 +74,10 @@ enum RepoPath {
     static let sources = "Sources/"
     static let tests = "Tests/"
     static let ciscopeTool = "Tools/CIScope/"
+    /// Agent-facing design spec; DesignTokenParityTests (root lane) reads it.
+    static let designSpec = "DESIGN.md"
+    /// Web theme tokens (oklch); DesignTokenParityTests (root lane) reads it.
+    static let webThemeTokens = "web/app/globals.css"
 }
 
 /// The nested SPM packages — the rawValue is the directory name; every
@@ -146,6 +150,7 @@ enum LaneRule: CaseIterable {
     case rootPackage
     case sources
     case tests
+    case designTokens
     case memoryKit
     case anima
     case andromedaMCP
@@ -168,6 +173,10 @@ enum LaneRule: CaseIterable {
             return [.prefix(RepoPath.sources)]
         case .tests:
             return [.prefix(RepoPath.tests)]
+        case .designTokens:
+            // Outside Sources/ and Tests/, but the root-lane parity test reads both;
+            // a token edit here must not be classified as docs-only and skip it.
+            return [.exact(RepoPath.designSpec), .exact(RepoPath.webThemeTokens)]
         case .memoryKit:
             return [
                 .prefix(Package.memoryKit.root),
@@ -221,7 +230,7 @@ enum LaneRule: CaseIterable {
         switch self {
         case .workflowCI, .ciScopeTool:
             [.runRoot, .runRootE2E, .runMemoryKit, .runMemoryKitLiveE2E, .runAnima, .runGuardian, .runOrchestrator]
-        case .rootPackage, .sources, .tests:
+        case .rootPackage, .sources, .tests, .designTokens:
             [.runRoot]
         case .memoryKit:
             [.runRoot, .runMemoryKit]

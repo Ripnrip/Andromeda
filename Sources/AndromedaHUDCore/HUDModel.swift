@@ -1,3 +1,4 @@
+import AndromedaMCPHub
 import Foundation
 import MemoryKit
 import Observation
@@ -6,6 +7,22 @@ import os.log
 enum HUDLogger {
     private static let subsystem = "com.andromeda.hud"
     static let core = Logger(subsystem: subsystem, category: "🧠 HUDModel")
+}
+
+/// 🩺 Injectable probe behind `memory_health` (HAB-599) — tests fixture the
+/// report; the live default reads the hub census + telemetry + proof state.
+public typealias ChainHealthProvider = @Sendable () async throws -> MemoryChainHealthReport
+
+/// Typed `memory_health` failures surfaced on the HUD glass.
+public enum ChainHealthError: LocalizedError, Sendable, Equatable {
+    case hubConfigMissing(path: String)
+
+    public var errorDescription: String? {
+        switch self {
+        case let .hubConfigMissing(path):
+            "no hub config at \(path) — see ADR-0019 (mcp-hub-config-schema)"
+        }
+    }
 }
 
 /// 🌟 Stable client capability IDs — never tracker brands.
@@ -25,6 +42,16 @@ public enum HUDCapabilityID: String, Sendable {
     case sessionDump = "memory.session_dump"
     case inferWrite = "infer.write"
     case project = "project.state"
+
+    /// Exact match or `rawValue` followed by a space (command-line verb form).
+    func matchesExactOrSpaced(_ lower: String) -> Bool {
+        lower == rawValue || lower.hasPrefix(rawValue + " ")
+    }
+
+    /// Argument text after this capability verb on a trimmed command line.
+    func argument(from trimmed: String) -> String {
+        String(trimmed.dropFirst(rawValue.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 /// 🌟 Parsed HUD submit verbs (retain/recall/forget/health + legacy shims).
@@ -51,50 +78,52 @@ public enum HUDCommand: Equatable, Sendable {
         let lower = trimmed.lowercased()
 
         // Canonical Andromida verbs (BIN-247) — prefer before dotted shims.
-        if lower.hasPrefix("memory_retain ") || lower == "memory_retain"
+        if HUDCapabilityID.memoryRetain.matchesExactOrSpaced(lower)
             || lower.hasPrefix("retain ") || lower == "retain"
         {
-            let prefix: String
-            if lower.hasPrefix("memory_retain") {
-                prefix = "memory_retain"
-            } else {
-                prefix = "retain"
-            }
+            let prefix = lower.hasPrefix(HUDCapabilityID.memoryRetain.rawValue)
+                ? HUDCapabilityID.memoryRetain.rawValue
+                : "retain"
             let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
             return .retain(narrative: rest)
         }
-        if lower.hasPrefix("memory_forget ") || lower == "memory_forget"
+        if HUDCapabilityID.memoryForget.matchesExactOrSpaced(lower)
             || lower.hasPrefix("forget ") || lower == "forget"
         {
-            let prefix = lower.hasPrefix("memory_forget") ? "memory_forget" : "forget"
+            let prefix = lower.hasPrefix(HUDCapabilityID.memoryForget.rawValue)
+                ? HUDCapabilityID.memoryForget.rawValue
+                : "forget"
             let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
             return .forget(target: rest)
         }
-        if lower == "memory_health" || lower == "health" {
+        if lower == HUDCapabilityID.memoryHealth.rawValue || lower == "health" {
             return .health
         }
-        if lower.hasPrefix("memory_recall ") || lower == "memory_recall" {
-            let rest = String(trimmed.dropFirst("memory_recall".count)).trimmingCharacters(in: .whitespacesAndNewlines)
-            return .recall(query: rest)
+        if HUDCapabilityID.memoryRecall.matchesExactOrSpaced(lower) {
+            return .recall(query: HUDCapabilityID.memoryRecall.argument(from: trimmed))
         }
 
         if lower.hasPrefix("store ") || lower == "store" {
             let rest = String(trimmed.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
             return .store(narrative: rest)
         }
-        if lower.hasPrefix("memory.journal ") || lower == "memory.journal"
-            || lower.hasPrefix("journal ") || lower == "journal" {
-            let prefix = lower.hasPrefix("memory.journal") ? "memory.journal" : "journal"
+        if HUDCapabilityID.journal.matchesExactOrSpaced(lower)
+            || lower.hasPrefix("journal ") || lower == "journal"
+        {
+            let prefix = lower.hasPrefix(HUDCapabilityID.journal.rawValue)
+                ? HUDCapabilityID.journal.rawValue
+                : "journal"
             let rest = String(trimmed.dropFirst(prefix.count))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             return .journal(body: rest)
         }
-        if lower.hasPrefix("memory.session_dump ") || lower == "memory.session_dump"
+        if HUDCapabilityID.sessionDump.matchesExactOrSpaced(lower)
             || lower.hasPrefix("session dump ") || lower == "session dump"
-            || lower.hasPrefix("sessiondump ") || lower == "sessiondump" {
+            || lower.hasPrefix("sessiondump ") || lower == "sessiondump"
+        {
             let prefix: String
-            if lower.hasPrefix("memory.session_dump") {
-                prefix = "memory.session_dump"
+            if lower.hasPrefix(HUDCapabilityID.sessionDump.rawValue) {
+                prefix = HUDCapabilityID.sessionDump.rawValue
             } else if lower.hasPrefix("session dump") {
                 prefix = "session dump"
             } else {
@@ -105,10 +134,8 @@ public enum HUDCommand: Equatable, Sendable {
             return .sessionDump(body: rest)
         }
         // Prefer `infer.write` over bare `infer` so the capability ID wins.
-        if lower.hasPrefix("infer.write") {
-            let rest = String(trimmed.dropFirst("infer.write".count))
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return .inferWrite(thought: rest)
+        if lower.hasPrefix(HUDCapabilityID.inferWrite.rawValue) {
+            return .inferWrite(thought: HUDCapabilityID.inferWrite.argument(from: trimmed))
         }
         if lower.hasPrefix("infer ") || lower == "infer" {
             let rest = String(trimmed.dropFirst("infer".count))
@@ -117,15 +144,17 @@ public enum HUDCommand: Equatable, Sendable {
         }
 
         // project.state create <title>  |  project create <title>
-        if lower.hasPrefix("project.state create") || lower.hasPrefix("project create") {
-            let prefix = lower.hasPrefix("project.state create") ? "project.state create" : "project create"
+        let projectCreate = HUDCapabilityID.project.rawValue + " create"
+        if lower.hasPrefix(projectCreate) || lower.hasPrefix("project create") {
+            let prefix = lower.hasPrefix(projectCreate) ? projectCreate : "project create"
             let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
             return .projectCreate(title: rest)
         }
 
         // project.state update <id> <title>  |  project update <id> <title>
-        if lower.hasPrefix("project.state update") || lower.hasPrefix("project update") {
-            let prefix = lower.hasPrefix("project.state update") ? "project.state update" : "project update"
+        let projectUpdate = HUDCapabilityID.project.rawValue + " update"
+        if lower.hasPrefix(projectUpdate) || lower.hasPrefix("project update") {
+            let prefix = lower.hasPrefix(projectUpdate) ? projectUpdate : "project update"
             let rest = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
             let parts = rest.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
             let id = parts.first.map(String.init) ?? ""
@@ -133,8 +162,10 @@ public enum HUDCommand: Equatable, Sendable {
             return .projectUpdate(id: id, title: title)
         }
 
-        if lower.hasPrefix("project.state") || lower.hasPrefix("project ") || lower == "project" {
-            let prefixLen = lower.hasPrefix("project.state") ? "project.state".count : "project".count
+        if lower.hasPrefix(HUDCapabilityID.project.rawValue) || lower.hasPrefix("project ") || lower == "project" {
+            let prefixLen = lower.hasPrefix(HUDCapabilityID.project.rawValue)
+                ? HUDCapabilityID.project.rawValue.count
+                : "project".count
             let rest = String(trimmed.dropFirst(prefixLen)).trimmingCharacters(in: .whitespacesAndNewlines)
             let restLower = rest.lowercased()
             // Bare verbs with no args still route to mutate (empty → hint).
@@ -180,6 +211,8 @@ public enum HUDOutcome: Equatable, Sendable {
     case created(title: String)
     /// ✨ Capability `project.state.update` confirmation.
     case updated(title: String)
+    /// 🩺 Capability `memory_health` — operator memory-chain census (HAB-599/BIN-287).
+    case chainHealth(MemoryChainHealthReport)
     case empty(message: String)
     case failed(message: String)
 
@@ -188,7 +221,7 @@ public enum HUDOutcome: Equatable, Sendable {
         switch self {
         case .idle:
             return false
-        case .syncing, .recalled, .projects, .stored, .journaled, .created, .updated, .empty, .failed:
+        case .syncing, .recalled, .projects, .stored, .journaled, .created, .updated, .chainHealth, .empty, .failed:
             return true
         }
     }
@@ -245,6 +278,10 @@ public final class HUDModel {
     /// 🔮 Capability surface for `project.state.*` — live Studio bridge by default.
     public private(set) var projectSurface: any ProjectStateSurface
 
+    /// 🩺 Capability probe for `memory_health` — live hub census by default
+    /// (config + socket probe + telemetry tail + proof state); injectable for tests.
+    @ObservationIgnored private let chainHealthProvider: ChainHealthProvider
+
     /// UserDefaults key for persisted recent queries — exposed for test isolation.
     public static let recentQueriesDefaultsKey = "andromeda.hud.recentQueries"
     private static let recentQueriesLimit = 8
@@ -261,16 +298,19 @@ public final class HUDModel {
 
     /// - Parameters:
     ///   - projectSurface: Capability surface for `project.state.*` (defaults to live Studio bridge).
+    ///   - chainHealthProvider: Capability probe for `memory_health` (defaults to live hub census).
     ///   - memorySessionReady: When `true`, skips on-disk MemoryKit boot in `.task` — use for
     ///     unit/perf tests so SwiftUI appearance does not retain the model via `start()`.
     ///   - recentQueries: When non-`nil`, seeds the in-memory list and skips UserDefaults load
     ///     (snapshot / unit fixtures). Pass `[]` for an empty hermetic slate.
     public init(
         projectSurface: (any ProjectStateSurface)? = nil,
+        chainHealthProvider: @escaping ChainHealthProvider = HUDModel.liveChainHealth,
         memorySessionReady: Bool = false,
         recentQueries: [String]? = nil
     ) {
         self.projectSurface = projectSurface ?? ProjectStateBridgeFactory.makeStudioBridge()
+        self.chainHealthProvider = chainHealthProvider
         if let recentQueries {
             self.recentQueries = Array(recentQueries.prefix(Self.recentQueriesLimit))
         } else {
@@ -446,27 +486,29 @@ public final class HUDModel {
                 narrative: narrative,
                 capture: capture,
                 provenance: HUDCapabilityID.memoryRetain.rawValue,
-                tags: ["memory_retain"],
-                emptyHint: "memory_retain",
+                tags: [HUDCapabilityID.memoryRetain.rawValue],
+                emptyHint: HUDCapabilityID.memoryRetain.rawValue,
                 isJournal: false,
                 token: token
             )
         case .forget(let target):
             let trimmed = target.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else {
-                applyOutcome(.empty(message: "Usage: memory_forget <memory-id>"), token: token)
+                applyOutcome(
+                    .empty(message: "Usage: \(HUDCapabilityID.memoryForget.rawValue) <memory-id>"),
+                    token: token
+                )
                 return
             }
             // Tombstone path lands fully when HUD is wired to MemoryComplexityCurtain.
             applyOutcome(
-                .empty(message: "memory_forget accepted for \(trimmed) — curtain tombstone path 🚧"),
+                .empty(
+                    message: "\(HUDCapabilityID.memoryForget.rawValue) accepted for \(trimmed) — curtain tombstone path 🚧"
+                ),
                 token: token
             )
         case .health:
-            applyOutcome(
-                .empty(message: "memory_health — use Andromida Companion for outbox/drift detail"),
-                token: token
-            )
+            await runChainHealth(token: token)
         case .journal(let body):
             guard isReady, let capture else {
                 applyOutcome(.failed(message: "Memory session not ready"), token: token)
@@ -505,7 +547,7 @@ public final class HUDModel {
                 capture: capture,
                 provenance: HUDCapabilityID.inferWrite.rawValue,
                 tags: ["infer-write"],
-                emptyHint: "infer.write",
+                emptyHint: HUDCapabilityID.inferWrite.rawValue,
                 isJournal: false,
                 token: token
             )
@@ -518,8 +560,71 @@ public final class HUDModel {
         }
     }
 
-    public func showActivationFeedback(_ message: String) {
-        activationFeedback = message
+    // MARK: - memory_health (HAB-599 / BIN-287)
+
+    /// Capability: `memory_health` — operator memory-chain census. The chain
+    /// report is read-only observation (config census + socket probe +
+    /// telemetry tail + proof state); the HUD never mutates hub state.
+    private func runChainHealth(token: UInt64) async {
+        HUDLogger.core.info("🌐 🩺 memory_health AWAKENS")
+        do {
+            let report = try await chainHealthProvider()
+            applyOutcome(.chainHealth(report), token: token)
+            HUDLogger.core.info("🎉 🩺 memory_health COMPLETE overall=\(report.overall.rawValue)")
+        } catch is CancellationError {
+            return
+        } catch {
+            applyOutcome(
+                .failed(message: "memory_health failed: \(error.localizedDescription)"),
+                token: token
+            )
+            HUDLogger.core.error("💥 🩺 memory_health failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Live chain-health probe: ADR-0019 hub config census, real socket
+    /// probes, telemetry tail, and the ADR-0020 proof document. A missing
+    /// config is an honest failure with the ADR pointer — never a fake
+    /// all-green report.
+    nonisolated public static func liveChainHealth() throws -> MemoryChainHealthReport {
+        guard FileManager.default.fileExists(
+            atPath: (MCPHubConfiguration.defaultPath as NSString).expandingTildeInPath
+        ) else {
+            throw ChainHealthError.hubConfigMissing(path: MCPHubConfiguration.defaultPath)
+        }
+        let configuration = try MCPHubConfiguration.load(from: MCPHubConfiguration.defaultPath)
+
+        var telemetry: (records: [HubTelemetryRecord], skippedLines: Int) = ([], 0)
+        do {
+            telemetry = try HubTelemetryReader.tail(path: configuration.telemetryLogPath)
+            if telemetry.skippedLines > 0 {
+                HUDLogger.core.warning(
+                    "🧹 memory_health telemetry tail skipped \(telemetry.skippedLines) malformed line(s)"
+                )
+            }
+        } catch {
+            // Unreadable telemetry degrades to an empty tail — the census
+            // (sockets) is still truth — but say so, never silently.
+            HUDLogger.core.error("💥 memory_health telemetry tail failed: \(error.localizedDescription)")
+        }
+
+        let proof: MemoryChainProofState?
+        do {
+            proof = try MemoryChainProofStore.load(from: MemoryChainProofStore.defaultPath)
+        } catch {
+            HUDLogger.core.error("💥 memory_health proof state unreadable: \(error.localizedDescription)")
+            throw error
+        }
+
+        return MemoryChainHealth.build(
+            configuration: configuration,
+            probe: HubSocketProbe.probeListening(path:),
+            telemetryRecords: telemetry.records,
+            proof: proof
+        )
+    }
+
+    public func showActivationFeedback(_ message: String) {        activationFeedback = message
         feedbackClearTask?.cancel()
         feedbackClearTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 2_000_000_000)

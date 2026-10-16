@@ -2,14 +2,21 @@
 
 import { useState } from "react"
 import { SignalHigh } from "lucide-react"
+import { playUiSound } from "@/lib/ui-sound"
 
 export function DynamicIsland() {
   const [expanded, setExpanded] = useState(false)
 
+  /** Expand with a pop cue, collapse back to the notch with a falling toggle cue. */
+  const toggle = () => {
+    playUiSound(expanded ? "toggle-off" : "pop")
+    setExpanded((v) => !v)
+  }
+
   return (
     <div className="flex flex-col items-center gap-4">
       <button
-        onClick={() => setExpanded((v) => !v)}
+        onClick={toggle}
         aria-expanded={expanded}
         aria-label={expanded ? "Collapse live activity" : "Expand live activity"}
         className={[

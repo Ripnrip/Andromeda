@@ -157,7 +157,7 @@ public actor MemoryComplexityCurtain {
         narrative: String,
         project: String,
         agent: String,
-        provenance: String = "memory_retain",
+        provenance: String = MemoryVerb.retain.rawValue,
         visibility: String = "private",
         tags: [String] = [],
         capabilityAlias: String? = nil,
@@ -171,11 +171,11 @@ public actor MemoryComplexityCurtain {
             if !hotPath {
                 warnings.append("Alias \(shimAlias) is off the agent hot path; routed as retain/\(writeKind.rawValue).")
             } else if shimAlias != MemoryVerb.retain.rawValue {
-                warnings.append("Compatibility shim \(shimAlias) → memory_retain.")
+                warnings.append("Compatibility shim \(shimAlias) → \(MemoryVerb.retain.rawValue).")
             }
         }
         if writeKind == .inferAliasDeprecated {
-            warnings.append("infer.write is deprecated; mapped to episodic retain.")
+            warnings.append("\(MemoryCompatibilityAlias.inferWrite.rawValue) is deprecated; mapped to episodic retain.")
         }
 
         let record = try await outbox.retain(

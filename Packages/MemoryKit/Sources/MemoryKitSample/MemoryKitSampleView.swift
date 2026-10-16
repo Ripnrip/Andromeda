@@ -106,7 +106,7 @@ struct MemoryKitSampleView: View {
     }
 
     private func storeSection(model: MemoryKitSampleModel) -> some View {
-        GroupBox("memory.store") {
+        GroupBox(MemoryCompatibilityAlias.memoryStoreDotted.rawValue) {
             VStack(alignment: .leading, spacing: 8) {
                 TextField("Narrative to capture…", text: Bindable(model).storeText, axis: .vertical)
                     .lineLimit(3...6)
@@ -119,7 +119,7 @@ struct MemoryKitSampleView: View {
     }
 
     private func recallSection(model: MemoryKitSampleModel) -> some View {
-        GroupBox("memory.recall") {
+        GroupBox(MemoryCompatibilityAlias.memoryRecallDotted.rawValue) {
             VStack(alignment: .leading, spacing: 8) {
                 TextField("Query (optional — empty lists recent hot)", text: Bindable(model).recallText)
                 Button("Recall") {

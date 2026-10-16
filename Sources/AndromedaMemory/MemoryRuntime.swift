@@ -359,7 +359,7 @@ public actor MemoryRuntime {
             metadata.keys.sorted().map { "\($0)=\(metadata[$0] ?? "")" }.joined(separator: ","),
         ].joined(separator: "|")
         let digest = SHA256.hash(data: Data(material.utf8))
-        return "sha256:" + digest.map { String(format: "%02x", $0) }.joined()
+        return "sha256:" + digest.hexLowercase
     }
 
     private static func score(record: MemoryRecord, query: String, now: Date) -> Double {

@@ -172,10 +172,10 @@ public struct ProjectStatePanel: View {
             Text("Projects")
                 .font(.headline)
             Spacer()
-            Text("project.state")
+            Text(ProjectStateCapabilityID.root.rawValue)
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
-                .accessibilityLabel("Capability project.state")
+                .accessibilityLabel("Capability \(ProjectStateCapabilityID.root.rawValue)")
             if let onRefresh {
                 Button {
                     onRefresh()

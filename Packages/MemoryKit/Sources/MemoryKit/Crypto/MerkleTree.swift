@@ -31,7 +31,7 @@ public struct MerkleTree: Sendable {
         // 🧮 ✨ DATA ALCHEMY COMMENCES!
         let leafHashes = blocks.map { data in
             let digest = SHA256.hash(data: data)
-            return digest.map { String(format: "%02x", $0) }.joined()
+            return digest.hexLowercase
         }
         self.leaves = leafHashes
         self.levels = MerkleTree.buildLevels(leaves: leafHashes)
@@ -59,7 +59,7 @@ public struct MerkleTree: Sendable {
                 // Combine left and right hashes
                 let combinedData = Data((left + right).utf8)
                 let digest = SHA256.hash(data: combinedData)
-                let parentHash = digest.map { String(format: "%02x", $0) }.joined()
+                let parentHash = digest.hexLowercase
                 nextLevel.append(parentHash)
             }
             levels.append(nextLevel)
@@ -143,7 +143,7 @@ public struct MerkleProof: Sendable, Codable, Equatable {
                 combinedData = Data((currentHash + sibling.hash).utf8)
             }
             let digest = SHA256.hash(data: combinedData)
-            currentHash = digest.map { String(format: "%02x", $0) }.joined()
+            currentHash = digest.hexLowercase
         }
         return currentHash == expectedRoot
     }

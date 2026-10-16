@@ -160,7 +160,7 @@ public struct ModelsSection: View {
 
     private var health: some View {
         let cards: [(String, String, Color, String)] = [
-            ("infer.write", "spec", .andromedaDim, "episodic-store alias — not model generation"),
+            (ClientCapabilityID.inferWrite.rawValue, "spec", .andromedaDim, "episodic-store alias — not model generation"),
             ("proxy routing", "unbuilt", .andromedaAmber, "provider selection stays behind the curtain"),
             ("client catalog", "IDs only", .andromedaTeal, "no provider model brands on this surface"),
         ]
