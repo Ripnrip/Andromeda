@@ -35,13 +35,13 @@ public actor IngressTelemetryWriter: LettaMemoryWriting {
         do {
             let receipt = try await writer.write(fact, to: agentID)
             let outcome = receipt.unchanged ? "unchanged" : "committed"
+            // IDs + outcome only — never relative_path, source, slug, body, or git stderr.
             await telemetry.endSpan(
                 span,
                 status: .ok,
                 attributes: [
                     "phase": "sealed",
                     "outcome": outcome,
-                    "relative_path": receipt.relativePath,
                     "unchanged": receipt.unchanged ? "true" : "false",
                 ]
             )
@@ -53,7 +53,6 @@ public actor IngressTelemetryWriter: LettaMemoryWriting {
                         "visibility": fact.visibility.rawValue,
                         "phase": "sealed",
                         "outcome": outcome,
-                        "relative_path": receipt.relativePath,
                         "span.id": span.spanId,
                     ],
                     spanId: span.spanId,

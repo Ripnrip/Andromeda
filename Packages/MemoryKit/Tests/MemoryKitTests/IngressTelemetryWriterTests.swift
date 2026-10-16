@@ -59,8 +59,8 @@ private struct StubIngressWriter: LettaMemoryWriting {
 
 @Suite("MemoryKit.IngressTelemetryWriter")
 struct IngressTelemetryWriterTests {
-    /// A sealed write must emit ok telemetry that names the path and never the body.
-    @Test("committed write emits sealed outcome without the fact body")
+    /// A sealed write must emit ok telemetry without the body or memfs path.
+    @Test("committed write emits sealed outcome without the fact body or path")
     func committedWriteOmitsBody() async throws {
         let telemetry = RecordingTelemetry()
         let writer = IngressTelemetryWriter(
@@ -79,9 +79,12 @@ struct IngressTelemetryWriterTests {
         let events = await telemetry.events
         let blob = events.map { $0.attributes.values.joined(separator: " ") }.joined(separator: " ")
         #expect(!blob.contains("secret-body-should-not-leak"))
+        #expect(!blob.contains("system/knowledge"))
+        #expect(!blob.contains("relative_path"))
         #expect(events.contains { $0.kind == .spanEnd && $0.status == .ok })
         #expect(events.contains { $0.attributes["outcome"] == "committed" })
         #expect(events.contains { $0.attributes["phase"] == "sealed" })
+        #expect(!events.contains { $0.attributes["relative_path"] != nil })
     }
 
     /// Idempotent rewrites stay observable instead of looking like silence.
