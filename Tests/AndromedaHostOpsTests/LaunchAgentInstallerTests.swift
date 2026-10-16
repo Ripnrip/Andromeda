@@ -3017,6 +3017,232 @@ struct LaunchAgentInstallerTests {
         #expect(!rendered.contains(LaunchAgentInstaller.studioHomeTemplate))
     }
 
+    // MARK: - BIN-101 / PR #88 — RootDirectory-aware Program resolution
+
+    /// RootDirectory set + host has the binary but the jail does not →
+    /// the old validator passed (it checked the host path); the chrooted
+    /// launch would then die at exec. Bootstrap must be refused.
+    @Test
+    func bootstrapProgramMissingInsideRootDirectoryFailsClosedBeforeLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let previous = "keep-me\n"
+        try previous.write(to: destination, atomically: true, encoding: .utf8)
+        let oldInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
+        let home = isolatedHome(in: dir)
+
+        // Host really has the Program — but the jail does not mirror it.
+        let program = plantFixtureProgram(home: home)
+        let jail = URL(fileURLWithPath: home).appendingPathComponent("jail")
+        try FileManager.default.createDirectory(at: jail, withIntermediateDirectories: true)
+
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: rootDirectoryPlist(program: program.path, rootDirectory: jail.path)
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+        let restored = try String(contentsOf: destination, encoding: .utf8)
+        #expect(restored == previous)
+        let restoredInode = try #require(FileManager.default.attributesOfItem(atPath: destination.path)[.systemFileNumber] as? Int)
+        #expect(restoredInode == oldInode)
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+            .filter { $0.contains(".install-") || $0.contains(".rollback-") || $0.contains(".orphan-") }
+        #expect(leftovers.isEmpty)
+    }
+
+    /// Same jail-missing case on a fresh destination: dest stays absent.
+    @Test
+    func bootstrapProgramMissingInsideRootDirectoryLeavesFreshDestAbsent() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let program = plantFixtureProgram(home: home)
+        let jail = URL(fileURLWithPath: home).appendingPathComponent("jail")
+        try FileManager.default.createDirectory(at: jail, withIntermediateDirectories: true)
+
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: rootDirectoryPlist(program: program.path, rootDirectory: jail.path)
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    /// The jail mirrors the Program (host path = jail + program) → the
+    /// chrooted exec is real, and bootstrap proceeds to launchctl.
+    @Test
+    func bootstrapProgramMirroredInsideRootDirectoryProceedsToLaunchctl() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        let hostProgram = plantFixtureProgram(home: home)
+
+        // Mirror the jail view: launchd resolves Program against the chroot
+        // root, so the host-side file lives at `root + program`.
+        let jail = URL(fileURLWithPath: home).appendingPathComponent("jail")
+        let jailedProgram = URL(fileURLWithPath: jail.path + hostProgram.path)
+        try FileManager.default.createDirectory(
+            at: jailedProgram.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.copyItem(at: hostProgram, to: jailedProgram)
+
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: rootDirectoryPlist(program: hostProgram.path, rootDirectory: jail.path)
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        let report = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+        )
+        #expect(report.bootstrapped)
+        let calls = await shell.recorded()
+        #expect(!calls.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+    }
+
+    /// Mach-O inside the jail must satisfy the same signature law against
+    /// the jail-resolved host path — an unsigned jailed binary is refused
+    /// even though the host-path binary at the same plist path is signed.
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func bootstrapUnsignedJailedMachOFailsClosed() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("fresh.plist")
+        let home = isolatedHome(in: dir)
+        let hostProgram = try await plantBareMachO(home: home, signed: true)
+
+        let jail = URL(fileURLWithPath: home).appendingPathComponent("jail")
+        let jailedProgram = URL(fileURLWithPath: jail.path + hostProgram.path)
+        try FileManager.default.createDirectory(
+            at: jailedProgram.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        // Unsigned copy inside the jail (strip the linker signature).
+        let stripped = try await LiveShell().execute([
+            "/usr/bin/codesign", "--remove-signature", hostProgram.path,
+        ])
+        #expect(stripped.success)
+        try FileManager.default.copyItem(at: hostProgram, to: jailedProgram)
+        // Re-sign only the host copy; the jailed copy stays unsigned.
+        let resigned = try await LiveShell().execute([
+            "/usr/bin/codesign", "--force", "--sign", "-", hostProgram.path,
+        ])
+        #expect(resigned.success)
+
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: rootDirectoryPlist(program: hostProgram.path, rootDirectory: jail.path)
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        await #expect(throws: LaunchAgentInstaller.InstallError.self) {
+            _ = try await installer.install(
+                source: source,
+                destination: destination,
+                spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+            )
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        let calls = await shell.recorded()
+        #expect(calls.isEmpty)
+    }
+
+    /// PR #88 cross-component contract: a Program installed by the new
+    /// generation-layout `BinaryInstaller` (companions in
+    /// `.<exec>.companions.<gen>/`, executable loads rewritten to
+    /// `@rpath/<name>`) must pass bootstrap validation — the Program check
+    /// resolves `@rpath` loads through the executable's real LC_RPATH
+    /// entries, not by assuming flat adjacency.
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func bootstrapProgramFromGenerationLayoutBinaryInstallProceeds() async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let destination = dir.appendingPathComponent("out.plist")
+        let home = isolatedHome(in: dir)
+        // The rewritten WorkingDirectory must exist for bootstrap validation.
+        try FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: home),
+            withIntermediateDirectories: true
+        )
+
+        // Build + install via the real BinaryInstaller: gen layout on disk.
+        let binRoot = dir.appendingPathComponent("install-root")
+        let destDir = binRoot.appendingPathComponent("bin")
+        try FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+        let sourceDir = binRoot.appendingPathComponent("src")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        let clang = LiveShell()
+        let dummyC = sourceDir.appendingPathComponent("dummy.c")
+        try "void dummy(void) {}\n".write(to: dummyC, atomically: true, encoding: .utf8)
+        let dylib = sourceDir.appendingPathComponent("libcompanion.dylib")
+        let libBuild = try await clang.execute([
+            "/usr/bin/clang", "-dynamiclib",
+            "-install_name", "@loader_path/libcompanion.dylib",
+            "-o", dylib.path, dummyC.path,
+        ])
+        #expect(libBuild.success)
+        let mainC = sourceDir.appendingPathComponent("main.c")
+        try "int main(void) { return 0; }\n".write(to: mainC, atomically: true, encoding: .utf8)
+        let victim = sourceDir.appendingPathComponent("victim")
+        let link = try await clang.execute([
+            "/usr/bin/clang", "-o", victim.path, mainC.path, dylib.path,
+            "-Wl,-rpath,@loader_path",
+        ])
+        #expect(link.success)
+        let programDest = destDir.appendingPathComponent("agent-bin")
+        let report = try await BinaryInstaller().install(source: victim, destination: programDest)
+        #expect(report.companionDirectory != nil)
+
+        let source = writePlist(
+            dir,
+            name: "src.plist",
+            body: machOPlist(program: programDest.path)
+        )
+        let shell = RecordingShell()
+        let installer = LaunchAgentInstaller(shell: shell)
+        let agentReport = try await installer.install(
+            source: source,
+            destination: destination,
+            spec: LaunchAgentInstaller.Spec(home: home, uid: 501, bootstrap: true)
+        )
+        #expect(agentReport.bootstrapped)
+        let calls = await shell.recorded()
+        #expect(!calls.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: destination.path))
+    }
+
     // MARK: - HAB-695 EnvironmentVariables.TMPDIR
 
     /// Studio-template plist with optional EnvironmentVariables.TMPDIR.

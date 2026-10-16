@@ -102,6 +102,7 @@ public actor AppBundleInstaller {
     public enum InstallError: Error, CustomStringConvertible, Sendable {
         case sourceMissing(String)
         case sourceNotExecutable(String)
+        case productNameUnsafe(String)
         case destinationNotBundle(String)
         case destinationIsFile(String)
         case stagingFailed(String)
@@ -113,6 +114,7 @@ public actor AppBundleInstaller {
         case postPublishVerificationFailed(String)
         case linkedLibraryInspectionFailed(String)
         case missingRequiredLinkedLibrary(String)
+        case rpathUnsupported(detail: String, rpath: String)
 
         public var description: String {
             switch self {
@@ -120,6 +122,9 @@ public actor AppBundleInstaller {
                 "Source executable not found: \(path)"
             case let .sourceNotExecutable(path):
                 "Source is not an executable file: \(path)"
+            case let .productNameUnsafe(name):
+                "Product name must be a single safe filename (no /, no . or .. "
+                    + "component, no NUL, not empty), not a path: \(name)"
             case let .destinationNotBundle(path):
                 "Destination must be an .app bundle path: \(path)"
             case let .destinationIsFile(path):
@@ -142,6 +147,10 @@ public actor AppBundleInstaller {
                 "Could not inspect linked libraries of staged inner executable (destination untouched): \(detail)"
             case let .missingRequiredLinkedLibrary(detail):
                 "Staged bundle is missing a required non-system dylib (destination untouched): \(detail)"
+            case let .rpathUnsupported(detail, rpath):
+                "Required @rpath load cannot be reproduced by this install layout "
+                    + "(adjacent-name flattening would silently change where dyld finds it): "
+                    + "\(detail) — rpath: \(rpath)"
             }
         }
     }
@@ -157,8 +166,26 @@ public actor AppBundleInstaller {
         self.fileManager = fileManager
     }
 
+    /// A product name is a **single filename**, not a path: it names
+    /// `Contents/MacOS/<productName>` inside the staging bundle. A name like
+    /// `../../../escaped` would resolve outside `Contents/MacOS` during
+    /// assemble (`copyItem` follows the `..` components), planting the
+    /// executable outside the bundle that `codesign --deep` then seals.
+    /// Fail closed on anything that is not one safe path component.
+    public static func isSafeProductName(_ name: String) -> Bool {
+        // Not empty, no path separators, no current/parent components, no NUL.
+        !name.isEmpty
+            && !name.contains("/")
+            && !name.contains("\0")
+            && name != "."
+            && name != ".."
+    }
+
     /// Assemble, sign, verify, and atomically publish a `.app` bundle.
     public func install(source: URL, destination: URL, spec: Spec) async throws -> Report {
+        guard Self.isSafeProductName(spec.productName) else {
+            throw InstallError.productNameUnsafe(spec.productName)
+        }
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: source.path, isDirectory: &isDirectory), !isDirectory.boolValue else {
             throw InstallError.sourceMissing(source.path)
@@ -206,12 +233,14 @@ public actor AppBundleInstaller {
 
         // HAB-675: inspect companions too — nested required adjacent names
         // join the same fail-closed + stage set (BinaryInstaller HAB-674).
+        // PR #88: images with @rpath loads must declare adjacent rpaths only.
         let libraries: [BinaryInstaller.LinkedLibrary]
         do {
             let initial = try await loadLinkedLibraries(at: innerBinary)
             libraries = try await expandLinkedLibraries(
                 initial: initial,
-                sourceDirectory: sourceDirectory
+                sourceDirectory: sourceDirectory,
+                innerBinary: innerBinary
             )
         } catch let error as InstallError {
             throw cleanupAndThrow(error)
@@ -411,7 +440,8 @@ public actor AppBundleInstaller {
     /// leftovers still do not satisfy gaps (whole `.app` is replaced).
     private func expandLinkedLibraries(
         initial: [BinaryInstaller.LinkedLibrary],
-        sourceDirectory: URL
+        sourceDirectory: URL,
+        innerBinary: URL
     ) async throws -> [BinaryInstaller.LinkedLibrary] {
         var all = initial
         var seen: Set<String> = []
@@ -428,6 +458,17 @@ public actor AppBundleInstaller {
             }
         }
         enqueue(initial)
+        // The inner executable must satisfy the adjacent-rpath law (PR #88).
+        do {
+            try await BinaryInstaller.validateAdjacentRpaths(
+                of: initial,
+                at: innerBinary,
+                fileName: innerBinary.lastPathComponent,
+                shell: shell
+            )
+        } catch let error as BinaryInstaller.InstallError {
+            throw mapRpathError(error)
+        }
         var index = 0
         while index < queue.count {
             let name = queue[index]
@@ -435,10 +476,33 @@ public actor AppBundleInstaller {
             let sourceURL = sourceDirectory.appendingPathComponent(name)
             guard fileManager.fileExists(atPath: sourceURL.path) else { continue }
             let nested = try await loadLinkedLibraries(at: sourceURL)
+            // Every source-adjacent image joining the set: same law (PR #88).
+            do {
+                try await BinaryInstaller.validateAdjacentRpaths(
+                    of: nested,
+                    at: sourceURL,
+                    fileName: name,
+                    shell: shell
+                )
+            } catch let error as BinaryInstaller.InstallError {
+                throw mapRpathError(error)
+            }
             all.append(contentsOf: nested)
             enqueue(nested)
         }
         return all
+    }
+
+    /// The shared adjacent-rpath law lives in `BinaryInstaller`; translate
+    /// its typed error into this installer's own vocabulary.
+    private func mapRpathError(_ error: BinaryInstaller.InstallError) -> InstallError {
+        if case let .rpathUnsupported(detail, rpath) = error {
+            return .rpathUnsupported(detail: detail, rpath: rpath)
+        }
+        if case let .linkedLibraryInspectionFailed(detail) = error {
+            return .linkedLibraryInspectionFailed(detail)
+        }
+        return .linkedLibraryInspectionFailed(error.localizedDescription)
     }
 
     /// Copy source-adjacent required dylibs into `Contents/MacOS` so
