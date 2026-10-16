@@ -210,7 +210,7 @@ This file is the single source of truth for every Andromeda surface:
 | Surface | Implementation | Reads tokens from |
 |---|---|---|
 | Website | `web/` (Next.js 15, Tailwind v4) | `web/app/globals.css` (`@theme inline` + `:root` / `.dark`) |
-| macOS (Home, HUD, menu bar, floating command center) | SwiftUI | `Sources/AndromedaBrand/AndromedaTheme+SwiftUI.swift` |
+| macOS HUD and menu bar | SwiftUI | `Sources/AndromedaBrand/AndromedaTheme+SwiftUI.swift` (Home and MemoryKit's views are not on it yet — see *Known gaps*) |
 | SwiftUI design system (specimens, companion HUD, control plane) | `Packages/AndromedaUI` | `DesignToken` (`Sources/AndromedaUI/DesignToken.swift`) |
 | Orchestrator console (dark + light) | `Packages/AndromedaOrchestrator` | `DesignToken` (`Sources/AndromedaOrchestrator/DesignToken.swift`) |
 | CLI / TUI | `AndromedaChrome`, `TerminalStyle` | `Sources/AndromedaBrand/AndromedaPalette.swift` |
@@ -222,9 +222,9 @@ Token names are identical across every surface that reads them. If a value chang
 
 `Packages/AndromedaOrchestrator` is standalone too and carries the tokens it uses in both themes; its parity test checks the dark values against this file and the light values against `light-*`. The HUD (`AndromedaHUDCore`) reads `AndromedaTheme` directly, and the retired v1 enum `AndromedaDomain.AndromedaColor` is deprecated with every case pinned to a token.
 
-**Every Swift colour comes from a token.** The `raw-color-literal` canon lint is an error: CI fails on a `Color(red:…)`-style literal outside the token files. The sanctioned exceptions are annotated inline with `ast-grep-ignore` and listed under *Illustration palette* below.
+**Every Swift colour literal comes from a token.** The `raw-color-literal` canon lint is an error: CI fails on a `Color(red:…)`-style initializer outside the token files. The sanctioned exceptions are annotated inline with `ast-grep-ignore` and listed under *Illustration palette* below. The lint sees initializers only — member colours (`Color.white`, `.cyan`, `.secondary`) are not checked yet; widening the rule to them is the next gate.
 
-> **Known gaps.** The HTTP dashboard (`Sources/AndromedaHTTP/DashboardRoute.swift`) embeds its own CSS with the v1 hex values, which no lint or parity test sees yet. **The Home window:** `AndromedaHomeCore` still uses SwiftUI system colours (`.cyan`, `.orange`, `.red`) on system materials, because the window follows the macOS light/dark appearance and `AndromedaTheme` is dark-only. Moving it onto tokens needs appearance-adaptive brand colours built from the `light-*` set; until then it is the one native surface off the palette.
+> **Known gaps.** The HTTP dashboard (`Sources/AndromedaHTTP/DashboardRoute.swift`) embeds its own CSS with the v1 hex values, which no lint or parity test sees yet. **The Home window:** `AndromedaHomeCore` still uses SwiftUI system colours (`.cyan`, `.orange`, `.red`) on system materials, because the window follows the macOS light/dark appearance and `AndromedaTheme` is dark-only. Moving it onto tokens needs appearance-adaptive brand colours built from the `light-*` set; **MemoryKit's SwiftUI views** (command center, launch roster, MCP registry, floating pet, project-state panel) also use system colours, for the same appearance-following reason. **Member whites:** four low-opacity `Color.white` tints in AndromedaUI's pillar cards (`AndromedaPillars.swift`) and one `.white` label in `DreamingScene.swift` predate the tokens; they should become `foreground` at low opacity.
 
 ## Colors
 
