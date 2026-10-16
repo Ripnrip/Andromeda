@@ -137,8 +137,10 @@ public actor LadybugIndexer {
 
     /// 🌟 The Node Upsert Alchemy - PUT `/nodes` (idempotent by `point_id` = content_hash UUID)
     /// Fail-open: never throws; returns `false` and sets `isDirty` on network/HTTP storms.
-    /// Visibility: skips when `VisibilityFilter` rejects `.ladybugIndex` (local index today
-    /// allows all classes — gate keeps egress mistakes from silently indexing).
+    /// Visibility: forward-proof guard — no-op today by design. `.ladybugIndex`
+    /// allows all visibility classes (local on-device index), so this check never
+    /// blocks today; it becomes live only if `VisibilityFilter` semantics ever
+    /// exclude a class for the ladybug pipeline (PR #93 review B1).
     @discardableResult
     public func indexNode(_ node: LadybugNode) async -> Bool {
         logger.debug("🔍 🧙‍♂️ Peering into mystical variables... Node pointId: \(node.pointId)")
