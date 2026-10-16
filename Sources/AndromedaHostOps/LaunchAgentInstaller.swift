@@ -185,6 +185,7 @@ public actor LaunchAgentInstaller {
         case programLibraryInspectionFailed(String)
         case programMissingLibraries(String)
         case programUnsignedLibraries(String)
+        case programMissingInsideRootDirectory(root: String, program: String)
         case workingDirectoryNotAbsolute(String)
         case workingDirectoryMissing(String)
         case workingDirectoryNotDirectory(String)
@@ -257,6 +258,10 @@ public actor LaunchAgentInstaller {
                 "LaunchAgent Program is missing a required non-system dylib (destination untouched): \(detail)"
             case let .programUnsignedLibraries(detail):
                 "LaunchAgent Program companion dylib failed codesign --verify --strict (destination untouched): \(detail)"
+            case let .programMissingInsideRootDirectory(root, program):
+                "LaunchAgent RootDirectory is set, so launchd chroots and Program resolves "
+                    + "inside the jail. \(root + program) does not exist on the host "
+                    + "(destination untouched)"
             case let .workingDirectoryNotAbsolute(path):
                 "LaunchAgent WorkingDirectory must be an absolute path (launchd does not expand $HOME/~): \(path)"
             case let .workingDirectoryMissing(path):
@@ -599,6 +604,14 @@ public actor LaunchAgentInstaller {
     }
 
     /// Fail-closed Program check used only when bootstrapping (HAB-676 / HAB-677 / HAB-678 / HAB-680 / HAB-686).
+    ///
+    /// When `RootDirectory` is set, launchd chroots before exec: the *jail*
+    /// view of the filesystem is what the Program actually runs against, so
+    /// existence, exec bit, signature, and adjacent-companion resolution are
+    /// all checked against `root + program` on the host (BIN-101 / PR #88).
+    /// The root itself must be host-validated before it is trusted as a
+    /// resolution base (HAB-693). Without `RootDirectory`, the host path is
+    /// the jail — current behavior.
     public static func validateProgram(
         _ dict: [String: Any],
         fileManager: FileManager
@@ -609,22 +622,45 @@ public actor LaunchAgentInstaller {
         guard path.hasPrefix("/") else {
             throw InstallError.programNotAbsolute(path)
         }
+        // Jail-relative resolution base: nil when launchd does not chroot.
+        let root = rootDirectoryPath(from: dict)
+        if let root {
+            // The root must itself be a host-visible absolute directory
+            // before it can serve as the resolution base (HAB-693 law).
+            guard root.hasPrefix("/") else {
+                throw InstallError.rootDirectoryNotAbsolute(root)
+            }
+            var rootIsDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: root, isDirectory: &rootIsDirectory) else {
+                throw InstallError.rootDirectoryMissing(root)
+            }
+            guard rootIsDirectory.boolValue else {
+                throw InstallError.rootDirectoryNotDirectory(root)
+            }
+        }
+        // The path launchd will actually exec: inside the chroot, Program
+        // (absolute) is resolved against RootDirectory.
+        let resolvedHostPath = root.map { $0 + path } ?? path
         var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory), !isDirectory.boolValue else {
+        guard fileManager.fileExists(atPath: resolvedHostPath, isDirectory: &isDirectory), !isDirectory.boolValue else {
+            if let root {
+                throw InstallError.programMissingInsideRootDirectory(root: root, program: path)
+            }
             throw InstallError.programMissing(path)
         }
-        guard fileManager.isExecutableFile(atPath: path) else {
-            throw InstallError.programNotExecutable(path)
+        guard fileManager.isExecutableFile(atPath: resolvedHostPath) else {
+            throw InstallError.programNotExecutable(resolvedHostPath)
         }
         // HAB-677: unsigned Mach-O is Taskgated SIGKILL after a successful
         // bootstrap. Scripts/shebangs are not Mach-O — leave them alone.
-        if isMachO(at: path) {
-            try verifyCodeSignature(at: path)
+        if isMachO(at: resolvedHostPath) {
+            try verifyCodeSignature(at: resolvedHostPath)
             // HAB-678: signed Mach-O with a missing @loader_path dylib still
             // dyld-fails after bootstrap. Inspect Program + nested adjacent
             // companions; dest stays parked-until-valid (here: untouched).
-            // HAB-680: those companions must also be signed.
-            try verifyRequiredLibraries(at: path, fileManager: fileManager)
+            // HAB-680: those companions must also be signed. Inside a
+            // chroot the companions resolve next to root+program, same law.
+            try verifyRequiredLibraries(at: resolvedHostPath, fileManager: fileManager)
         }
     }
 
@@ -730,27 +766,71 @@ public actor LaunchAgentInstaller {
 
     /// Fail-closed if a required non-system / runtime-relative dylib would
     /// not resolve next to Program (HAB-678).
+    ///
+    /// PR #88: `@rpath/<name>` loads resolve through the Program's declared
+    /// `LC_RPATH` entries — under the binary installer's generation layout
+    /// those point into `.<exec>.companions.<gen>/` directories rather than
+    /// flat beside the executable. Resolve each required load through every
+    /// declared rpath and the program's own directory; a load that resolves
+    /// nowhere fails closed. Companion signature verification follows the
+    /// same resolution (HAB-680).
     public static func verifyRequiredLibraries(at path: String, fileManager: FileManager) throws {
         let libraries = try expandLinkedLibraries(at: path, fileManager: fileManager)
         let directory = URL(fileURLWithPath: path).deletingLastPathComponent()
-        let gaps = BinaryInstaller.requiredLibraryGaps(
-            libraries,
-            adjacentDirectory: directory,
-            sourceDirectory: directory,
-            fileExists: { fileManager.fileExists(atPath: $0) }
-        )
-        guard gaps.isEmpty else {
-            let detail = gaps.map(\.installName).joined(separator: ", ")
-            throw InstallError.programMissingLibraries("\(path): \(detail)")
+        let rpaths = try loadRpaths(at: path)
+        // Host directories an `@rpath` load may resolve into.
+        let searchDirectories: [URL] = rpaths.compactMap { entry in
+            if entry.hasPrefix("@loader_path/") {
+                return directory.appendingPathComponent(String(entry.dropFirst("@loader_path/".count)))
+            }
+            if entry.hasPrefix("@executable_path/") {
+                return directory.appendingPathComponent(String(entry.dropFirst("@executable_path/".count)))
+            }
+            if entry.hasPrefix("/") {
+                return URL(fileURLWithPath: entry)
+            }
+            return nil
         }
-        try verifyCompanionSignatures(libraries, adjacentDirectory: directory)
+        /// First existing resolution of a required adjacent name.
+        func resolve(_ name: String) -> URL? {
+            let flat = directory.appendingPathComponent(name)
+            if fileManager.fileExists(atPath: flat.path) {
+                return flat
+            }
+            for search in searchDirectories where search != directory {
+                let candidate = search.appendingPathComponent(name)
+                if fileManager.fileExists(atPath: candidate.path) {
+                    return candidate
+                }
+            }
+            return nil
+        }
+        var missing: [String] = []
+        for library in libraries {
+            if library.isWeak || library.isSystem {
+                continue
+            }
+            guard let name = library.adjacentFileName else {
+                // `@rpath/subdir/lib.dylib` — not an adjacent name; the
+                // existing gaps law already handles non-adjacent runtime-
+                // relative loads fail-closed.
+                continue
+            }
+            if resolve(name) == nil {
+                missing.append(library.installName)
+            }
+        }
+        guard missing.isEmpty else {
+            throw InstallError.programMissingLibraries("\(path): \(missing.joined(separator: ", "))")
+        }
+        try verifyCompanionSignatures(libraries, resolve: resolve)
     }
 
-    /// Fail-closed if an adjacent required companion fails
-    /// `codesign --verify --strict` (HAB-680).
+    /// Fail-closed if a required companion fails `codesign --verify --strict`
+    /// (HAB-680), resolving names through the Program's rpaths (PR #88).
     public static func verifyCompanionSignatures(
         _ libraries: [BinaryInstaller.LinkedLibrary],
-        adjacentDirectory: URL
+        resolve: (String) -> URL?
     ) throws {
         var seen: Set<String> = []
         var unsigned: [String] = []
@@ -760,9 +840,9 @@ public actor LaunchAgentInstaller {
             }
             guard let name = library.adjacentFileName else { continue }
             guard seen.insert(name).inserted else { continue }
-            let companion = adjacentDirectory.appendingPathComponent(name).path
+            guard let companion = resolve(name) else { continue }
             do {
-                try verifyCodeSignature(at: companion)
+                try verifyCodeSignature(at: companion.path)
             } catch {
                 unsigned.append(name)
             }
@@ -770,6 +850,30 @@ public actor LaunchAgentInstaller {
         guard unsigned.isEmpty else {
             throw InstallError.programUnsignedLibraries(unsigned.sorted().joined(separator: ", "))
         }
+    }
+
+    /// Declared `LC_RPATH` entries of a Mach-O (`otool -l`, live process).
+    static func loadRpaths(at path: String) throws -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/otool")
+        process.arguments = ["-l", path]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            throw InstallError.programLibraryInspectionFailed("\(path): \(error.localizedDescription)")
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        guard process.terminationStatus == 0 else {
+            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail = trimmed.isEmpty ? path : "\(path): \(trimmed)"
+            throw InstallError.programLibraryInspectionFailed(detail)
+        }
+        return BinaryInstaller.parseOtoolRpaths(output).map(\.path)
     }
 
     /// WorkingDirectory after HOME rewrite. Nil when the key is absent or blank.
@@ -1326,26 +1430,28 @@ public actor LaunchAgentInstaller {
         var optionsDone = false
         while index < arguments.count {
             let token = arguments[index]
-            if !optionsDone && (token == "-i" || token == "-v" || token == "-0") {
+            if !optionsDone, token == "-i" || token == "-v" || token == "-0" {
                 index += 1
                 continue
             }
-            if !optionsDone && (token == "-C" || token == "-u") {
+            if !optionsDone, token == "-C" || token == "-u" {
                 index += 2
                 continue
             }
-            if !optionsDone && token == "-P" {
-                if index + 1 < arguments.count { override = arguments[index + 1] }
+            if !optionsDone, token == "-P" {
+                if index + 1 < arguments.count {
+                    override = arguments[index + 1]
+                }
                 index += 2
                 continue
             }
-            if !optionsDone && token == "-S" {
+            if !optionsDone, token == "-S" {
                 guard index + 1 < arguments.count else {
                     return ParsedUtility(command: nil, pathEnv: override, remaining: [])
                 }
                 return parseEnvUtility(splitEnvS(arguments[index + 1]), pathEnv: override)
             }
-            if !optionsDone && token.hasPrefix("-") && token != "-" {
+            if !optionsDone, token.hasPrefix("-"), token != "-" {
                 break
             }
             if isEnvAssignment(token) {

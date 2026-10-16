@@ -251,6 +251,54 @@ struct AppBundleInstallerTests {
         }
     }
 
+    // MARK: - Product-name traversal (Contents/MacOS escape)
+
+    @Test(arguments: [
+        "../../../escaped",
+        "../..",
+        "..",
+        ".",
+        "sub/dir/binary",
+        "nested/name",
+        "",
+    ])
+    func unsafeProductNamesFailClosedBeforeStaging(name: String) async throws {
+        let dir = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let source = makeSource(dir)
+        let destination = dir.appendingPathComponent("FixtureHome.app")
+
+        var unsafeSpec = spec()
+        unsafeSpec.productName = name
+        let installer = AppBundleInstaller(shell: MockShell(failOn: "never"))
+        await #expect(throws: AppBundleInstaller.InstallError.self) {
+            _ = try await installer.install(source: source, destination: destination, spec: unsafeSpec)
+        }
+
+        // Nothing was staged, nothing escaped Contents/MacOS — the failure
+        // happened at install entry, before any file was created.
+        #expect(try leftoverInstallTrees(in: dir).isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        #expect(
+            !FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("escaped").path
+            )
+        )
+    }
+
+    @Test
+    func safeProductNamesPassThePredicate() {
+        #expect(AppBundleInstaller.isSafeProductName("FixtureHome"))
+        #expect(AppBundleInstaller.isSafeProductName("andromeda-hud"))
+        #expect(AppBundleInstaller.isSafeProductName("My App 2"))
+        #expect(!AppBundleInstaller.isSafeProductName("../../../escaped"))
+        #expect(!AppBundleInstaller.isSafeProductName("sub/dir/binary"))
+        #expect(!AppBundleInstaller.isSafeProductName(".."))
+        #expect(!AppBundleInstaller.isSafeProductName("."))
+        #expect(!AppBundleInstaller.isSafeProductName(""))
+        #expect(!AppBundleInstaller.isSafeProductName("evil\u{0}name"))
+    }
+
     // MARK: - Adjacent rpath dylibs (HAB-671)
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
@@ -346,6 +394,57 @@ struct AppBundleInstallerTests {
         ])
         #expect(dylibVerify.success)
         #expect(!FileManager.default.fileExists(atPath: destination.appendingPathComponent("Contents/MacOS/OLD").path))
+        #expect(try leftoverInstallTrees(in: root).isEmpty)
+    }
+
+    // MARK: - PR #88 LC_RPATH law (shared with BinaryInstaller)
+
+    /// Same law inside a `.app`: a non-adjacent rpath must fail closed rather
+    /// than be flattened into `Contents/MacOS`.
+    @Test(.enabled(if: FileManager.default.fileExists(atPath: "/usr/bin/clang")))
+    func nonAdjacentRpathFailsClosedWithLegibleError() async throws {
+        let root = makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sourceDir = root.appendingPathComponent("src")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+
+        let dummyC = sourceDir.appendingPathComponent("dummy.c")
+        try "void dummy(void) {}\n".write(to: dummyC, atomically: true, encoding: .utf8)
+        let dylib = sourceDir.appendingPathComponent("libcompanion.dylib")
+        let clang = LiveShell()
+        let libBuild = try await clang.execute([
+            "/usr/bin/clang", "-dynamiclib",
+            "-install_name", "@rpath/libcompanion.dylib",
+            "-o", dylib.path, dummyC.path,
+        ])
+        #expect(libBuild.success)
+
+        let mainC = sourceDir.appendingPathComponent("main.c")
+        try "int main(void) { return 0; }\n".write(to: mainC, atomically: true, encoding: .utf8)
+        let source = sourceDir.appendingPathComponent("victim")
+        let link = try await clang.execute([
+            "/usr/bin/clang", "-o", source.path, mainC.path, dylib.path,
+            "-Wl,-rpath,@executable_path/../lib",
+        ])
+        #expect(link.success)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: source.path)
+
+        let destination = root.appendingPathComponent("FixtureHome.app")
+        try dummyUnsignedBundle(at: destination, marker: "keep-me")
+        let oldInode = try bundleInode(at: destination)
+
+        let installer = AppBundleInstaller()
+        await #expect(throws: AppBundleInstaller.InstallError.self) {
+            _ = try await installer.install(source: source, destination: destination, spec: spec())
+        }
+
+        let restoredInode = try bundleInode(at: destination)
+        #expect(restoredInode == oldInode)
+        let marker = try String(
+            contentsOf: destination.appendingPathComponent("Contents/MacOS/OLD"),
+            encoding: .utf8
+        )
+        #expect(marker == "keep-me")
         #expect(try leftoverInstallTrees(in: root).isEmpty)
     }
 
