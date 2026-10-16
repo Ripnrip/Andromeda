@@ -54,8 +54,9 @@ Covered cases:
 ## Evidence artifacts
 
 - Log: `/tmp/memorykit-ladybug-proof.log`
-- Tests: `Tests/MemoryKitTests/LadybugIndexerTests.swift`
-- Source: `Sources/MemoryKit/Indexing/LadybugIndexer.swift`
+- Tests: `Packages/Anima/Tests/AnimaTests/LadybugIndexerTests.swift` (migrated from MemoryKit)
+- Source: `Packages/Anima/Sources/AnimaIndexing/LadybugIndexer.swift`
+- Visibility: `VisibilityFilter.isAllowed(..., .ladybugIndex)` guard before node upsert — **no-op today by design** (`.ladybugIndex` allows all visibility classes for the local on-device index); it becomes live only if that pipeline ever excludes a class. Worded honestly per PR #93 review B1 (2026-10-15).
 
 ## Hardening applied this pass
 
