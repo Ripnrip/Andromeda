@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import AndromedaBrand
+import AndromedaDomain
 
 /// Parity gate for the shared design system.
 ///
@@ -68,6 +69,23 @@ struct DesignTokenParityTests {
         let web = try WebTokens.load()
         #expect(web.dark.count >= 20, "parsed only \(web.dark.count) dark tokens from globals.css")
         #expect(web.light.count >= 20, "parsed only \(web.light.count) light tokens from globals.css")
+    }
+}
+
+/// `AndromedaDomain.AndromedaColor` predates the token system. It's deprecated but
+/// public, so instead of letting it rot with stale values, every case is pinned to a
+/// DESIGN.md token and held to it here.
+@Suite("Legacy palette parity")
+struct LegacyPaletteParityTests {
+    /// Each `AndromedaColor` case must equal the dark-theme token it names.
+    @available(*, deprecated, message: "Exercises the deprecated AndromedaColor on purpose.")
+    @Test("AndromedaColor cases carry their token's value")
+    func domainPaletteMatchesTokens() throws {
+        let spec = try DesignSpec.loadColors()
+        for color in AndromedaColor.allCases {
+            let specHex = try #require(spec[color.token], "DESIGN.md has no token `\(color.token)` for AndromedaColor.\(color)")
+            #expect(color.cssHex == specHex, "AndromedaColor.\(color) is \(color.cssHex); DESIGN.md `\(color.token)` is \(specHex)")
+        }
     }
 }
 

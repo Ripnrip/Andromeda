@@ -626,7 +626,7 @@ public struct DreamingPillarCard: View {
         case .rem:
             return LinearGradient(colors: [Color.andromedaPanel, Color.andromedaTeal.opacity(0.12), Color.andromedaVoid], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .deep:
-            return LinearGradient(colors: [Color(red: 0.06, green: 0.05, blue: 0.11), Color.andromedaVoid], startPoint: .top, endPoint: .bottom)
+            return LinearGradient(colors: [Color.andromedaDreamNight, Color.andromedaVoid], startPoint: .top, endPoint: .bottom)
         }
     }
 }

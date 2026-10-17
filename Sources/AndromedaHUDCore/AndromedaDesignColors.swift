@@ -1,31 +1,31 @@
+import AndromedaBrand
 import SwiftUI
 
-// MARK: - Andromeda Design System — SwiftUI Color tokens
-// Source: Andromeda Design System v1
-// BIN-232: Shared UI color pattern for HUD and Home surfaces.
+// MARK: - HUD colour names → design tokens
+//
+// The HUD's long-standing `Color.andromeda*` names, kept so call sites read
+// naturally, each now an alias for a token from `AndromedaBrand` (DESIGN.md).
+// No colour is spelled out here: change a value in DESIGN.md / globals.css /
+// AndromedaPalette and the HUD follows. The parity tests cover the tokens.
 
 extension Color {
-    /// #34E8DC — primary accent (teal)
-    static let andromedaTeal = Color(red: 0.204, green: 0.910, blue: 0.863)
-    /// #8FFBEF — hover / glow
-    static let andromedaGlow = Color(red: 0.561, green: 0.984, blue: 0.937)
-    /// #3EE08C — healthy / live status only
-    static let andromedaLive = Color(red: 0.243, green: 0.878, blue: 0.549)
-    /// #FF9D94 — degraded / alert
-    static let andromedaAlert = Color(red: 1.0, green: 0.616, blue: 0.580)
-    /// #E9FBF8 — primary text (ink)
-    static let andromedaInk = Color(red: 0.914, green: 0.984, blue: 0.973)
-    /// #7FA39E — muted / secondary
-    static let andromedaMuted = Color(red: 0.498, green: 0.639, blue: 0.620)
-    /// #030B0C — void background
-    static let andromedaVoid = Color(red: 0.012, green: 0.043, blue: 0.047)
-    /// #0D1A1B — panel surface
-    static let andromedaPanel = Color(red: 0.051, green: 0.102, blue: 0.106)
+    /// `primary` — electric cyan, the one accent that leads.
+    static let andromedaTeal = AndromedaTheme.primary
+    /// `signal` — live / healthy / passed.
+    static let andromedaLive = AndromedaTheme.signal
+    /// `partial` — needs attention, degraded, in progress.
+    static let andromedaPartial = AndromedaTheme.partial
+    /// `alert` — failed, blocked, critical.
+    static let andromedaAlert = AndromedaTheme.alert
+    /// `spec` — offline / not listening: not running, as opposed to failed.
+    static let andromedaOffline = AndromedaTheme.spec
+    /// `muted-foreground` — secondary text, unknown / not recorded.
+    static let andromedaMuted = AndromedaTheme.mutedForeground
 
-    /// Teal-tinted line color for borders — 13% opacity.
-    static let andromedaLine = Color.andromedaTeal.opacity(0.13)
-    /// Teal-tinted selection highlight for rows/cells.
-    static let andromedaSelection = Color.andromedaTeal.opacity(0.12)
-    /// Teal-tinted hover state.
-    static let andromedaHover = Color.andromedaTeal.opacity(0.06)
+    /// Cyan-tinted hairline for borders — 13% `primary`.
+    static let andromedaLine = AndromedaTheme.primary.opacity(0.13)
+    /// Cyan-tinted selection highlight for rows/cells — 12% `primary`.
+    static let andromedaSelection = AndromedaTheme.primary.opacity(0.12)
+    /// Cyan-tinted hover state — 6% `primary`.
+    static let andromedaHover = AndromedaTheme.primary.opacity(0.06)
 }
