@@ -33,6 +33,7 @@ public enum AndromedaTheme {
     public static let primaryForeground = Color(brand: AndromedaPalette.primaryForeground)
     public static let accent = Color(brand: AndromedaPalette.accent)
     public static let accentForeground = Color(brand: AndromedaPalette.accentForeground)
+    public static let glow = Color(brand: AndromedaPalette.glow)
 
     public static let shipped = Color(brand: AndromedaPalette.shipped)
     public static let signal = Color(brand: AndromedaPalette.signal)

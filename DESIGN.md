@@ -5,7 +5,8 @@ description: >-
   Deep-space control plane. Obsidian teal ground, one electric-cyan accent, an
   honest status trio, editorial serif display over a grotesk UI and mono
   machine-truth. Shared by the website (web/), the macOS surfaces
-  (AndromedaHome, AndromedaHUD) and the CLI/TUI (AndromedaChrome).
+  (AndromedaHome, AndromedaHUD, the AndromedaUI package) and the CLI/TUI
+  (AndromedaChrome).
 colors:
   # Dark — canonical. The site defaults to dark; native + TUI are dark-only.
   background: "#040F12"
@@ -18,6 +19,7 @@ colors:
   primary-foreground: "#001114"
   accent: "#00A8AA"
   accent-foreground: "#F1FBFB"
+  glow: "#90FAF3"
   secondary: "#122225"
   secondary-foreground: "#DCE7E8"
   muted: "#142224"
@@ -29,7 +31,8 @@ colors:
   signal: "#49DE78"
   partial: "#E5C057"
   spec: "#7A898F"
-  # Light — web only. Same token names, `light-` prefix.
+  # Light — the website's light theme (plus light-background for SwiftUI
+  # previews). Same token names, `light-` prefix.
   light-background: "#F7FBFC"
   light-foreground: "#0F1D20"
   light-card: "#FFFFFF"
@@ -40,6 +43,7 @@ colors:
   light-primary-foreground: "#F8FDFD"
   light-accent: "#007578"
   light-accent-foreground: "#F8FDFD"
+  light-glow: "#1DE4DB"
   light-secondary: "#E5EDEE"
   light-secondary-foreground: "#1D2C2E"
   light-muted: "#E5EDEE"
@@ -203,12 +207,15 @@ This file is the single source of truth for every Andromeda surface:
 |---|---|---|
 | Website | `web/` (Next.js 15, Tailwind v4) | `web/app/globals.css` (`@theme inline` + `:root` / `.dark`) |
 | macOS (Home, HUD, menu bar, floating command center) | SwiftUI | `Sources/AndromedaBrand/AndromedaTheme+SwiftUI.swift` |
+| SwiftUI design system (specimens, companion HUD, control plane) | `Packages/AndromedaUI` | `DesignToken` (`Sources/AndromedaUI/DesignToken.swift`) |
 | CLI / TUI | `AndromedaChrome`, `TerminalStyle` | `Sources/AndromedaBrand/AndromedaPalette.swift` |
 | Living reference | `/design` route | live CSS variables |
 
-Token names are identical across all three. If a value changes here, it changes in `globals.css` and `AndromedaPalette.swift` in the same commit. `Tests/AndromedaBrandTests/DesignTokenParityTests.swift` converts the oklch values in `globals.css` to sRGB and fails CI if this file or `AndromedaPalette` disagrees with them.
+Token names are identical across every surface that reads them. If a value changes here, it changes in `globals.css`, `AndromedaPalette.swift` and AndromedaUI's `DesignToken.swift` in the same commit. `Tests/AndromedaBrandTests/DesignTokenParityTests.swift` converts the oklch values in `globals.css` to sRGB and fails CI if this file or `AndromedaPalette` disagrees with them.
 
-> **Known divergence (BIN-271).** `Packages/AndromedaUI` still carries a parallel SwiftUI palette (`Color.andromeda{Void, Panel, Teal, …}`) and its own `AndromedaTheme` enum, whose values differ from these tokens — its teal is `#34E8DC`, and its `accent` is a bright glow rather than the deep teal. New code should use `AndromedaBrand` (`AndromedaTheme` / `AndromedaPalette`). Converging AndromedaUI requires re-recording its snapshot baselines on the CI runner, so it is tracked separately.
+`Packages/AndromedaUI` can't import `AndromedaBrand` (the root package depends on it), so it carries its own copy as the `DesignToken` enum — each case's raw value is its name here. `Packages/AndromedaUI/Tests/AndromedaUITests/DesignTokenParityTests.swift` holds that copy to this file, so the chain web → DESIGN.md → `AndromedaPalette` and `DesignToken` is checked end to end. The package's older `Color.andromeda*` names (`andromedaTeal`, `andromedaDim`, …) are aliases for tokens.
+
+> **Not yet on the tokens.** Three older palettes still define their own values and are not covered by the parity tests: `Sources/AndromedaHUDCore/AndromedaDesignColors.swift` (the HUD — still the pre-token teal `#34E8DC` and glow `#8FFBEF`), `Sources/AndromedaDomain/DesignSystem.swift` (`AndromedaColor`, hex strings), and `Packages/AndromedaOrchestrator/Sources/AndromedaOrchestrator/OrchestratorTheme.swift`. Inside AndromedaUI, the Dreaming pillar's violets, `andromedaAlert`, and the "core" memory-kind indigo are colours outside the system. The `raw-color-literal` lint lists the `Color(…)` sites; new code reads tokens.
 
 ## Colors
 
@@ -220,6 +227,7 @@ A five-role palette — **void ground, panel slate, hairline border, cyan glow, 
 - **Border (#203839) / Input (#1A2D2F):** hairlines. Borders are 1px and quiet.
 - **Foreground (#E6F1F2):** primary text. **Muted-foreground (#8B9C9E):** secondary text, metadata, field keys.
 - **Primary (#1DE4DB):** electric cyan. The only saturated hue that leads. Used for primary actions, focus rings, eyebrows, the orbital pulse and glow. Never as a large fill behind body text.
+- **Glow (#90FAF3):** the brightest cyan — halos, breathing light, the orbital core, the companion's moon. Mostly light rather than ink — strokes, halos, translucent fills — and on dark ground only; short lit labels (a live readout, a highlighted mono word) may use it, body copy never. In the light theme it is `#1DE4DB` (the dark theme's primary), so the glow still reads on a bright surface.
 - **Accent (#00A8AA):** deeper teal for supporting emphasis — version strings, the outer halo of the trefoil. Use it as a **text or stroke color on dark ground**, not as a fill: `accent-foreground` on `accent` is only 2.78:1 and fails WCAG AA.
 
 ### Status trio
@@ -265,7 +273,7 @@ SwiftUI maps families to system designs: `AndromedaTheme.display()` → `.serif`
 
 Depth is **tonal, not shadowed.** Surfaces rise by stepping from `background` → `popover` → `card`, each outlined with a 1px `border`. Do not add drop shadows to cards or bars.
 
-Light is the only "elevation" effect, and it is always cyan:
+Light is the only "elevation" effect, and it is always cyan — `primary` for the source, `glow` for the halo around it:
 
 - **Orbital pulse** (`animate-orbital`): a 2.6s breathing ring on the live center of the floating bar and on live status dots.
 - **Starfield / aurora** (`bg-starfield`): sparse 1px cyan points as atmosphere behind hero and manifesto bands.
@@ -305,7 +313,7 @@ Base radius is **14px** (`--radius: 0.875rem`; `AndromedaTheme.cornerRadius`). D
 - Icons: `lucide-react`, 16px in UI text, stroke matches text color.
 
 ### macOS / SwiftUI
-- Read every color from `AndromedaTheme` — never `Color.cyan`, `Color.green`, `.blue`, or system accent.
+- Read every color from `AndromedaTheme` (or `DesignToken` inside `Packages/AndromedaUI`) — never `Color.cyan`, `Color.green`, `.blue`, system accent, or a `Color(red:…)` literal.
 - Use `AndromedaStatusChip` for any state display.
 - Prefer `Font.TextStyle`-based APIs so Dynamic Type works; use `AndromedaTheme.mono(_:)` and `.display(_:)` for the brand faces.
 - SF Symbols in `.monochrome` or `.hierarchical` rendering, tinted with brand tokens.
@@ -327,7 +335,7 @@ Base radius is **14px** (`--radius: 0.875rem`; `AndromedaTheme.cornerRadius`). D
 
 **Don't**
 - Don't communicate status by color alone — not on the web, in SwiftUI, or in the terminal.
-- Don't introduce a color that isn't a token in this file. No purples, no gradients outside the cyan glow, no rainbow charts.
+- Don't introduce a color that isn't a token in this file. No purples, no gradients outside the cyan glow, no rainbow charts. `Color(red:…)` literals outside the token files are flagged by the `raw-color-literal` canon lint.
 - Don't use drop shadows on cards, bars, or chips.
 - Don't greenwash: never show SHIPPED or HEALTHY for something that is partial or specified.
 - Don't set body text in Instrument Serif, or headlines in mono.
