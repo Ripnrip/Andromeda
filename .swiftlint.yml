@@ -5,6 +5,12 @@
 # This file is the single fleet source — nested packages may add stricter
 # local overrides, never looser ones.
 
+# Canon enforcement (HAB-1069): the custom rule below hard-errors on stringly
+# wire fields (andromeda-swift-canon: rich enums for external type fields).
+# `included:` widens per package as each is brought lint-clean — when the
+# App Control package lands, add it here BEFORE merge; the repo-wide backstop
+# is CanonPolicyTests (Tests/RepositoryPolicyTests), which scans everything
+# and carries the grandfathered debt inventory.
 included:
   - Packages/AndromedaOrchestrator
 
@@ -74,3 +80,13 @@ file_length:
 
 # Canon alignment: enums switch, no string building at call sites, explicit
 # types at boundaries — the default rule set already pushes this direction.
+
+# HAB-1069 — stringly wire fields are canon violations (andromeda-swift-canon:
+# rich enums for external type fields). Fires only inside `included:` packages;
+# the repo-wide backstop with the grandfathered debt inventory is CanonPolicyTests.
+custom_rules:
+  stringly_typed_wire_field:
+    name: "Stringly-typed Wire Field"
+    regex: '(?m)public\s+(let|var)\s+(kind|status|type|action|severity|state)\s*:\s*String\b'
+    message: "Wire-contract fields must be rich enums (andromeda-swift-canon) with unknown-value decoding, not bare String. Pre-existing debt: CanonPolicyTests.stringlyFieldDebt."
+    severity: error
