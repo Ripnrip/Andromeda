@@ -252,6 +252,7 @@ let package = Package(
             dependencies: [
                 .product(name: "MemoryKit", package: "MemoryKit"),
                 "AndromedaMCPHub",
+                "AndromedaBrand",
             ],
             path: "Sources/AndromedaHUDCore",
             swiftSettings: [
@@ -425,6 +426,7 @@ let package = Package(
             name: "AndromedaBrandTests",
             dependencies: [
                 "AndromedaBrand",
+                "AndromedaDomain",
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),

@@ -42,6 +42,9 @@ cd Packages/AndromedaUI && swift test
   `Color.andromeda{Void, Panel, Teal, Glow, Live, Muted, Amber, Dim, Ink}` names are aliases:
   `background`, `card`, `primary`, `glow`, `signal`, `muted-foreground`, `partial`, `spec`, `foreground`.
   The companion HUD's `AndromedaTheme.*` mirrors the spec's names one-for-one.
+  `Color.andromedaAlert` is the `alert` token. The only non-token colours are the Dreaming /
+  memory-graph illustration palette in `Pillars/Dreaming/PillarKit.swift`, each an annotated
+  exception to the `raw-color-literal` lint (an error everywhere else).
 - **Motion** — `Motion.{pulse, breathe, orbit, sweep, wave}` + `Motion.spring(_:_:)`.
 - **Typography** — `AndromedaFont.{serif, ui, mono}` + `.cpDisplay()/.cpTitle()/.cpBody()/.cpMeta()` view modifiers and `Eyebrow`.
 - **Surface & mark** — `AndromedaSurface()`, `AndromedaLogo()` (bundled raster), `AndromedaCore()` (breathing + orbiting glyph).

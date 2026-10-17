@@ -45,7 +45,7 @@ public struct MemorySection: View {
                 clusterMap
                 Divider().overlay(Color.andromedaTeal.opacity(0.14))
                 HStack(spacing: 16) {
-                    legend("core", Color(red: 0.42, green: 0.45, blue: 1))
+                    legend("core", .andromedaCore)
                     legend("reference", .andromedaMuted)
                     legend("skills", .andromedaAmber)
                 }
@@ -56,9 +56,9 @@ public struct MemorySection: View {
     private var clusterMap: some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(spacing: 18) {
-                clusterNode("persona", Color(red: 0.42, green: 0.45, blue: 1))
-                clusterNode("ecosystem", Color(red: 0.42, green: 0.45, blue: 1))
-                clusterNode("human", Color(red: 0.42, green: 0.45, blue: 1))
+                clusterNode("persona", .andromedaCore)
+                clusterNode("ecosystem", .andromedaCore)
+                clusterNode("human", .andromedaCore)
             }
             VStack(alignment: .leading, spacing: 12) {
                 clusterBox("SKILLS · 28", count: 14, color: .andromedaAmber)

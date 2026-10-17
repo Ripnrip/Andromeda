@@ -20,7 +20,7 @@ never a core dependency.
 
 ## Design system
 
-`DESIGN.md` (repo root) is the design contract for every surface — website, macOS/SwiftUI, and CLI/TUI. Read it before generating UI; never use raw colours. Token changes land in `DESIGN.md`, `web/app/globals.css`, and `Sources/AndromedaBrand/AndromedaPalette.swift` in the same commit — `DesignTokenParityTests` fails otherwise. `Packages/AndromedaUI` can't import `AndromedaBrand`, so it reads the same tokens through its own `DesignToken` enum, held to `DESIGN.md` by that package's parity test; a token change updates `DesignToken.swift` too. Never write a `Color(red:…)` literal — the `raw-color-literal` canon lint flags it.
+`DESIGN.md` (repo root) is the design contract for every surface — website, macOS/SwiftUI, and CLI/TUI. Read it before generating UI; never use raw colours. Token changes land in `DESIGN.md`, `web/app/globals.css`, and `Sources/AndromedaBrand/AndromedaPalette.swift` in the same commit — `DesignTokenParityTests` fails otherwise. `Packages/AndromedaUI` and `Packages/AndromedaOrchestrator` can't import `AndromedaBrand`, so each reads the same tokens through its own `DesignToken` enum, held to `DESIGN.md` by that package's parity test; a token change updates both `DesignToken.swift` files too. Never write a `Color(red:…)` literal — the `raw-color-literal` canon lint is an error and fails CI.
 
 ## Project tracking
 

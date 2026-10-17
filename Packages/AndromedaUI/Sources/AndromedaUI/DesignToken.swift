@@ -5,8 +5,9 @@ import SwiftUI
 /// The full dark-theme set, plus the light-theme tokens this package uses. `rawValue` is
 /// the token's name in DESIGN.md and `hex` is its exact sRGB value, so the package
 /// speaks the same palette as the website (`web/app/globals.css`) and the
-/// macOS/terminal surfaces (`AndromedaBrand`). Colours outside the system (the Dreaming
-/// pillar's violets, `andromedaAlert`) are flagged by the `raw-color-literal` lint.
+/// macOS/terminal surfaces (`AndromedaBrand`). The only colours outside the system are
+/// the illustration palette in `Pillars/Dreaming/PillarKit.swift`, each an annotated
+/// exception to the `raw-color-literal` lint (an error everywhere else).
 ///
 /// This package can't import `AndromedaBrand` (the root package depends on it, so the
 /// import would be a cycle), so the values live here. `DesignTokenParityTests` fails
@@ -40,6 +41,7 @@ public enum DesignToken: String, CaseIterable, Sendable {
     case signal
     case partial
     case spec
+    case alert
 
     // MARK: Light theme
     /// Light-theme ground, used by `AndromedaSurface` in light previews.
@@ -70,6 +72,7 @@ public enum DesignToken: String, CaseIterable, Sendable {
         case .signal: 0x49DE78
         case .partial: 0xE5C057
         case .spec: 0x7A898F
+        case .alert: 0xFB817A
         case .lightBackground: 0xF7FBFC
         }
     }

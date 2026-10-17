@@ -1,20 +1,31 @@
 import SwiftUI
 
-// MARK: - Pillar palette additions
-// The nine-pillar board needs a dream ramp the core palette does not carry.
-// Everything else reuses `Color.andromeda*` from AndromedaTheme.
+// MARK: - Illustration palette
+//
+// The only colours in AndromedaUI that aren't design tokens, all in this one
+// block: the Dreaming pillar's sleep-stage violets and night ground, and the
+// memory graph's "core" indigo. DESIGN.md keeps purple out of the product
+// palette; these exist for illustration only, never for UI chrome or status.
+// Each is a sanctioned `raw-color-literal` exception — the lint is an error
+// everywhere else. To use one in real UI, promote it to a token first
+// (DESIGN.md + globals.css + the token files).
 
 public extension Color {
     /// Dream violet — the consolidation ramp used by Dreaming + handoff.
-    static let andromedaDream      = Color(red: 0.545, green: 0.482, blue: 0.941)
+    static let andromedaDream = Color(red: 0.545, green: 0.482, blue: 0.941) // ast-grep-ignore: raw-color-literal
     /// Threshold violet (hypnagogic).
-    static let andromedaDreamEdge  = Color(red: 0.639, green: 0.580, blue: 0.949)
+    static let andromedaDreamEdge = Color(red: 0.639, green: 0.580, blue: 0.949) // ast-grep-ignore: raw-color-literal
     /// Slow-wave violet (deep).
-    static let andromedaDreamDeep  = Color(red: 0.365, green: 0.333, blue: 0.788)
+    static let andromedaDreamDeep = Color(red: 0.365, green: 0.333, blue: 0.788) // ast-grep-ignore: raw-color-literal
     /// Directed violet (lucid).
-    static let andromedaDreamLucid = Color(red: 0.765, green: 0.690, blue: 1.0)
-    /// Failure red — degraded backends, held contradictions.
-    static let andromedaAlert      = Color(red: 0.878, green: 0.361, blue: 0.361)
+    static let andromedaDreamLucid = Color(red: 0.765, green: 0.690, blue: 1.0) // ast-grep-ignore: raw-color-literal
+    /// Deep-sleep night ground — the top of the `.deep` phase gradient.
+    static let andromedaDreamNight = Color(red: 0.06, green: 0.05, blue: 0.11) // ast-grep-ignore: raw-color-literal
+    /// Core-memory indigo — persona / ecosystem / human nodes in the memory graph.
+    static let andromedaCore = Color(red: 0.42, green: 0.45, blue: 1) // ast-grep-ignore: raw-color-literal
+
+    /// `alert` — degraded backends, held contradictions, recording.
+    static let andromedaAlert = DesignToken.alert.color
 }
 
 // MARK: - State protocol

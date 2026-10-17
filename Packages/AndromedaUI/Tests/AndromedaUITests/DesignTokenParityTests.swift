@@ -69,7 +69,7 @@ private struct MalformedSpec: Error, CustomStringConvertible {
 
 /// The `colors:` map from DESIGN.md's YAML front matter.
 private enum DesignSpecColors {
-    /// DESIGN.md sits four directories above this file:
+    /// DESIGN.md is at the repo root, five path components up from this file:
     /// `Packages/AndromedaUI/Tests/AndromedaUITests/<this file>`.
     static var url: URL {
         URL(fileURLWithPath: #filePath)

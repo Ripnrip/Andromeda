@@ -19,7 +19,7 @@ struct AndromedaPaletteTests {
 
     @Test("palette stays disciplined and fully enumerated")
     func paletteDiscipline() {
-        #expect(AndromedaPalette.all.count == 19)
+        #expect(AndromedaPalette.all.count == 20)
         #expect(Set(AndromedaPalette.all.map(\.name)).count == AndromedaPalette.all.count)
         #expect(AndromedaPalette.shipped == AndromedaPalette.primary)
     }
@@ -158,6 +158,7 @@ struct AndromedaChromeTests {
         #expect(BrandStatus.degraded.color == AndromedaPalette.partial)
         #expect(BrandStatus.specified.color == AndromedaPalette.spec)
         #expect(BrandStatus.offline.color == AndromedaPalette.spec)
+        #expect(BrandStatus.failed.color == AndromedaPalette.alert)
     }
 
     @Test("plain mode emits zero escape sequences")
