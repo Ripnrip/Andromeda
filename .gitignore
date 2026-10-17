@@ -36,3 +36,6 @@ comment.md
 # Operator queue/inbox (design zips awaiting landing) — never commit
 # Ignore/ — local scratch (twinkie law 2026-08-28: durable copies live in multibrain Changelog.md)
 Ignore/
+
+# Never commit binary wheels (P2 from review 5513531856)
+*.whl

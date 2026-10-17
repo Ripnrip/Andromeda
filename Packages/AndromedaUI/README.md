@@ -5,8 +5,9 @@ motion, typography, reusable animations, event-driven memory components,
 the real logo, and the Control Plane UI surfaces.
 
 > Nested package under `Packages/AndromedaUI` (same dual-home pattern as MemoryKit / Anima).
-> Canonical colour truth remains `AndromedaBrand` + `web/app/globals.css`; this package
-> currently carries parallel SwiftUI aliases that BIN-271 will converge.
+> Colour truth is `DESIGN.md` at the repo root. This package reads it through the
+> `DesignToken` enum (it can't import `AndromedaBrand` — the root package depends on it),
+> and `DesignTokenParityTests` fails if any token drifts from the spec.
 
 ## Requirements
 
@@ -37,7 +38,10 @@ cd Packages/AndromedaUI && swift test
 
 ## Foundations
 
-- **Palette** — `Color.andromeda{Void, Panel, Teal, Glow, Live, Muted, Amber, Dim, Ink}`.
+- **Palette** — `DesignToken` (every dark-theme colour in `DESIGN.md`, by its spec name). The older
+  `Color.andromeda{Void, Panel, Teal, Glow, Live, Muted, Amber, Dim, Ink}` names are aliases:
+  `background`, `card`, `primary`, `glow`, `signal`, `muted-foreground`, `partial`, `spec`, `foreground`.
+  The companion HUD's `AndromedaTheme.*` mirrors the spec's names one-for-one.
 - **Motion** — `Motion.{pulse, breathe, orbit, sweep, wave}` + `Motion.spring(_:_:)`.
 - **Typography** — `AndromedaFont.{serif, ui, mono}` + `.cpDisplay()/.cpTitle()/.cpBody()/.cpMeta()` view modifiers and `Eyebrow`.
 - **Surface & mark** — `AndromedaSurface()`, `AndromedaLogo()` (bundled raster), `AndromedaCore()` (breathing + orbiting glyph).

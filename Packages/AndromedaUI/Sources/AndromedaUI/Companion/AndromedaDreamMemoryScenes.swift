@@ -73,7 +73,7 @@ struct AndromedaDreamField: View {
                 ctx.fill(
                     Path(ellipseIn: CGRect(x: haloCenter.x - 60 * scale, y: haloCenter.y - 60 * scale, width: 120 * scale, height: 120 * scale)),
                     with: .radialGradient(
-                        Gradient(colors: [AndromedaTheme.accent.opacity(0.22), AndromedaTheme.accent.opacity(0)]),
+                        Gradient(colors: [AndromedaTheme.glow.opacity(0.22), AndromedaTheme.glow.opacity(0)]),
                         center: haloCenter, startRadius: 0, endRadius: 60 * scale
                     )
                 )
@@ -82,16 +82,16 @@ struct AndromedaDreamField: View {
                 let moonCenter = project(CGPoint(x: 150, y: 34), in: rect)
                 let moonR: CGFloat = 15 * scale
                 var moon = Path(ellipseIn: CGRect(x: moonCenter.x - moonR, y: moonCenter.y - moonR, width: moonR * 2, height: moonR * 2))
-                ctx.fill(moon, with: .color(AndromedaTheme.accent.opacity(0.9)))
+                ctx.fill(moon, with: .color(AndromedaTheme.glow.opacity(0.9)))
                 let biteCenter = CGPoint(x: moonCenter.x + 7 * scale, y: moonCenter.y - 4 * scale)
                 moon = Path(ellipseIn: CGRect(x: biteCenter.x - moonR, y: biteCenter.y - moonR, width: moonR * 2, height: moonR * 2))
-                ctx.fill(moon, with: .color(AndromedaTheme.popover))
+                ctx.fill(moon, with: .color(AndromedaTheme.background))
 
                 let ringPhase = reduceMotion ? 0.5 : (t.truncatingRemainder(dividingBy: 5)) / 5
                 let ringOpacity = reduceMotion ? 0.5 : 0.3 + 0.4 * abs(sin(ringPhase * 2 * .pi))
                 ctx.stroke(
                     Path(ellipseIn: CGRect(x: moonCenter.x - moonR, y: moonCenter.y - moonR, width: moonR * 2, height: moonR * 2)),
-                    with: .color(AndromedaTheme.accent.opacity(ringOpacity)),
+                    with: .color(AndromedaTheme.glow.opacity(ringOpacity)),
                     lineWidth: 0.6 * scale
                 )
 
@@ -195,13 +195,13 @@ struct AndromedaRemWave: View {
                     to: project(CGPoint(x: eyeOrigin.x + 30, y: eyeOrigin.y), in: rect),
                     control: project(CGPoint(x: eyeOrigin.x, y: eyeOrigin.y + 20), in: rect)
                 )
-                ctx.stroke(eye, with: .color(AndromedaTheme.accent), lineWidth: 2.5 * scale)
+                ctx.stroke(eye, with: .color(AndromedaTheme.glow), lineWidth: 2.5 * scale)
                 for (i, x) in [-22.0, -11, 0, 11, 22].enumerated() {
                     let y0 = i == 2 ? 10.0 : 7 + abs(x) * 0.14
                     let start = project(CGPoint(x: eyeOrigin.x + x, y: eyeOrigin.y + y0), in: rect)
                     let end = project(CGPoint(x: eyeOrigin.x + x * 1.05, y: eyeOrigin.y + y0 + 5), in: rect)
                     var lash = Path(); lash.move(to: start); lash.addLine(to: end)
-                    ctx.stroke(lash, with: .color(AndromedaTheme.accent.opacity(0.7)), lineWidth: 1.3 * scale)
+                    ctx.stroke(lash, with: .color(AndromedaTheme.glow.opacity(0.7)), lineWidth: 1.3 * scale)
                 }
 
                 // faint monitor grid
@@ -209,18 +209,18 @@ struct AndromedaRemWave: View {
                     var grid = Path()
                     grid.move(to: project(CGPoint(x: 14, y: y), in: rect))
                     grid.addLine(to: project(CGPoint(x: 186, y: y), in: rect))
-                    ctx.stroke(grid, with: .color(AndromedaTheme.border.opacity(0.25)), lineWidth: 0.5 * scale)
+                    ctx.stroke(grid, with: .color(AndromedaTheme.spec.opacity(0.25)), lineWidth: 0.5 * scale)
                 }
 
                 // background channels
                 for c in channels where !c.predominant {
                     let phase = reduceMotion ? 0.5 : (t.truncatingRemainder(dividingBy: c.duration)) / c.duration
                     let opacity = reduceMotion ? 0.35 : 0.2 + 0.25 * (1 + sin(phase * 2 * .pi)) / 2
-                    ctx.stroke(path(for: c, in: rect), with: .color(AndromedaTheme.accent.opacity(opacity)), lineWidth: 1 * scale)
+                    ctx.stroke(path(for: c, in: rect), with: .color(AndromedaTheme.glow.opacity(opacity)), lineWidth: 1 * scale)
                 }
 
                 // predominant channel: track + bold glowing trace
-                ctx.stroke(path(for: lead, in: rect), with: .color(AndromedaTheme.border.opacity(0.4)), lineWidth: 1.5 * scale)
+                ctx.stroke(path(for: lead, in: rect), with: .color(AndromedaTheme.spec.opacity(0.4)), lineWidth: 1.5 * scale)
                 var leadCtx = ctx
                 leadCtx.addFilter(.shadow(color: AndromedaTheme.primary.opacity(0.7), radius: 4 * scale))
                 leadCtx.stroke(path(for: lead, in: rect), with: .color(AndromedaTheme.primary), lineWidth: 2.4 * scale)
@@ -265,13 +265,13 @@ struct AndromedaBraidMerge: View {
                 ring = ring.applying(CGAffineTransform(translationX: core.x, y: core.y)
                     .concatenating(CGAffineTransform(rotationAngle: reduceMotion ? 0 : ringPhase * 2 * .pi)))
                 let opPhase = reduceMotion ? 0.4 : 0.15 + 0.35 * abs(sin((t.truncatingRemainder(dividingBy: 4)) / 4 * 2 * .pi))
-                ctx.stroke(ring, with: .color(AndromedaTheme.accent.opacity(opPhase)), style: StrokeStyle(lineWidth: 1 * scale, dash: [3 * scale, 5 * scale]))
+                ctx.stroke(ring, with: .color(AndromedaTheme.glow.opacity(opPhase)), style: StrokeStyle(lineWidth: 1 * scale, dash: [3 * scale, 5 * scale]))
 
                 // four braiding threads converging on the core
                 let threads: [(from: CGPoint, control: CGPoint, color: Color)] = [
                     (CGPoint(x: 20, y: 30), CGPoint(x: 70, y: 40), AndromedaTheme.primary),
                     (CGPoint(x: 20, y: 90), CGPoint(x: 70, y: 80), AndromedaTheme.signal),
-                    (CGPoint(x: 180, y: 30), CGPoint(x: 130, y: 40), AndromedaTheme.accent),
+                    (CGPoint(x: 180, y: 30), CGPoint(x: 130, y: 40), AndromedaTheme.glow),
                     (CGPoint(x: 180, y: 90), CGPoint(x: 130, y: 80), AndromedaTheme.partial),
                 ]
                 for t2 in threads {
@@ -325,7 +325,7 @@ struct AndromedaEngramTimeline: View {
                 var track = Path()
                 track.move(to: project(CGPoint(x: 14, y: 60), in: rect))
                 track.addLine(to: project(CGPoint(x: 186, y: 60), in: rect))
-                ctx.stroke(track, with: .color(AndromedaTheme.border), lineWidth: 1.5 * scale)
+                ctx.stroke(track, with: .color(AndromedaTheme.spec), lineWidth: 1.5 * scale)
 
                 let fillPhase = reduceMotion ? 1.0 : min(1, (t.truncatingRemainder(dividingBy: 4)) / 4 * 1.3)
                 ctx.stroke(track.trimmedPath(from: 0, to: fillPhase), with: .color(AndromedaTheme.primary), lineWidth: 1.5 * scale)
@@ -451,7 +451,7 @@ struct AndromedaCrystalForm: View {
                 var gem = Path()
                 gem.move(to: gp(0, -20)); gem.addLine(to: gp(16, -6)); gem.addLine(to: gp(10, 18))
                 gem.addLine(to: gp(-10, 18)); gem.addLine(to: gp(-16, -6)); gem.closeSubpath()
-                ctx.fill(gem, with: .color(AndromedaTheme.accent.opacity(0.14 * crystalPhase)))
+                ctx.fill(gem, with: .color(AndromedaTheme.glow.opacity(0.14 * crystalPhase)))
                 var gemCtx = ctx
                 gemCtx.addFilter(.shadow(color: AndromedaTheme.primary.opacity(0.6 * crystalPhase), radius: 5 * scale))
                 gemCtx.stroke(gem, with: .color(AndromedaTheme.primary.opacity(crystalPhase)), lineWidth: 1.6 * scale)
@@ -493,7 +493,7 @@ struct AndromedaRecallPulse: View {
 
                 for node in nodes {
                     var edge = Path(); edge.move(to: core); edge.addLine(to: project(node.0, in: rect))
-                    ctx.stroke(edge, with: .color(AndromedaTheme.border.opacity(0.4)), lineWidth: 1 * scale)
+                    ctx.stroke(edge, with: .color(AndromedaTheme.spec.opacity(0.4)), lineWidth: 1 * scale)
                 }
                 for node in nodes {
                     let p = project(node.0, in: rect)
@@ -549,10 +549,10 @@ struct AndromedaRecallPulse: View {
 
 // MARK: - Previews (one per scene, per swift-skill's #Preview-per-state rule)
 
-#Preview("Dream Field") { AndromedaDreamField().frame(width: 240, height: 144).background(AndromedaTheme.card) }
-#Preview("REM Wave (EEG)") { AndromedaRemWave().frame(width: 240, height: 144).background(AndromedaTheme.card) }
-#Preview("Braid Merge") { AndromedaBraidMerge().frame(width: 240, height: 144).background(AndromedaTheme.card) }
-#Preview("Engram Timeline") { AndromedaEngramTimeline().frame(width: 240, height: 144).background(AndromedaTheme.card) }
-#Preview("Constellation Graph") { AndromedaConstellationGraph().frame(width: 240, height: 144).background(AndromedaTheme.card) }
-#Preview("Crystal Form") { AndromedaCrystalForm().frame(width: 240, height: 144).background(AndromedaTheme.card) }
-#Preview("Recall Pulse") { AndromedaRecallPulse().frame(width: 240, height: 144).background(AndromedaTheme.card) }
+#Preview("Dream Field") { AndromedaDreamField().frame(width: 240, height: 144).background(AndromedaTheme.background) }
+#Preview("REM Wave (EEG)") { AndromedaRemWave().frame(width: 240, height: 144).background(AndromedaTheme.background) }
+#Preview("Braid Merge") { AndromedaBraidMerge().frame(width: 240, height: 144).background(AndromedaTheme.background) }
+#Preview("Engram Timeline") { AndromedaEngramTimeline().frame(width: 240, height: 144).background(AndromedaTheme.background) }
+#Preview("Constellation Graph") { AndromedaConstellationGraph().frame(width: 240, height: 144).background(AndromedaTheme.background) }
+#Preview("Crystal Form") { AndromedaCrystalForm().frame(width: 240, height: 144).background(AndromedaTheme.background) }
+#Preview("Recall Pulse") { AndromedaRecallPulse().frame(width: 240, height: 144).background(AndromedaTheme.background) }

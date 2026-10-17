@@ -141,7 +141,7 @@ public struct SettingsSection: View {
                 HStack(spacing: 12) {
                     lifeTile("Export config", "Secret-free bundle for another machine", "square.and.arrow.down", .andromedaTeal) { onLifecycle?(.export) }
                     lifeTile("Import config", "Restore routes, mounts & skills", "square.and.arrow.up", .andromedaTeal) { onLifecycle?(.importCfg) }
-                    lifeTile("Remove Andromeda", "Clean, all-Swift uninstall", "trash", Color(red: 1, green: 0.42, blue: 0.42)) { onLifecycle?(.uninstall) }
+                    lifeTile("Remove Andromeda", "Clean, all-Swift uninstall", "trash", .andromedaAlert) { onLifecycle?(.uninstall) }
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
         }

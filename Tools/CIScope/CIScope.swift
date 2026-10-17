@@ -74,7 +74,8 @@ enum RepoPath {
     static let sources = "Sources/"
     static let tests = "Tests/"
     static let ciscopeTool = "Tools/CIScope/"
-    /// Agent-facing design spec; DesignTokenParityTests (root lane) reads it.
+    /// Agent-facing design spec; both DesignTokenParityTests suites read it
+    /// (root lane and the AndromedaUI lane).
     static let designSpec = "DESIGN.md"
     /// Web theme tokens (oklch); DesignTokenParityTests (root lane) reads it.
     static let webThemeTokens = "web/app/globals.css"
@@ -174,8 +175,8 @@ enum LaneRule: CaseIterable {
         case .tests:
             return [.prefix(RepoPath.tests)]
         case .designTokens:
-            // Outside Sources/ and Tests/, but the root-lane parity test reads both;
-            // a token edit here must not be classified as docs-only and skip it.
+            // Outside every package, but the root and AndromedaUI parity tests read
+            // them; a token edit must not be classified as docs-only and skip them.
             return [.exact(RepoPath.designSpec), .exact(RepoPath.webThemeTokens)]
         case .memoryKit:
             return [
@@ -230,8 +231,10 @@ enum LaneRule: CaseIterable {
         switch self {
         case .workflowCI, .ciScopeTool:
             [.runRoot, .runRootE2E, .runMemoryKit, .runMemoryKitLiveE2E, .runAnima, .runGuardian, .runOrchestrator]
-        case .rootPackage, .sources, .tests, .designTokens:
+        case .rootPackage, .sources, .tests:
             [.runRoot]
+        case .designTokens:
+            [.runRoot, .runAndromedaUI]
         case .memoryKit:
             [.runRoot, .runMemoryKit]
         case .anima:

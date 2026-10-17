@@ -79,6 +79,8 @@ public enum AndromedaPalette {
     public static let accent = BrandColor(red: 0x00, green: 0xA8, blue: 0xAA)
     /// `--accent-foreground` · text on accent.
     public static let accentForeground = BrandColor(red: 0xF1, green: 0xFB, blue: 0xFB)
+    /// `--glow` · brightest cyan, for halos and breathing light; on dark ground only.
+    public static let glow = BrandColor(red: 0x90, green: 0xFA, blue: 0xF3)
 
     // MARK: Status trio (+ cyan for shipped/healthy)
 
@@ -107,6 +109,7 @@ public enum AndromedaPalette {
         ("primary-foreground", primaryForeground),
         ("accent", accent),
         ("accent-foreground", accentForeground),
+        ("glow", glow),
         ("shipped", shipped),
         ("signal", signal),
         ("partial", partial),

@@ -19,7 +19,7 @@ struct AndromedaPaletteTests {
 
     @Test("palette stays disciplined and fully enumerated")
     func paletteDiscipline() {
-        #expect(AndromedaPalette.all.count == 18)
+        #expect(AndromedaPalette.all.count == 19)
         #expect(Set(AndromedaPalette.all.map(\.name)).count == AndromedaPalette.all.count)
         #expect(AndromedaPalette.shipped == AndromedaPalette.primary)
     }

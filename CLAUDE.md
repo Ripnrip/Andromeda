@@ -14,7 +14,7 @@ Clients and satellite agents see `memory.*`, `infer.write`, `project.state.*` on
 
 ## Design system
 
-`DESIGN.md` is the source of truth for anything visual — web (`web/`), SwiftUI, and the CLI/TUI. Read it before generating or changing UI. Use tokens only: Tailwind semantic utilities on the web, `AndromedaTheme` / `AndromedaPalette` in Swift, `AndromedaChrome` in the terminal. A token change touches `DESIGN.md`, `web/app/globals.css`, and `AndromedaPalette.swift` together; `DesignTokenParityTests` enforces it.
+`DESIGN.md` is the source of truth for anything visual — web (`web/`), SwiftUI, and the CLI/TUI. Read it before generating or changing UI. Use tokens only: Tailwind semantic utilities on the web, `AndromedaTheme` / `AndromedaPalette` in Swift (`DesignToken` inside `Packages/AndromedaUI`), `AndromedaChrome` in the terminal. A token change touches `DESIGN.md`, `web/app/globals.css`, `AndromedaPalette.swift`, and `Packages/AndromedaUI/Sources/AndromedaUI/DesignToken.swift` together; the two `DesignTokenParityTests` suites enforce it.
 
 ## Claude agent habits
 
