@@ -38,6 +38,7 @@ public enum AndromedaTheme {
     public static let shipped = Color(brand: AndromedaPalette.shipped)
     public static let signal = Color(brand: AndromedaPalette.signal)
     public static let partial = Color(brand: AndromedaPalette.partial)
+    public static let alert = Color(brand: AndromedaPalette.alert)
     public static let spec = Color(brand: AndromedaPalette.spec)
 
     /// `--radius`, 14 pt.

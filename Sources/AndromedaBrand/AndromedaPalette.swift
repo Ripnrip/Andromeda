@@ -5,7 +5,7 @@
  * `web/app/globals.css`, so that terminals, SwiftUI and the website all speak the
  * same palette. `DESIGN.md` at the repo root is the agent-facing spec for the same
  * tokens; `DesignTokenParityTests` fails if any of the three disagree. Deep-space obsidian teal, one electric
- * cyan accent, and the amber/green/slate status trio. Nothing else.
+ * cyan accent, and the amber/green/slate/coral status set. Nothing else.
  *
  * Discipline: never introduce a colour here that does not exist in the web tokens.
  */
@@ -82,7 +82,7 @@ public enum AndromedaPalette {
     /// `--glow` · brightest cyan, for halos and breathing light; on dark ground only.
     public static let glow = BrandColor(red: 0x90, green: 0xFA, blue: 0xF3)
 
-    // MARK: Status trio (+ cyan for shipped/healthy)
+    // MARK: Status set (+ cyan for shipped/healthy)
 
     /// `--shipped` · shipped / healthy / green path.
     public static let shipped = BrandColor(red: 0x1D, green: 0xE4, blue: 0xDB)
@@ -92,6 +92,8 @@ public enum AndromedaPalette {
     public static let partial = BrandColor(red: 0xE5, green: 0xC0, blue: 0x57)
     /// `--spec` · specified only / inert / not started.
     public static let spec = BrandColor(red: 0x7A, green: 0x89, blue: 0x8F)
+    /// `--alert` · failed / blocked / contradicted — the one destructive hue.
+    public static let alert = BrandColor(red: 0xFB, green: 0x81, blue: 0x7A)
 
     /// Every token, for docs, tests and palette dumps.
     public static let all: [(name: String, color: BrandColor)] = [
@@ -114,6 +116,7 @@ public enum AndromedaPalette {
         ("signal", signal),
         ("partial", partial),
         ("spec", spec),
+        ("alert", alert),
     ]
 
     /// `--radius`, in points. 14 pt / 0.875rem.

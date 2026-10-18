@@ -26,6 +26,9 @@ public struct ControlPlaneView: View {
     private var titleBar: some View {
         HStack(spacing: 12) {
             HStack(spacing: 8) {
+                // macOS window controls: the system's own close / minimise / zoom colours,
+                // drawn as part of a window mock-up — not brand colour.
+                // ast-grep-ignore: raw-color-literal
                 ForEach([Color(red: 1, green: 0.37, blue: 0.34), Color(red: 1, green: 0.74, blue: 0.18), Color(red: 0.16, green: 0.78, blue: 0.25)], id: \.self) { c in
                     Circle().fill(c).frame(width: 12, height: 12)
                 }

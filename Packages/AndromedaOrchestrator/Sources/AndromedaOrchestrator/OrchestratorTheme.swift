@@ -3,10 +3,10 @@ import SwiftUI
 // MARK: - Palette
 
 //
-// Derived 1:1 from the console's CSS custom properties, which in turn come
-// from `web/app/globals.css`. Both schemes are first-class: light is a real
-// counterpart, not a washed-out dark. Five structural tokens
-// (void / panel / hairline / accent / foreground) plus three status hues.
+// Built from the design tokens (`DesignToken`, held to DESIGN.md), so the console
+// matches the website's `globals.css` theme for theme: `obsidian` is the dark
+// set, `observatory` the light one. Five structural roles
+// (void / panel / hairline / accent / foreground) plus the status hues.
 
 public struct OrchestratorPalette: Sendable {
     public var void: Color
@@ -22,38 +22,39 @@ public struct OrchestratorPalette: Sendable {
     public var amber: Color
     public var red: Color
 
-    public static let obsidian = OrchestratorPalette(
-        void: Color(red: 0.035, green: 0.067, blue: 0.078),
-        chrome: Color(red: 0.047, green: 0.082, blue: 0.094),
-        panel: Color(red: 0.059, green: 0.098, blue: 0.114),
-        panelHi: Color(red: 0.102, green: 0.149, blue: 0.169),
-        hairline: Color(red: 0.165, green: 0.227, blue: 0.247),
-        ink: Color(red: 0.914, green: 0.957, blue: 0.957),
-        muted: Color(red: 0.588, green: 0.651, blue: 0.663),
-        dim: Color(red: 0.522, green: 0.588, blue: 0.620),
-        cyan: Color(red: 0.204, green: 0.910, blue: 0.863),
-        green: Color(red: 0.243, green: 0.878, blue: 0.549),
-        amber: Color(red: 0.910, green: 0.784, blue: 0.290),
-        red: Color(red: 0.930, green: 0.380, blue: 0.350)
-    )
+    /// Dark theme — DESIGN.md's dark tokens.
+    public static let obsidian = OrchestratorPalette(tokens: \.dark)
 
-    public static let observatory = OrchestratorPalette(
-        void: Color(red: 0.933, green: 0.953, blue: 0.949),
-        chrome: Color(red: 0.973, green: 0.984, blue: 0.980),
-        panel: Color(red: 0.988, green: 0.996, blue: 0.992),
-        panelHi: Color(red: 0.886, green: 0.910, blue: 0.906),
-        hairline: Color(red: 0.804, green: 0.835, blue: 0.831),
-        ink: Color(red: 0.106, green: 0.169, blue: 0.188),
-        muted: Color(red: 0.325, green: 0.400, blue: 0.416),
-        dim: Color(red: 0.435, green: 0.510, blue: 0.525),
-        cyan: Color(red: 0.000, green: 0.518, blue: 0.502),
-        green: Color(red: 0.000, green: 0.502, blue: 0.290),
-        amber: Color(red: 0.545, green: 0.400, blue: 0.043),
-        red: Color(red: 0.694, green: 0.196, blue: 0.157)
-    )
+    /// Light theme — DESIGN.md's `light-*` tokens.
+    public static let observatory = OrchestratorPalette(tokens: \.light)
 
     public static func forScheme(_ scheme: ColorScheme) -> OrchestratorPalette {
         scheme == .light ? .observatory : .obsidian
+    }
+}
+
+/// Declared in an extension so the memberwise initializer stays available.
+extension OrchestratorPalette {
+    /// Fills every role from its design token, reading one theme's values.
+    /// The memberwise call is exhaustive, so a new role can't be left unmapped.
+    init(tokens value: (DesignToken) -> UInt32) {
+        func color(_ token: DesignToken) -> Color {
+            Color(token: value(token))
+        }
+        self.init(
+            void: color(.background),
+            chrome: color(.popover),
+            panel: color(.card),
+            panelHi: color(.secondary),
+            hairline: color(.border),
+            ink: color(.foreground),
+            muted: color(.mutedForeground),
+            dim: color(.spec),
+            cyan: color(.primary),
+            green: color(.signal),
+            amber: color(.partial),
+            red: color(.alert)
+        )
     }
 }
 

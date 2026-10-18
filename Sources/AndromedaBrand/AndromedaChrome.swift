@@ -21,6 +21,9 @@ public enum BrandStatus: String, Sendable, CaseIterable {
     case healthy
     case degraded
     case offline
+    /// Something went wrong — a failed proof, a blocked step. Distinct from
+    /// `offline`, which is merely not running.
+    case failed
 
     public var color: BrandColor {
         switch self {
@@ -28,6 +31,7 @@ public enum BrandStatus: String, Sendable, CaseIterable {
         case .healthy: return AndromedaPalette.signal
         case .partial, .degraded: return AndromedaPalette.partial
         case .specified, .offline: return AndromedaPalette.spec
+        case .failed: return AndromedaPalette.alert
         }
     }
 
