@@ -275,6 +275,14 @@ public final class HUDModel {
     /// Compact fleet-observe / health pulse for the HUD chip.
     public var fleetPulse: HUDFleetPulse = HUDFleetPulse()
 
+    /// Mirror of the search-field text — the App Control window into the
+    /// glass (HAB-838). `HUDView` writes it as the user types; the App
+    /// Control dispatcher writes it on `hud.submit-query` so the field and
+    /// the live-search chain see programmatic submits exactly as typed ones.
+    /// SwiftUI's `onChange` fires only on real value changes, so the two-way
+    /// mirror converges without looping.
+    public var fieldQuery: String = ""
+
     /// 🔮 Capability surface for `project.state.*` — live Studio bridge by default.
     public private(set) var projectSurface: any ProjectStateSurface
 
