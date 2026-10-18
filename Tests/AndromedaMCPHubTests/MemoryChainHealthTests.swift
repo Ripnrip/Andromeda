@@ -256,6 +256,36 @@ struct MemoryChainProofStoreTests {
         #expect(MemoryChainProofStore.isInsideSandbox(MemoryChainProofStore.defaultPath))
     }
 
+    /// PR #91 review P2-3 — pre-runKey documents (schema v1) still decode:
+    /// `runKey` is optional, so old JSON yields nil without a version bump.
+    @Test("legacy document without runKey decodes with nil runKey")
+    func legacyDocumentWithoutRunKeyDecodes() throws {
+        try ensureSandboxExists()
+        let path = sandboxedProofPath()
+        defer { cleanup(path) }
+        let legacy = """
+        {"version": 1, "lastRun": null, "legs": [{"id": "agent-to-agent", "status": "pass", "at": null, "detail": "old writer"}]}
+        """
+        try legacy.write(toFile: path, atomically: true, encoding: .utf8)
+        let loaded = try MemoryChainProofStore.load(from: path)
+        #expect(loaded?.version == 1)
+        #expect(loaded?.legs.count == 1)
+        #expect(loaded?.legs.first?.runKey == nil)
+        #expect(loaded?.legs.first?.detail == "old writer")
+    }
+
+    /// PR #91 review P2-3 — runKey round-trips through the document.
+    @Test("runKey round-trips through disk")
+    func runKeyRoundTrips() throws {
+        let path = sandboxedProofPath()
+        defer { cleanup(path) }
+        let state = MemoryChainProofState(
+            legs: [MemoryChainProofLeg(id: "agent-to-agent", status: .pass, detail: "keyed", runKey: "rk-91")]
+        )
+        try MemoryChainProofStore.save(state, to: path)
+        #expect(try MemoryChainProofStore.load(from: path) == state)
+    }
+
     /// A symlink planted inside the sandbox cannot redirect a write outside
     /// it — ancestor symlinks are resolved on both sides of the comparison
     /// (Cursor security review on #84).

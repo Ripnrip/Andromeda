@@ -91,7 +91,7 @@ func visibilityIsRendered() async throws {
     let writer = GitBackedLettaWriter(memfsRoot: root)
 
     let receipt = try await writer.write(
-        LettaMemoryFact(title: "Cloak Check", body: "x", visibility: .public, source: "test-suite"),
+        LettaMemoryFact(title: "Visibility Check", body: "x", visibility: .public, source: "test-suite"),
         to: "0000aabb-1234-cccc"
     )
     let onDisk = try String(contentsOf: memory.appendingPathComponent(receipt.relativePath), encoding: .utf8)
@@ -214,6 +214,93 @@ func cliVerificationFail() async throws {
     await #expect(throws: LettaIngressError.self) {
         _ = try await writer.write(sampleFact, to: "0000aabb-1234-cccc")
     }
+}
+
+@Test("cloak markers force internal visibility before seal")
+func cloakForcesInternal() async throws {
+    let (root, memory) = try makeTempMemFS()
+    let writer = GitBackedLettaWriter(memfsRoot: root)
+    let fact = LettaMemoryFact(
+        title: "Public Looking Fact",
+        body: "Contains [cloak] customer token details.",
+        visibility: .public,
+        tags: ["share"],
+        source: "test-suite"
+    )
+    #expect(fact.effectiveVisibility == .internal)
+    let receipt = try await writer.write(fact, to: "0000aabb-1234-cccc")
+    let onDisk = try String(contentsOf: memory.appendingPathComponent(receipt.relativePath), encoding: .utf8)
+    #expect(onDisk.contains("visibility: internal"))
+    #expect(!onDisk.contains("visibility: public"))
+}
+
+@Test("credential markers in title, source, or tags force internal")
+func credentialMetadataForcesInternal() {
+    let titled = LettaMemoryFact(
+        title: "sk-abcdefghijklmnopqrstuvwxyz",
+        body: "benign note about the fleet",
+        visibility: .public,
+        source: "hub"
+    )
+    #expect(titled.effectiveVisibility == .internal)
+
+    let sourced = LettaMemoryFact(
+        title: "Benign title",
+        body: "benign note about the fleet",
+        visibility: .friends,
+        source: "xoxb-1234567890abcdef"
+    )
+    #expect(sourced.effectiveVisibility == .internal)
+
+    let tagged = LettaMemoryFact(
+        title: "Benign title",
+        body: "benign note about the fleet",
+        visibility: .public,
+        tags: ["AKIAIOSFODNN7EXAMPLE"],
+        source: "hub"
+    )
+    #expect(tagged.effectiveVisibility == .internal)
+}
+
+@Test("ingress emits start + ok telemetry events")
+func telemetryEmitsOnWrite() async throws {
+    let (root, _) = try makeTempMemFS()
+    let recorder = RecordingTelemetryClient()
+    let writer = GitBackedLettaWriter(memfsRoot: root, telemetry: recorder)
+    _ = try await writer.write(sampleFact, to: "0000aabb-1234-cccc")
+    let names = await recorder.names()
+    #expect(names.contains("memory.ingress.write.start"))
+    #expect(names.contains("memory.ingress.write.ok"))
+    let events = await recorder.snapshot()
+    let forbidden = ["source", "slug", "relative_path", "title", "error"]
+    for event in events {
+        for key in forbidden {
+            #expect(event.attributes[key] == nil, "\(event.name) leaked \(key)")
+        }
+        let blob = event.attributes.values.joined(separator: " ")
+        #expect(!blob.contains(sampleFact.source))
+        #expect(!blob.contains(sampleFact.title))
+    }
+}
+
+@Test("ingress emits error telemetry when write fails")
+func telemetryEmitsOnError() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("letta-ingress-tel-err-\(UUID().uuidString)", isDirectory: true)
+    let recorder = RecordingTelemetryClient()
+    let writer = GitBackedLettaWriter(memfsRoot: root, telemetry: recorder)
+    await #expect(throws: LettaIngressError.self) {
+        // Valid hex agent id so we fail on memfsMissing after start telemetry.
+        _ = try await writer.write(sampleFact, to: "0000aabb-1234-cccc")
+    }
+    let names = await recorder.names()
+    #expect(names.contains("memory.ingress.write.start"))
+    #expect(names.contains("memory.ingress.write.error"))
+    let errorEvent = await recorder.snapshot().first { $0.name == "memory.ingress.write.error" }
+    #expect(errorEvent?.attributes["error_code"] == "memfs_missing")
+    #expect(errorEvent?.attributes["error"] == nil)
+    let blob = errorEvent?.attributes.values.joined(separator: " ") ?? ""
+    #expect(!blob.contains(root.path))
 }
 
 /// 🌐 Live E2E against the real Studio-Agent memfs. Only runs when

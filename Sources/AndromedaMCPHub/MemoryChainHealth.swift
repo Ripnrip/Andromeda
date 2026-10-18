@@ -188,6 +188,11 @@ public struct MemoryChainProofLeg: Sendable, Equatable, Codable {
     public let at: Date?
     /// Operator-facing one-liner (what was proven, how).
     public let detail: String
+    /// Durable idempotency key for the run that produced this leg (PR #91
+    /// review P2-3): re-running with the same key after a pass is a no-op, and
+    /// duplicate durable retains from retries of one run are traceable to it.
+    /// Absent on pre-runKey documents (decodes as nil — schema stays v1).
+    public let runKey: String?
 
     public enum Status: String, Sendable, Codable {
         case pass
@@ -195,11 +200,18 @@ public struct MemoryChainProofLeg: Sendable, Equatable, Codable {
         case pending
     }
 
-    public init(id: String, status: Status, at: Date? = nil, detail: String = "") {
+    public init(
+        id: String,
+        status: Status,
+        at: Date? = nil,
+        detail: String = "",
+        runKey: String? = nil
+    ) {
         self.id = id
         self.status = status
         self.at = at
         self.detail = detail
+        self.runKey = runKey
     }
 }
 
@@ -297,7 +309,12 @@ public enum MemoryChainProofStore {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(state).write(to: url)
+        // Atomic publish (PR #91 review P1-1): `.atomic` writes a temp file in
+        // the destination directory, then renames it over the destination, so a
+        // concurrent HUD reader never observes a torn/partial JSON document.
+        // Writers themselves are serialized by `CrossProcessFileLock` in
+        // `MemoryChainProofRunner.mergeAndSave` — this covers direct saves.
+        try encoder.encode(state).write(to: url, options: .atomic)
     }
 }
 
