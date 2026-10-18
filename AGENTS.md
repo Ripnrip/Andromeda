@@ -64,6 +64,7 @@ cd Packages/MemoryKit && swift test
 ## Engineering Rules
 
 - Prefer Swift strict-concurrency correctness, typed identifiers, rich enums, protocol boundaries, actors for shared mutable state, initializer injection, and OSLog diagnostics.
+- **Abstraction before plumbing.** When a procedure fans out to N backends (memory stores, telemetry sinks), call the Andromeda capability first (`memory.store` / `memory.journal` / `memory.session_dump` behind the curtain) — one call, distribution owned by the control plane. Drive a backend directly only when the pillar reports not-ready, and report that gap loudly: the gap is the battle-test finding, not a reason to route around the pillar. If you find yourself making multiple calls to backends the charter says are behind the curtain, you are working at the wrong layer.
 - Add function-level comments for generated code and detailed comments for tests.
 - Keep retries bounded, cancellation respected, operations idempotent where replay is possible, and failures observable.
 - Never silently change schemas or configuration formats; add ADRs and migrations.
