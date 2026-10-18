@@ -28,13 +28,12 @@ enum LettaChannels {
     private static func run() throws {
         let apiKey = try Keychain.lettaAPIKey()
         let child = Process()
-        child.executableURL = URL(fileURLWithPath: Paths.node)
+        child.executableURL = URL(fileURLWithPath: Paths.lettaCLI)
         // --backend local must precede `server`. Slack accounts bind
         // agent-local-* ids that exist only in lc-local-backend. Cloud
         // register still runs, but createConversationForAgent against
         // api.letta.com 404s agentNotFound and Slack stays silent.
         child.arguments = [
-            Paths.lettaJS,
             "--backend", "local",
             "server", "--channels", "slack", "--debug",
         ]
@@ -45,6 +44,10 @@ enum LettaChannels {
         env["LETTA_API_KEY"] = apiKey
         env["LETTA_DISABLE_CRON_SCHEDULER"] = "1"
         env["LETTA_LOCAL_BACKEND_EXPERIMENTAL"] = "1"
+        // Slack turns were loading ~188 global skills before the model
+        // spoke. Channel replies only need MessageChannel. A dedicated
+        // empty skills dir keeps ~/.agents out of the listener process.
+        env["LETTA_SKILLS_DIRECTORY"] = Paths.slackSkillsDirectory
         child.environment = env
 
         // waitUntilExit blocks this thread, so signal sources cannot
@@ -106,11 +109,9 @@ enum Keychain {
 
 enum Paths {
     static let home = ProcessInfo.processInfo.environment["HOME"] ?? "/Users/admin"
-    static let path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
-    static let node = "/opt/homebrew/bin/node"
-    /// Letta.app unpacked copy — same file the JS launcher used. nvm
-    /// paths are session-only and vanish under launchd.
-    static let lettaJS = "/Applications/Letta.app/Contents/Resources/app.asar.unpacked/node_modules/@letta-ai/letta-code/letta.js"
+    static let path = home + "/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+    static let lettaCLI = home + "/.local/bin/letta"
+    static let slackSkillsDirectory = home + "/.letta/channels/slack-skills"
 }
 
 enum LaunchError: Error, CustomStringConvertible {
