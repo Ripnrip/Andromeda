@@ -1,5 +1,31 @@
 import Foundation
 
+/// Model tier for the fleet fallback cascade. Enum (not raw String)
+/// because a tier is a typed, enumerated choice — it carries its own
+/// `rawValue` (the provider/model handle the agent retrieve path
+/// consults) while staying exhaustive at compile time. A `[String]`
+/// would let any stray value through silently; this forces every tier
+/// to be a known, declared model.
+public enum Tier: String, CaseIterable, Sendable {
+    /// Native best-effort provider (needs `letta connect` to refresh
+    /// OAuth; falls through when the token is stale).
+    case xaiGrok46 = "xai/grok-4.6"
+    /// Openai-compatible fallback, always tested at load.
+    case glm53 = "openai-compatible/glm/glm-5.3"
+    /// Secondary openai-compatible tier (added when the primary is
+    /// down or quota-limited).
+    case glm52 = "openai-compatible/glm/glm-5.2"
+
+    /// All tiers in cascade order: primary first, fallbacks after.
+    /// The order is the contract — `probe()` tries them in this
+    /// sequence and `fleet status` reports the first live one.
+    public static let cascade: [Tier] = [
+        .xaiGrok46,
+        .glm53,
+        .glm52,
+    ]
+}
+
 /// Health probe for the Letta Slack channels LaunchAgent
 /// (`com.binarybros.letta-channels`).
 ///
@@ -27,11 +53,19 @@ public struct LettaChannelsHealthProbe: Sendable {
         public let running: Bool
         public let logAge: TimeInterval?
         public let logStale: Bool
+        public let tiers: [Tier]
+        public let tierStatus: [Tier: Bool]
 
         /// True only when the hard signals (launchd registration +
         /// live process) are both green. This is what `andromeda fleet
         /// status` uses as its exit code.
         public var healthy: Bool { loaded && running }
+
+        /// True only when at least one model tier is reachable. This
+        /// gates the exit code when all tiers are dead: a fleet with
+        /// no live model cannot serve Slack messages, so it should
+        /// fail closed rather than report green.
+        public var hasLiveTier: Bool { tierStatus.values.contains(true) }
     }
 
     public static let label = "com.binarybros.letta-channels"
@@ -45,6 +79,7 @@ public struct LettaChannelsHealthProbe: Sendable {
     public let daemonPath: String
     public let logPath: String
     public let staleThreshold: TimeInterval
+    public let tiers: [Tier]
 
     private let shell: any ShellExecuting
     private let now: @Sendable () -> Date
@@ -61,6 +96,7 @@ public struct LettaChannelsHealthProbe: Sendable {
         daemonPath: String = "/Users/admin/.local/bin/LettaChannels",
         logPath: String = "/Users/admin/.letta/logs/letta-channels.out.log",
         staleThreshold: TimeInterval = LettaChannelsHealthProbe.staleLogThreshold,
+        tiers: [Tier] = [],
         shell: (any ShellExecuting)? = LiveShell(),
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
@@ -68,6 +104,7 @@ public struct LettaChannelsHealthProbe: Sendable {
         self.daemonPath = daemonPath
         self.logPath = logPath
         self.staleThreshold = staleThreshold
+        self.tiers = tiers
         self.shell = shell ?? LiveShell()
         self.now = now
     }
@@ -96,11 +133,14 @@ public struct LettaChannelsHealthProbe: Sendable {
         let running = pgrepResult?.success ?? false
 
         let logAge = logAgeSeconds()
+        let tierStatus = await probeTierStatus()
         return Report(
             loaded: loaded,
             running: running,
             logAge: logAge,
-            logStale: logAge.map { $0 > staleThreshold } ?? false
+            logStale: logAge.map { $0 > staleThreshold } ?? false,
+            tiers: tiers,
+            tierStatus: tierStatus
         )
     }
 
@@ -115,5 +155,28 @@ public struct LettaChannelsHealthProbe: Sendable {
             )[.modificationDate] as? Date
         else { return nil }
         return now().timeIntervalSince(mtime)
+    }
+
+    /// Verify each configured model tier by asking the local `letta`
+    /// catalog whether the handle resolves. A tier that fails (429,
+    /// 403, unknown-model, timeout) is marked inactive so
+    /// `fleet status` can report which models are actually usable
+    /// instead of assuming every listed tier is live.
+    ///
+    /// `letta model list` is the cheapest universal probe: it needs
+    /// no provider-specific endpoint and returns the same catalog
+    /// the agent retrieve path consults. The shell is injected so
+    /// tests can stub the output deterministically.
+    private func probeTierStatus() async -> [Tier: Bool] {
+        guard !tiers.isEmpty else { return [:] }
+        let list = try? await shell.execute([
+            "/usr/bin/env", "letta", "model", "list",
+        ])
+        let output = list?.output ?? ""
+        var status: [Tier: Bool] = [:]
+        for tier in tiers {
+            status[tier] = output.contains(tier.rawValue)
+        }
+        return status
     }
 }

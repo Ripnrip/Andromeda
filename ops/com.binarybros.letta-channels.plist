@@ -1,18 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Letta Slack channels daemon — node bridge that relays the Letta
-  channels API into Slack. It silently stayed unloaded for 10 days
-  because nothing installed or supervised it; Andromeda fleet now
-  owns install + health probe (`andromeda fleet install` / `status`).
+  Letta Slack channels daemon. Supervised Swift binary
+  (`~/.local/bin/LettaChannels`) that reads the keychain and spawns
+  letta.js. Activity Monitor name is LettaChannels, not node.
 
-  KeepAlive=true: the daemon is infrastructure — a crash restarts it,
-  same contract as com.andromeda.mcp-hub.plist (nobody "quits" it by
-  hand; Slack visibility must survive restarts).
+  KeepAlive=true: the daemon is infrastructure. A crash restarts it,
+  same contract as com.andromeda.mcp-hub.plist.
 
-  IMPORTANT: Exec node directly under launchd. Do NOT use
-  /usr/bin/open -a — LaunchServices `open` can inherit Aqua/agent-shell
-  env. Same contract as com.andromeda.hud / mcp-hub plists.
+  IMPORTANT: Exec the Swift binary directly under launchd. Do NOT use
+  /usr/bin/open -a and do NOT exec node as argv0. Same contract as
+  com.andromeda.hud / mcp-hub plists.
 
   Path template: launchd does NOT expand $HOME/~ — install must rewrite
   the Studio home string to the real $HOME (absolute paths only).
@@ -32,7 +30,6 @@
 	<string>com.binarybros.letta-channels</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/opt/homebrew/bin/node</string>
 		<string>/Users/admin/.local/bin/LettaChannels</string>
 	</array>
 	<key>WorkingDirectory</key>

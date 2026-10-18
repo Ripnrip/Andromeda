@@ -20,6 +20,7 @@ struct Andromeda: AsyncParsableCommand {
             InstallApp.self,
             InstallLaunchAgent.self,
             MCPHubCommand.self,
+            FleetCommand.self,
             MemoryChainCommand.self,
         ],
         defaultSubcommand: Status.self

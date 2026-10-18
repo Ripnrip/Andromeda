@@ -16,11 +16,14 @@ struct LettaChannelsHealthProbeTests {
     private struct ScriptedShell: ShellExecuting {
         let results: [String: ShellResult]
 
-        /// Answers keyed by the second token ("print" / "pgrep") plus a
-        /// catch-all default so unknown probes fail loud, not silently
-        /// green.
+        /// Answers keyed by argv0 basename (launchctl / pgrep / env)
+        /// plus a catch-all default so unknown probes fail loud, not
+        /// silently green.
         func execute(_ arguments: [String]) async throws -> ShellResult {
-            let key = arguments.dropFirst().prefix(1).joined()
+            // Key by argv0 basename. Keying on the second token missed
+            // `pgrep -f` (second token is `-f`) so every running mock
+            // collapsed to false and the suite was a lie.
+            let key = (arguments.first as? NSString)?.lastPathComponent ?? ""
             return results[key] ?? ShellResult(success: false, output: "unexpected: \(arguments)")
         }
     }
@@ -52,7 +55,7 @@ struct LettaChannelsHealthProbeTests {
             uid: 501,
             logPath: log.path,
             shell: ScriptedShell(results: [
-                "print": ShellResult(success: true, output: ""),
+                "launchctl": ShellResult(success: true, output: ""),
                 "pgrep": ShellResult(success: true, output: "4242"),
             ]),
             now: { now }
@@ -74,7 +77,7 @@ struct LettaChannelsHealthProbeTests {
         let probe = LettaChannelsHealthProbe(
             uid: 501,
             shell: ScriptedShell(results: [
-                "print": ShellResult(success: false, output: "Could not find service"),
+                "launchctl": ShellResult(success: false, output: "Could not find service"),
                 "pgrep": ShellResult(success: true, output: "4242"),
             ]),
             now: { Date() }
@@ -94,7 +97,7 @@ struct LettaChannelsHealthProbeTests {
         let probe = LettaChannelsHealthProbe(
             uid: 501,
             shell: ScriptedShell(results: [
-                "print": ShellResult(success: true, output: ""),
+                "launchctl": ShellResult(success: true, output: ""),
                 "pgrep": ShellResult(success: false, output: ""),
             ]),
             now: { Date() }
@@ -121,7 +124,7 @@ struct LettaChannelsHealthProbeTests {
             uid: 501,
             logPath: log.path,
             shell: ScriptedShell(results: [
-                "print": ShellResult(success: true, output: ""),
+                "launchctl": ShellResult(success: true, output: ""),
                 "pgrep": ShellResult(success: true, output: "1"),
             ]),
             now: { now }
@@ -144,7 +147,7 @@ struct LettaChannelsHealthProbeTests {
             uid: 501,
             logPath: dir.appendingPathComponent("does-not-exist.log").path,
             shell: ScriptedShell(results: [
-                "print": ShellResult(success: true, output: ""),
+                "launchctl": ShellResult(success: true, output: ""),
                 "pgrep": ShellResult(success: true, output: "1"),
             ]),
             now: { Date() }
@@ -173,6 +176,51 @@ struct LettaChannelsHealthProbeTests {
 
         let launchctlCalls = await shell.launchctlCalls()
         #expect(launchctlCalls.contains(["/bin/launchctl", "print", "gui/1234/com.binarybros.letta-channels"]))
+    }
+
+    /// Empty tiers skip the catalog probe: no extra shell spawn, and
+    /// `hasLiveTier` is false without failing `healthy`. Status must
+    /// still be usable before anyone configures a cascade.
+    @Test
+    func emptyTiersSkipCatalogProbeAndDoNotFailHealth() async {
+        let probe = LettaChannelsHealthProbe(
+            uid: 501,
+            tiers: [],
+            shell: ScriptedShell(results: [
+                "launchctl": ShellResult(success: true, output: ""),
+                "pgrep": ShellResult(success: true, output: "1"),
+            ]),
+            now: { Date() }
+        )
+        let report = await probe.probe()
+        #expect(report.healthy)
+        #expect(report.tiers.isEmpty)
+        #expect(!report.hasLiveTier)
+    }
+
+    /// A listed tier is live only when its handle appears in `letta
+    /// model list` output. Substring match is the catalog contract —
+    /// handles are unique namespaced strings.
+    @Test
+    func listedTierIsLiveWhenCatalogContainsHandle() async {
+        let probe = LettaChannelsHealthProbe(
+            uid: 501,
+            tiers: [.glm53, .xaiGrok46],
+            shell: ScriptedShell(results: [
+                "launchctl": ShellResult(success: true, output: ""),
+                "pgrep": ShellResult(success: true, output: "1"),
+                "env": ShellResult(
+                    success: true,
+                    output: "openai-compatible/glm/glm-5.3\n"
+                ),
+            ]),
+            now: { Date() }
+        )
+        let report = await probe.probe()
+        #expect(report.tierStatus[.glm53] == true)
+        #expect(report.tierStatus[.xaiGrok46] == false)
+        #expect(report.hasLiveTier)
+        #expect(report.healthy)
     }
 
     /// Records every invocation so tests can assert exact commands.
