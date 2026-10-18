@@ -26,6 +26,30 @@ public enum Tier: String, CaseIterable, Sendable {
     ]
 }
 
+/// Home-relative layout for the Letta channels supervisor. Enum cases,
+/// not concatenated path strings — a typo in `".local/bin"` would
+/// otherwise silently install to the wrong place on every host.
+public enum LettaChannelsLayout: Sendable {
+    case supervisorBinary
+    case outLog
+    case errLog
+    case tiersFile
+
+    public func url(home: String) -> URL {
+        let root = URL(fileURLWithPath: home, isDirectory: true)
+        switch self {
+        case .supervisorBinary:
+            return root.appendingPathComponent(".local/bin/LettaChannels")
+        case .outLog:
+            return root.appendingPathComponent(".letta/logs/letta-channels.out.log")
+        case .errLog:
+            return root.appendingPathComponent(".letta/logs/letta-channels.err.log")
+        case .tiersFile:
+            return root.appendingPathComponent(".andromeda/fleet/letta-channels.tiers")
+        }
+    }
+}
+
 /// Health probe for the Letta Slack channels LaunchAgent
 /// (`com.binarybros.letta-channels`).
 ///
@@ -95,8 +119,8 @@ public struct LettaChannelsHealthProbe: Sendable {
     ///   - now: injected clock so log age is deterministic in tests.
     public init(
         uid: UInt32,
-        daemonPath: String = "/Users/admin/.local/bin/LettaChannels",
-        logPath: String = "/Users/admin/.letta/logs/letta-channels.out.log",
+        daemonPath: String = LettaChannelsLayout.supervisorBinary.url(home: NSHomeDirectory()).path,
+        logPath: String = LettaChannelsLayout.outLog.url(home: NSHomeDirectory()).path,
         staleThreshold: TimeInterval = LettaChannelsHealthProbe.staleLogThreshold,
         tiers: [Tier] = [],
         shell: (any ShellExecuting)? = LiveShell(),

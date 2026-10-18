@@ -69,7 +69,7 @@ struct FleetCommand: AsyncParsableCommand {
                     "LettaChannels binary not built at \(supervisorSource.path) — run `swift build -c release --product LettaChannels`"
                 )
             }
-            let supervisorDest = URL(fileURLWithPath: homeDir + "/.local/bin/LettaChannels")
+            let supervisorDest = LettaChannelsLayout.supervisorBinary.url(home: homeDir)
             let binaryReport = try await BinaryInstaller().install(
                 source: supervisorSource,
                 destination: supervisorDest
@@ -117,8 +117,8 @@ struct FleetCommand: AsyncParsableCommand {
             let home = NSHomeDirectory()
             let probe = LettaChannelsHealthProbe(
                 uid: uid ?? UInt32(getuid()),
-                daemonPath: home + "/.local/bin/LettaChannels",
-                logPath: home + "/.letta/logs/letta-channels.out.log",
+                daemonPath: LettaChannelsLayout.supervisorBinary.url(home: home).path,
+                logPath: LettaChannelsLayout.outLog.url(home: home).path,
                 tiers: FleetCommand.loadPersistedTiers(home: home)
             )
             let report = await probe.probe()
@@ -171,7 +171,7 @@ struct FleetCommand: AsyncParsableCommand {
     }
 
     static func tiersFile(home: String) -> URL {
-        URL(fileURLWithPath: home + "/.andromeda/fleet/letta-channels.tiers")
+        LettaChannelsLayout.tiersFile.url(home: home)
     }
 
     static func parseTiers(_ raw: String) throws -> [Tier] {

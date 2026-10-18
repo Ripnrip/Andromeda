@@ -244,6 +244,19 @@ struct LettaChannelsHealthProbeTests {
         #expect(!report.healthy)
     }
 
+    /// Layout cases must stay under the injected home. A stringly
+    /// `home + "/.local/bin"` concat is how a missing slash silently
+    /// writes next to $HOME.
+    @Test
+    func layoutURLsStayUnderInjectedHome() {
+        let home = "/tmp/layout-home"
+        let bin = LettaChannelsLayout.supervisorBinary.url(home: home)
+        #expect(bin.path.hasPrefix(home + "/"))
+        #expect(bin.lastPathComponent == "LettaChannels")
+        #expect(LettaChannelsLayout.outLog.url(home: home).lastPathComponent == "letta-channels.out.log")
+        #expect(LettaChannelsLayout.tiersFile.url(home: home).path.hasSuffix("letta-channels.tiers"))
+    }
+
     /// Records every invocation so tests can assert exact commands.
     private actor RecordingInvocationShell: ShellExecuting {
         private var calls: [[String]] = []
