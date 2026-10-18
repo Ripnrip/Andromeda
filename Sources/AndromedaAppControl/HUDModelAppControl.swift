@@ -36,7 +36,7 @@ public struct HUDModelAppControlSource: AppControlStateSourcing {
                 outcome: Self.summarize(model.lastOutcome),
                 recentQueries: model.recentQueries,
                 fleetPulse: AppControlSnapshot.FleetPulseSummary(
-                    status: model.fleetPulse.status.rawValue,
+                    status: AppControlSnapshot.PulseStatus(rawValue: model.fleetPulse.status.rawValue) ?? .unknown,
                     attentionCount: model.fleetPulse.attentionCount,
                     detail: model.fleetPulse.detail
                 ),
@@ -51,35 +51,35 @@ public struct HUDModelAppControlSource: AppControlStateSourcing {
     public static func summarize(_ outcome: HUDOutcome) -> AppControlSnapshot.OutcomeSummary {
         switch outcome {
         case .idle:
-            AppControlSnapshot.OutcomeSummary(kind: "idle", summary: "HUD idle")
+            AppControlSnapshot.OutcomeSummary(kind: .idle, summary: "HUD idle")
         case .syncing:
-            AppControlSnapshot.OutcomeSummary(kind: "syncing", summary: "Query in flight")
+            AppControlSnapshot.OutcomeSummary(kind: .syncing, summary: "Query in flight")
         case let .recalled(hits):
             AppControlSnapshot.OutcomeSummary(
-                kind: "recalled",
+                kind: .recalled,
                 summary: "Recalled \(hits.count) memory hit\(hits.count == 1 ? "" : "s")",
                 hits: hits.count
             )
         case let .stored(idSummary):
-            AppControlSnapshot.OutcomeSummary(kind: "stored", summary: "Stored \(idSummary)")
+            AppControlSnapshot.OutcomeSummary(kind: .stored, summary: "Stored \(idSummary)")
         case let .journaled(idSummary):
-            AppControlSnapshot.OutcomeSummary(kind: "journaled", summary: "Journaled \(idSummary)")
+            AppControlSnapshot.OutcomeSummary(kind: .journaled, summary: "Journaled \(idSummary)")
         case let .projects(states):
             AppControlSnapshot.OutcomeSummary(
-                kind: "projects",
+                kind: .projects,
                 summary: "\(states.count) project\(states.count == 1 ? "" : "s") on the surface",
                 projects: states.count
             )
         case let .created(title):
-            AppControlSnapshot.OutcomeSummary(kind: "created", summary: "Created \(title)")
+            AppControlSnapshot.OutcomeSummary(kind: .created, summary: "Created \(title)")
         case let .updated(title):
-            AppControlSnapshot.OutcomeSummary(kind: "updated", summary: "Updated \(title)")
+            AppControlSnapshot.OutcomeSummary(kind: .updated, summary: "Updated \(title)")
         case let .chainHealth(report):
-            AppControlSnapshot.OutcomeSummary(kind: "chainHealth", summary: "Chain \(report.overall.rawValue)")
+            AppControlSnapshot.OutcomeSummary(kind: .chainHealth, summary: "Chain \(report.overall.rawValue)")
         case let .empty(message):
-            AppControlSnapshot.OutcomeSummary(kind: "empty", summary: message)
+            AppControlSnapshot.OutcomeSummary(kind: .empty, summary: message)
         case let .failed(message):
-            AppControlSnapshot.OutcomeSummary(kind: "failed", summary: message)
+            AppControlSnapshot.OutcomeSummary(kind: .failed, summary: message)
         }
     }
 }

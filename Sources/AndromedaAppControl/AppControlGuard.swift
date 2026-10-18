@@ -63,11 +63,32 @@ public struct AppControlGuard: Sendable {
     ///   demands `Content-Type: application/json` — checked *before* any
     ///   body parsing, so a mislabeled body is never decoded.
     public func authorize(_ headers: HTTPFields, authority: String?, requireJSON: Bool = false) -> Rejection? {
-        if let rejection = checkBearer(headers) { return rejection }
-        if let rejection = checkOrigin(headers) { return rejection }
-        if let rejection = checkHost(authority) { return rejection }
-        if requireJSON, let rejection = checkMediaType(headers) { return rejection }
-        return nil
+        // Nested Optional switches, not an if-let chain: each lock is an
+        // enum (`.some(Rejection)` / `.none`) and fail-closed order is
+        // exhaustive at compile time — bearer, then origin, then host,
+        // then media when the body exists.
+        switch checkBearer(headers) {
+        case let .some(rejection):
+            return rejection
+        case .none:
+            switch checkOrigin(headers) {
+            case let .some(rejection):
+                return rejection
+            case .none:
+                switch checkHost(authority) {
+                case let .some(rejection):
+                    return rejection
+                case .none:
+                    guard requireJSON else { return nil }
+                    switch checkMediaType(headers) {
+                    case let .some(rejection):
+                        return rejection
+                    case .none:
+                        return nil
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Locks
