@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Letta Slack channels daemon. Supervised Swift binary
+  (`~/.local/bin/LettaChannels`) that reads the keychain and spawns
+  letta.js. Activity Monitor name is LettaChannels, not node.
+
+  KeepAlive=true: the daemon is infrastructure. A crash restarts it,
+  same contract as com.andromeda.mcp-hub.plist.
+
+  IMPORTANT: Exec the Swift binary directly under launchd. Do NOT use
+  /usr/bin/open -a and do NOT exec node as argv0. Same contract as
+  com.andromeda.hud / mcp-hub plists.
+
+  Path template: launchd does NOT expand $HOME/~ — install must rewrite
+  the Studio home string to the real $HOME (absolute paths only).
+  Swift installer contract (BIN-101): same rewrite, no bash.
+
+  Install (typed Swift, fleet lane):
+    andromeda fleet install \
+      --destination ~/Library/LaunchAgents/com.binarybros.letta-channels.plist
+  Health probe:
+    andromeda fleet status
+  Unload:
+    launchctl bootout gui/$(id -u)/com.binarybros.letta-channels
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.binarybros.letta-channels</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/admin/.local/bin/LettaChannels</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/admin</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>LimitLoadToSessionType</key>
+	<string>Aqua</string>
+	<key>StandardOutPath</key>
+	<string>/Users/admin/.letta/logs/letta-channels.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/admin/.letta/logs/letta-channels.err.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>/Users/admin</string>
+	</dict>
+</dict>
+</plist>
