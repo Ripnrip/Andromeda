@@ -25,9 +25,9 @@ struct AppControlRouteTests {
                 version: AppControlSnapshot.contractVersion,
                 isReady: true,
                 query: "recall fleet",
-                outcome: .init(kind: "recalled", summary: "Recalled 2 memory hits", hits: 2),
+                outcome: .init(kind: .recalled, summary: "Recalled 2 memory hits", hits: 2),
                 recentQueries: ["recall fleet", "project.state"],
-                fleetPulse: .init(status: "yellow", attentionCount: 3, detail: "2 hosts degraded"),
+                fleetPulse: .init(status: .yellow, attentionCount: 3, detail: "2 hosts degraded"),
                 showsResultsPanel: true,
                 capturedAt: 1_757_600_000
             )
@@ -225,10 +225,10 @@ struct AppControlRouteTests {
             #expect(snapshot.version == AppControlSnapshot.contractVersion)
             #expect(snapshot.isReady == true)
             #expect(snapshot.query == "recall fleet")
-            #expect(snapshot.outcome.kind == "recalled")
+            #expect(snapshot.outcome.kind == .recalled)
             #expect(snapshot.outcome.hits == 2)
             #expect(snapshot.recentQueries == ["recall fleet", "project.state"])
-            #expect(snapshot.fleetPulse.status == "yellow")
+            #expect(snapshot.fleetPulse.status == .yellow)
             #expect(snapshot.fleetPulse.attentionCount == 3)
             #expect(snapshot.showsResultsPanel == true)
         }

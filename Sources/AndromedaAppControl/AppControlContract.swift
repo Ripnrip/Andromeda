@@ -20,16 +20,33 @@ public struct AppControlSnapshot: Codable, Sendable, Equatable {
     /// Shape version of the snapshot contract — additive-only until bumped.
     public static let contractVersion = "1"
 
+    /// Wire kind for `HUDOutcome` without payloads. Stringly `"recalled"`
+    /// would let a typo through Codable; this is the finite set the glass
+    /// actually names.
+    public enum OutcomeKind: String, Codable, Sendable, Equatable, CaseIterable {
+        case idle
+        case syncing
+        case recalled
+        case stored
+        case journaled
+        case projects
+        case created
+        case updated
+        case chainHealth
+        case empty
+        case failed
+    }
+
     /// Outcome behind the capability curtain — kind + one-line story.
     public struct OutcomeSummary: Codable, Sendable, Equatable {
-        public let kind: String
+        public let kind: OutcomeKind
         public let summary: String
-        /// Hit count when `kind == "recalled"`; `nil` otherwise.
+        /// Hit count when `kind == .recalled`; `nil` otherwise.
         public let hits: Int?
-        /// Project count when `kind == "projects"`; `nil` otherwise.
+        /// Project count when `kind == .projects`; `nil` otherwise.
         public let projects: Int?
 
-        public init(kind: String, summary: String, hits: Int? = nil, projects: Int? = nil) {
+        public init(kind: OutcomeKind, summary: String, hits: Int? = nil, projects: Int? = nil) {
             self.kind = kind
             self.summary = summary
             self.hits = hits
@@ -37,13 +54,22 @@ public struct AppControlSnapshot: Codable, Sendable, Equatable {
         }
     }
 
+    /// Same vocabulary as `FleetHealthStatus`, owned here so the snapshot
+    /// contract does not import MemoryKit just to name four colors.
+    public enum PulseStatus: String, Codable, Sendable, Equatable, CaseIterable {
+        case green
+        case yellow
+        case red
+        case unknown
+    }
+
     /// Fleet pulse for the HUD chip — headline only, no roster.
     public struct FleetPulseSummary: Codable, Sendable, Equatable {
-        public let status: String
+        public let status: PulseStatus
         public let attentionCount: Int
         public let detail: String
 
-        public init(status: String, attentionCount: Int, detail: String) {
+        public init(status: PulseStatus, attentionCount: Int, detail: String) {
             self.status = status
             self.attentionCount = attentionCount
             self.detail = detail

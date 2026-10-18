@@ -127,10 +127,10 @@ struct HUDModelAppControlTests {
         #expect(snapshot.service == "AndromedaHUD")
         #expect(snapshot.version == AppControlSnapshot.contractVersion)
         #expect(snapshot.query == "recall fleet")
-        #expect(snapshot.outcome.kind == "recalled")
+        #expect(snapshot.outcome.kind == .recalled)
         #expect(snapshot.outcome.hits == 2)
         #expect(snapshot.recentQueries == ["recall fleet observe", "project.state"])
-        #expect(snapshot.fleetPulse.status == "yellow")
+        #expect(snapshot.fleetPulse.status == .yellow)
         #expect(snapshot.fleetPulse.attentionCount == 2)
         #expect(snapshot.showsResultsPanel == true)
         // Capability curtain: hit narratives never ride the snapshot.
@@ -141,16 +141,16 @@ struct HUDModelAppControlTests {
 
     @Test("snapshot outcome summaries cover every HUDOutcome kind")
     func outcomeSummaries() {
-        let pairs: [(HUDOutcome, String, String?)] = [
-            (.idle, "idle", nil),
-            (.syncing, "syncing", nil),
-            (.recalled(hits: []), "recalled", "0 memory hits"),
-            (.stored(idSummary: "abc123"), "stored", "abc123"),
-            (.journaled(idSummary: "j-1"), "journaled", "j-1"),
-            (.created(title: "New item"), "created", "New item"),
-            (.updated(title: "Old item"), "updated", "Old item"),
-            (.empty(message: "nothing matched"), "empty", "nothing matched"),
-            (.failed(message: "boom"), "failed", "boom"),
+        let pairs: [(HUDOutcome, AppControlSnapshot.OutcomeKind, String?)] = [
+            (.idle, .idle, nil),
+            (.syncing, .syncing, nil),
+            (.recalled(hits: []), .recalled, "0 memory hits"),
+            (.stored(idSummary: "abc123"), .stored, "abc123"),
+            (.journaled(idSummary: "j-1"), .journaled, "j-1"),
+            (.created(title: "New item"), .created, "New item"),
+            (.updated(title: "Old item"), .updated, "Old item"),
+            (.empty(message: "nothing matched"), .empty, "nothing matched"),
+            (.failed(message: "boom"), .failed, "boom"),
         ]
         for (outcome, kind, summaryFragment) in pairs {
             let summary = HUDModelAppControlSource.summarize(outcome)
@@ -161,7 +161,7 @@ struct HUDModelAppControlTests {
         }
         // Projects + chainHealth carry counts / status without rosters.
         let projects = HUDModelAppControlSource.summarize(.projects(states: []))
-        #expect(projects.kind == "projects")
+        #expect(projects.kind == .projects)
         #expect(projects.projects == 0)
     }
 
