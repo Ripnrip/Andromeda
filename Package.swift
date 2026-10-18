@@ -204,6 +204,7 @@ let package = Package(
             dependencies: [
                 "AndromedaMCPHub",
                 "AndromedaBrand",
+                "AndromedaHostOps",
                 "AndromedaCore",
                 "AndromedaGateway",
                 .product(name: "MemoryKit", package: "MemoryKit"),
