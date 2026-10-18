@@ -74,7 +74,8 @@ struct FleetCommand: AsyncParsableCommand {
             )
             print(report)
             FleetCommand.diagnostics.notice("🚀 fleet install: \(report.label) bootstrapped=\(report.bootstrapped)")
-            print("model_tiers: \(.tiers)"; print("health: `andromeda fleet status`")
+            print("model_tiers: \(tiers)")
+            print("health: `andromeda fleet status`")
         }
     }
 
