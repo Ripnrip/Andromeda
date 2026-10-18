@@ -28,12 +28,17 @@ enum LettaChannels {
     private static func run() throws {
         let apiKey = try Keychain.lettaAPIKey()
         let child = Process()
-        child.executableURL = URL(fileURLWithPath: Paths.lettaCLI)
+        child.executableURL = URL(fileURLWithPath: Paths.node)
         // --backend local must precede `server`. Slack accounts bind
         // agent-local-* ids that exist only in lc-local-backend. Cloud
         // register still runs, but createConversationForAgent against
         // api.letta.com 404s agentNotFound and Slack stays silent.
+        //
+        // 0.34.16 bun `letta server --channels` exceeds ChannelGateway's
+        // 30s ready timeout and KeepAlive-loops. 0.34.11 node from
+        // Letta.app is the listener that actually accepted inbound DMs.
         child.arguments = [
+            Paths.lettaJS,
             "--backend", "local",
             "server", "--channels", "slack", "--debug",
         ]
@@ -109,9 +114,10 @@ enum Keychain {
 
 enum Paths {
     static let home = ProcessInfo.processInfo.environment["HOME"] ?? "/Users/admin"
-    static let path = home + "/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
-    static let lettaCLI = home + "/.local/bin/letta"
+    static let path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+    static let node = "/opt/homebrew/bin/node"
     static let slackSkillsDirectory = home + "/.letta/channels/slack-skills"
+    static let lettaJS = "/Applications/Letta.app/Contents/Resources/app.asar.unpacked/node_modules/@letta-ai/letta-code/letta.js"
 }
 
 enum LaunchError: Error, CustomStringConvertible {
