@@ -1,6 +1,7 @@
 import Foundation
 import CryptoKit
 import OSLog
+import MemoryKit
 
 /**
  * 🎭 The LadybugIndexer - The Archival Cartographer of the Multi-Brain
@@ -136,9 +137,23 @@ public actor LadybugIndexer {
 
     /// 🌟 The Node Upsert Alchemy - PUT `/nodes` (idempotent by `point_id` = content_hash UUID)
     /// Fail-open: never throws; returns `false` and sets `isDirty` on network/HTTP storms.
+    /// Visibility: forward-proof guard — no-op today by design. `.ladybugIndex`
+    /// allows all visibility classes (local on-device index), so this check never
+    /// blocks today; it becomes live only if `VisibilityFilter` semantics ever
+    /// exclude a class for the ladybug pipeline (PR #93 review B1).
     @discardableResult
     public func indexNode(_ node: LadybugNode) async -> Bool {
         logger.debug("🔍 🧙‍♂️ Peering into mystical variables... Node pointId: \(node.pointId)")
+
+        guard VisibilityFilter.isAllowed(
+            visibility: node.payload.visibility,
+            target: .ladybugIndex
+        ) else {
+            logger.info(
+                "🛡️ Skipping Ladybug node \(node.pointId) — visibility \(node.payload.visibility) blocked for ladybugIndex"
+            )
+            return false
+        }
 
         let endpoint = baseURL.appendingPathComponent("nodes")
         var request = URLRequest(url: endpoint)

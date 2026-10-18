@@ -55,12 +55,80 @@ public struct MCPRoute: Sendable {
             let body = try? await request.body.collect(upTo: 4 * 1024 * 1024)
             let data = body.map { Data($0.readableBytesView) } ?? Data()
 
-            guard let payload = try? JSONDecoder().decode(MCPPayload.self, from: data) else {
+            switch Self.decodePayload(data) {
+            case let .success(payload):
+                return await Self.dispatch(
+                    payload,
+                    broker: broker,
+                    serverName: serverName,
+                    serverVersion: serverVersion
+                )
+            case .parse:
                 return Self.rpcResponse(
                     JSONRPCMessage.failure(id: .null, code: -32700, message: "Parse error")
                 )
+            case let .invalid(evidence, id):
+                return Self.rpcResponse(
+                    JSONRPCMessage.failure(
+                        id: id,
+                        code: -32600,
+                        message: "Invalid request: \(evidence)"
+                    )
+                )
             }
+        }
+    }
 
+    /// Syntax failures stay `-32700`. Valid JSON that is not an envelope
+    /// answers `-32600` with the coding path, so the client can fix the frame.
+    /// A detectable id (number or string) is salvaged and echoed — the spec
+    /// requires it for correlation, or the caller leaves the request pending.
+    private static func decodePayload(_ data: Data) -> PayloadDecode {
+        guard (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)) != nil else {
+            return .parse
+        }
+        do {
+            return .success(try JSONDecoder().decode(MCPPayload.self, from: data))
+        } catch let error as DecodingError {
+            return .invalid(error.brief, id: Self.salvageID(from: data))
+        } catch {
+            return .invalid("invalid request", id: Self.salvageID(from: data))
+        }
+    }
+
+    /// Lenient second pass after an envelope decode failure: only spec-legal
+    /// ids (number or string) are echoed; null, absent, or non-scalar ids
+    /// leave the reply `id`-less (`.null`), as do non-object frames (a batch
+    /// has no single detectable id).
+    private static func salvageID(from data: Data) -> JSONValue {
+        struct Salvage: Decodable {
+            let id: JSONValue?
+
+            private enum CodingKeys: String, CodingKey { case id }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                if let number = try? container.decode(Double.self, forKey: .id) {
+                    id = .number(number)
+                } else if let string = try? container.decode(String.self, forKey: .id) {
+                    id = .string(string)
+                } else {
+                    id = nil
+                }
+            }
+        }
+        guard let salvage = try? JSONDecoder().decode(Salvage.self, from: data) else {
+            return .null
+        }
+        return salvage.id ?? .null
+    }
+
+    private static func dispatch(
+        _ payload: MCPPayload,
+        broker: any MCPToolServing,
+        serverName: String,
+        serverVersion: String
+    ) async -> Response {
             switch payload {
             case let .single(envelope):
                 if envelope.id == nil {
@@ -80,7 +148,6 @@ public struct MCPRoute: Sendable {
                 }
                 return Self.rpcBatchResponse(messages)
             }
-        }
     }
 
     // MARK: - Method handling
@@ -161,6 +228,32 @@ public struct MCPRoute: Sendable {
 }
 
 // MARK: - JSON-RPC wire types
+
+private enum PayloadDecode {
+    case success(MCPPayload)
+    case parse
+    case invalid(String, id: JSONValue)
+}
+
+private extension DecodingError {
+    /// Coding path a client can fix, instead of an opaque parse error.
+    var brief: String {
+        func path(_ context: Context) -> String {
+            let joined = context.codingPath.map(\.stringValue).joined(separator: ".")
+            return joined.isEmpty ? "root" : joined
+        }
+        switch self {
+        case .keyNotFound(let key, let context):
+            return "missing key '\(key.stringValue)' at \(path(context))"
+        case .valueNotFound(_, let context):
+            return "unexpected null at \(path(context))"
+        case .typeMismatch(_, let context), .dataCorrupted(let context):
+            return "\(localizedDescription) at \(path(context))"
+        @unknown default:
+            return localizedDescription
+        }
+    }
+}
 
 private enum MCPPayload: Decodable {
     case single(JSONRPCEnvelope)

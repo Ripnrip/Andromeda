@@ -1,8 +1,9 @@
 # ADR-0020: Memory-chain proof state document
 
 - **Status:** Accepted (2026-09-20)
-- **Tickets:** Multica HAB-599 / HAB-602 · Linear BIN-287 / BIN-197
+- **Tickets:** Multica HAB-599 / HAB-600 / HAB-602 · Linear BIN-287 / BIN-247 / BIN-197
 - **Related:** ADR-0019 (mcp-hub config schema) · `docs/plans/LETTA-MEMORY-INGRESS.md`
+- **Writer:** `MemoryChainProofRunner` (AndromedaMCPHub) — HUD remains read-only
 
 ## Context
 
@@ -42,9 +43,10 @@ Rules:
 1. **Versioning.** `version` is `1`. Any field rename/addition bumps it. The
    reader (`MemoryChainProofStore`) throws on a newer version instead of
    guessing — the HUD then shows an honest failure, not a misread document.
-2. **Legs are stable ids** (`agent-to-agent`, `letta-ingress`, …). A leg with
-   no result yet is `pending` with `at: null` — absent legs mean the lane has
-   not even attempted that leg.
+2. **Legs are stable ids** (`agent-to-agent`, `letta-ingress`, `ladybug-index`, …).
+   A leg with no result yet is `pending` with `at: null` — absent legs mean the
+   lane has not even attempted that leg. Known ids are enumerated by
+   `MemoryChainProofLegID`.
 3. **Statuses** are exactly `pass` / `fail` / `pending`. No partial credit:
    a leg passes when its acceptance criterion (HAB-602 § Proof) fully holds.
 4. **Write ownership:** the proof lane (canonical-verbs work) writes the

@@ -60,6 +60,9 @@ public struct AndromedaRuntimeServer: Sendable {
     public let uuidProvider: any UUIDProviding
     public let logger: Logger
     public let powerCoordinator: PowerLeaseCoordinator
+    /// Hosted core-memory ingress. Nil keeps the serve surface unchanged.
+    /// Never a second daemon — this process owns the lane when set.
+    public let lettaIngress: (any LettaIngressHandling)?
 
     /// Interval between periodic projection retry drains while serving.
     private static let retryDrainInterval: Duration = .seconds(60)
@@ -73,6 +76,7 @@ public struct AndromedaRuntimeServer: Sendable {
         clock: any ClockProviding,
         uuidProvider: any UUIDProviding,
         powerCoordinator: PowerLeaseCoordinator = PowerLeaseCoordinator(),
+        lettaIngress: (any LettaIngressHandling)? = nil,
         logger: Logger = Logger(label: "andromeda.runtime")
     ) {
         self.configuration = configuration
@@ -83,6 +87,7 @@ public struct AndromedaRuntimeServer: Sendable {
         self.clock = clock
         self.uuidProvider = uuidProvider
         self.powerCoordinator = powerCoordinator
+        self.lettaIngress = lettaIngress
         self.logger = logger
     }
 
@@ -92,6 +97,7 @@ public struct AndromedaRuntimeServer: Sendable {
         operationalStoreURL: URL? = nil,
         vaultDirectoryURL: URL? = nil,
         qdrantBaseURL: URL = URL(string: "http://localhost:6333")!,
+        lettaIngress: (any LettaIngressHandling)? = nil,
         logger: Logger = Logger(label: "andromeda.runtime")
     ) throws {
         let journal = try JSONLineEventJournal(fileURL: journalFileURL)
@@ -123,6 +129,7 @@ public struct AndromedaRuntimeServer: Sendable {
             clock: LiveClock(),
             uuidProvider: LiveUUIDProvider(),
             powerCoordinator: PowerLeaseCoordinator(),
+            lettaIngress: lettaIngress,
             logger: logger
         )
     }
@@ -186,10 +193,15 @@ public struct AndromedaRuntimeServer: Sendable {
                 secrets: MacOSKeychainSecretProvider(),
                 http: URLSessionUpstreamHTTP()
             )
-            let universalTools = CompositeMCPToolServer(servers: [
+            var capabilityServers: [any MCPToolServing] = [
                 MemoryMCPToolServer(runtime: memoryRuntime),
                 broker,
-            ])
+            ]
+            if let lettaIngress {
+                capabilityServers.append(LettaIngressMCPToolServer(handler: lettaIngress))
+                logger.info("memory ingress hosted by this serve process (memory.ingress)")
+            }
+            let universalTools = CompositeMCPToolServer(servers: capabilityServers)
             MCPRoute(
                 broker: universalTools,
                 auth: MCPBearerAuth(token: mcp.bearerToken),
