@@ -25,6 +25,7 @@ let package = Package(
         .library(name: "AndromedaClient", targets: ["AndromedaClient"]),
         .library(name: "AndromedaServer", targets: ["AndromedaServer"]),
         .executable(name: "andromeda", targets: ["AndromedaCLI"]),
+        .executable(name: "LettaChannels", targets: ["LettaChannels"]),
         .executable(name: "andromeda-mcp-shim", targets: ["AndromedaMCPShim"]),
         .executable(name: "andromeda-runtime", targets: ["AndromedaRuntimeCLI"]),
         .executable(name: "AndromedaHome", targets: ["AndromedaHome"]),
@@ -198,6 +199,10 @@ let package = Package(
                 .product(name: "NIOHTTP1", package: "swift-nio"),
                 .product(name: "HTTPTypes", package: "swift-http-types"),
             ]
+        ),
+        .executableTarget(
+            name: "LettaChannels",
+            path: "Sources/LettaChannels"
         ),
         .executableTarget(
             name: "AndromedaCLI",

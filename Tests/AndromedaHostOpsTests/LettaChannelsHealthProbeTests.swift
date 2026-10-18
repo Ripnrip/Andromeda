@@ -223,6 +223,27 @@ struct LettaChannelsHealthProbeTests {
         #expect(report.healthy)
     }
 
+    /// Nonempty cascade with zero live handles is unhealthy: the
+    /// daemon cannot serve Slack even if launchd and the PID are up.
+    @Test
+    func allConfiguredTiersDeadFailsHealth() async {
+        let probe = LettaChannelsHealthProbe(
+            uid: 501,
+            tiers: [.xaiGrok46],
+            shell: ScriptedShell(results: [
+                "launchctl": ShellResult(success: true, output: ""),
+                "pgrep": ShellResult(success: true, output: "1"),
+                "env": ShellResult(success: true, output: "openai-compatible/glm/glm-5.3\n"),
+            ]),
+            now: { Date() }
+        )
+        let report = await probe.probe()
+        #expect(report.loaded)
+        #expect(report.running)
+        #expect(!report.hasLiveTier)
+        #expect(!report.healthy)
+    }
+
     /// Records every invocation so tests can assert exact commands.
     private actor RecordingInvocationShell: ShellExecuting {
         private var calls: [[String]] = []

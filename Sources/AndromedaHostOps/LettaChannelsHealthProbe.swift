@@ -56,15 +56,17 @@ public struct LettaChannelsHealthProbe: Sendable {
         public let tiers: [Tier]
         public let tierStatus: [Tier: Bool]
 
-        /// True only when the hard signals (launchd registration +
-        /// live process) are both green. This is what `andromeda fleet
-        /// status` uses as its exit code.
-        public var healthy: Bool { loaded && running }
+        /// True when launchd + process are up, and — if any tiers were
+        /// configured — at least one catalog handle is live. Empty
+        /// tiers keep the old process-only contract so a host that
+        /// has not set a cascade yet is not failed closed.
+        public var healthy: Bool {
+            guard loaded && running else { return false }
+            if tiers.isEmpty { return true }
+            return hasLiveTier
+        }
 
-        /// True only when at least one model tier is reachable. This
-        /// gates the exit code when all tiers are dead: a fleet with
-        /// no live model cannot serve Slack messages, so it should
-        /// fail closed rather than report green.
+        /// True only when at least one model tier is reachable.
         public var hasLiveTier: Bool { tierStatus.values.contains(true) }
     }
 

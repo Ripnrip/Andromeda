@@ -57,24 +57,43 @@ struct FleetCommand: AsyncParsableCommand {
             guard FileManager.default.fileExists(atPath: sourceURL.path) else {
                 throw ValidationError("source plist not found: \(source) — run from the Andromeda repo root")
             }
+            let parsedTiers = try FleetCommand.parseTiers(tiers)
+            let homeDir = home ?? NSHomeDirectory()
+
+            // LaunchAgentInstaller validates Program exists before
+            // bootstrap. Copy the built supervisor first or a clean
+            // host fails with a missing ~/.local/bin/LettaChannels.
+            let supervisorSource = FleetCommand.builtSupervisorURL()
+            guard FileManager.default.isExecutableFile(atPath: supervisorSource.path) else {
+                throw ValidationError(
+                    "LettaChannels binary not built at \(supervisorSource.path) — run `swift build -c release --product LettaChannels`"
+                )
+            }
+            let supervisorDest = URL(fileURLWithPath: homeDir + "/.local/bin/LettaChannels")
+            let binaryReport = try await BinaryInstaller().install(
+                source: supervisorSource,
+                destination: supervisorDest
+            )
+            try FleetCommand.persistTiers(parsedTiers, home: homeDir)
+
             let spec = LaunchAgentInstaller.Spec(
                 label: LettaChannelsHealthProbe.label,
-                home: home ?? NSHomeDirectory(),
+                home: homeDir,
                 uid: uid ?? UInt32(getuid()),
                 bootstrap: true,
                 kickstart: false
             )
-            let installer = LaunchAgentInstaller()
-            let report = try await installer.install(
+            let report = try await LaunchAgentInstaller().install(
                 source: sourceURL,
                 destination: URL(
                     fileURLWithPath: (destination as NSString).expandingTildeInPath
                 ),
                 spec: spec
             )
+            print(binaryReport)
             print(report)
-            FleetCommand.diagnostics.notice("🚀 fleet install: \(report.label) bootstrapped=\(report.bootstrapped)")
-            print("model_tiers: \(tiers)")
+            FleetCommand.diagnostics.notice("fleet install: \(report.label) bootstrapped=\(report.bootstrapped)")
+            print("model_tiers: \(parsedTiers.map(\.rawValue).joined(separator: ","))")
             print("health: `andromeda fleet status`")
         }
     }
@@ -99,7 +118,8 @@ struct FleetCommand: AsyncParsableCommand {
             let probe = LettaChannelsHealthProbe(
                 uid: uid ?? UInt32(getuid()),
                 daemonPath: home + "/.local/bin/LettaChannels",
-                logPath: home + "/.letta/logs/letta-channels.out.log"
+                logPath: home + "/.letta/logs/letta-channels.out.log",
+                tiers: FleetCommand.loadPersistedTiers(home: home)
             )
             let report = await probe.probe()
 
@@ -118,14 +138,19 @@ struct FleetCommand: AsyncParsableCommand {
                 "  \(report.logStale ? "🟡" : "🟢") log       \(freshness) — \(probe.logPath)"
                     + (report.logStale ? " (stale > 1h)" : "")
             )
+            for tier in report.tiers {
+                let live = report.tierStatus[tier] ?? false
+                print("  \(live ? "🟢" : "🔴") tier      \(tier.rawValue)")
+            }
 
-            // Why the log too: the unified log is where a scheduled
-            // probe's history lives; stdout tables are ephemeral.
             FleetCommand.diagnostics.notice(
-                "🩺 fleet status: loaded=\(report.loaded) running=\(report.running) logStale=\(report.logStale)"
+                "fleet status: loaded=\(report.loaded) running=\(report.running) logStale=\(report.logStale) liveTier=\(report.hasLiveTier)"
             )
 
             guard report.healthy else {
+                if report.loaded && report.running && !report.tiers.isEmpty && !report.hasLiveTier {
+                    throw ValidationError("all configured model tiers unavailable")
+                }
                 throw ValidationError(
                     report.loaded
                         ? "daemon loaded but process absent — check ~/.letta/logs/letta-channels.err.log"
@@ -133,5 +158,48 @@ struct FleetCommand: AsyncParsableCommand {
                 )
             }
         }
+    }
+
+    /// Sibling of the running `andromeda` binary. `swift build` puts
+    /// both products in the same directory; launchd needs the Mach-O
+    /// at ~/.local/bin before bootstrap, not the .swift source.
+    static func builtSupervisorURL() -> URL {
+        URL(fileURLWithPath: CommandLine.arguments[0])
+            .resolvingSymlinksInPath()
+            .deletingLastPathComponent()
+            .appendingPathComponent("LettaChannels")
+    }
+
+    static func tiersFile(home: String) -> URL {
+        URL(fileURLWithPath: home + "/.andromeda/fleet/letta-channels.tiers")
+    }
+
+    static func parseTiers(_ raw: String) throws -> [Tier] {
+        let parts = raw.split(separator: ",").map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+        return try parts.map { token in
+            guard let tier = Tier(rawValue: token) else {
+                throw ValidationError("unknown model tier \(token)")
+            }
+            return tier
+        }
+    }
+
+    static func persistTiers(_ tiers: [Tier], home: String) throws {
+        let url = tiersFile(home: home)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let body = tiers.map(\.rawValue).joined(separator: "\n") + "\n"
+        try body.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    static func loadPersistedTiers(home: String) -> [Tier] {
+        guard let text = try? String(contentsOf: tiersFile(home: home), encoding: .utf8) else {
+            return []
+        }
+        return text.split(whereSeparator: \.isNewline).compactMap { Tier(rawValue: String($0)) }
     }
 }
