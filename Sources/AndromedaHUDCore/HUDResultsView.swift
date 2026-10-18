@@ -79,7 +79,7 @@ public struct HUDResultsView<Content: View>: View {
             value: isVisible
         )
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("hudResults.container")
+        .hudIdentifier(.resultsContainer)
     }
 }
 
