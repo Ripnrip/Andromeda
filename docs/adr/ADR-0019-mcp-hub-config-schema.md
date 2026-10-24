@@ -66,10 +66,12 @@ bought nothing the connection key doesn't already provide.
 ### Telemetry schema (JSONL)
 
 `{"ts": "<iso8601>", "kind": "<event>", "f_<field>": ...}` — kinds:
-`hub.started`, `upstream.spawned|spawn_failed|exited|exhausted`,
+`hub.started`, `upstream.spawned|spawn_failed|exited|exhausted|rearmed`,
 `shim.connected|disconnected`, `upstream.response_routed`,
-`upstream.notification_broadcast`. Field names are stable contract
-(prefix `f_` separates them from envelope keys).
+`upstream.notification_broadcast`, `upstream.stderr_drained`. Field names are stable contract
+(prefix `f_` separates them from envelope keys). `upstream.rearmed` means the
+restart budget was stuck and the cooldown elapsed. `upstream.stderr_drained`
+carries `f_tail` (last line, credential-shaped text replaced with `<redacted>`).
 
 ### Id namespacing (relay contract)
 

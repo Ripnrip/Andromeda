@@ -115,18 +115,32 @@ public final class UpstreamSupervisor: @unchecked Sendable {
     private let lock = NSLock()
     private var _pipes: UpstreamPipes?
     private var restartCount = 0
-    private let maxRestarts = 5
+    private let maxRestarts: Int
     private var backoff: TimeInterval = 1
     /// Earliest instant a respawn may be attempted after an exit (the
     /// enforced backoff window — Codex round 3).
     private var nextEligibleLaunchAt: Date?
+    /// When the budget first stuck. Nil until exhaustion. Cleared on rearm.
+    private var exhaustedSince: Date?
+    /// How long a stuck budget waits before it may launch again.
+    private let rearmInterval: TimeInterval
+    /// Injected clock so tests can cross the rearm window without sleeping.
+    private let now: @Sendable () -> Date
 
-    public init(config: HubServerConfig, host: UpstreamProcessHosting = ProcessUpstreamHost(),
-                telemetry: HubTelemetry = HubTelemetry.shared)
-    {
+    public init(
+        config: HubServerConfig,
+        host: UpstreamProcessHosting = ProcessUpstreamHost(),
+        telemetry: HubTelemetry = HubTelemetry.shared,
+        maxRestarts: Int = 5,
+        rearmInterval: TimeInterval = 60,
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) {
         self.config = config
         self.host = host
         self.telemetry = telemetry
+        self.maxRestarts = maxRestarts
+        self.rearmInterval = rearmInterval
+        self.now = now
     }
 
     public var serverID: String {
@@ -144,11 +158,24 @@ public final class UpstreamSupervisor: @unchecked Sendable {
         if let pipes = _pipes {
             return pipes
         }
-        guard restartCount < maxRestarts else {
-            telemetry.event(.upstreamExhausted(serverID: config.id, restarts: restartCount))
-            return nil
+        if restartCount >= maxRestarts {
+            // Emit once. The old guard logged exhausted on every shim
+            // reconnect, which filled the jsonl and never recovered.
+            if exhaustedSince == nil {
+                exhaustedSince = now()
+                telemetry.event(.upstreamExhausted(serverID: config.id, restarts: restartCount))
+            }
+            let since = exhaustedSince ?? now()
+            guard now().timeIntervalSince(since) >= rearmInterval else {
+                return nil
+            }
+            restartCount = 0
+            exhaustedSince = nil
+            backoff = 1
+            nextEligibleLaunchAt = nil
+            telemetry.event(.upstreamRearmed(serverID: config.id))
         }
-        if let eligible = nextEligibleLaunchAt, Date() < eligible {
+        if let eligible = nextEligibleLaunchAt, now() < eligible {
             return nil
         }
         guard let pipes = host.launch(
@@ -184,7 +211,7 @@ public final class UpstreamSupervisor: @unchecked Sendable {
         _pipes = nil
         restartCount += 1
         backoff = min(backoff * 2, 30)
-        nextEligibleLaunchAt = Date().addingTimeInterval(backoff)
+        nextEligibleLaunchAt = now().addingTimeInterval(backoff)
         telemetry.event(.upstreamExited(serverID: config.id, restarts: restartCount))
         // 🔁 a restart is now scheduled — the decision point the agent host
         // cannot otherwise see (the exit alone reads as terminal).
@@ -208,6 +235,7 @@ public final class UpstreamSupervisor: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         _pipes = nil
         restartCount = 0
+        exhaustedSince = nil
         nextEligibleLaunchAt = nil
     }
 }
