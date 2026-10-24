@@ -114,11 +114,15 @@ struct MCPHubCommand: AsyncParsableCommand {
 
         func run() async throws {
             let configuration = try MCPHubCommand.loadConfiguration(path: config)
+            let logText = (try? String(contentsOfFile: configuration.telemetryLogPath, encoding: .utf8)) ?? ""
+            let phases = UpstreamCensus.phases(in: logText)
             for server in configuration.servers {
                 let socketPath = configuration.socketPath(for: server.id)
                 let probe = HubSocketProbe.probeListening(path: socketPath)
-                let marker = probe.isListening ? "🟢" : "⚪️"
-                print("\(marker) \(server.id) — \(socketPath)\(probe.isListening ? " (listening)" : " (no hub)")")
+                let phase = phases[server.id] ?? .unknown
+                let marker = statusMarker(listening: probe.isListening, phase: phase)
+                let detail = statusDetail(listening: probe.isListening, phase: phase)
+                print("\(marker) \(server.id) — \(socketPath) (\(detail))")
                 if let refusal = probe.refusalReason {
                     // ⚪️ the census says down — WHY it says down is a
                     // decision point that belongs in the unified log.
@@ -129,6 +133,25 @@ struct MCPHubCommand: AsyncParsableCommand {
             }
             let telemetryPath = configuration.telemetryLogPath
             print("📊 telemetry: \(telemetryPath)")
+        }
+
+        /// Socket-up is not upstream-up. Exhausted is the lie the green
+        /// dot told on 2026-10-21.
+        private func statusMarker(listening: Bool, phase: UpstreamCensus.Phase) -> String {
+            if listening && phase == .exhausted {
+                return "🛑"
+            }
+            return listening ? "🟢" : "⚪️"
+        }
+
+        private func statusDetail(listening: Bool, phase: UpstreamCensus.Phase) -> String {
+            if !listening {
+                return "no hub"
+            }
+            if phase == .exhausted {
+                return "listening, upstream exhausted"
+            }
+            return "listening"
         }
     }
 }

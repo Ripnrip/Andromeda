@@ -178,6 +178,7 @@ struct HubEventCoverageTests {
             .upstreamExited(serverID: "memory", restarts: 1),
             .upstreamRestartScheduled(serverID: "memory", restarts: 1, backoffSeconds: 2),
             .upstreamExhausted(serverID: "memory", restarts: 5),
+            .upstreamRearmed(serverID: "memory"),
             .shimConnected(serverID: "memory", connection: "c1"),
             .shimDisconnected(serverID: "memory", connection: "c1"),
             .upstreamResponseRouted(serverID: "memory", connection: "c1"),
@@ -186,7 +187,7 @@ struct HubEventCoverageTests {
             .upstreamUnavailableReply(serverID: "memory", connection: "c1"),
             .idNamespaced(serverID: "memory", connection: "HubEventSwitchCoverage"),
             .cancelledRequestIDRewritten(serverID: "memory", connection: "c1"),
-            .stderrDrained(serverID: "memory", bytes: 128),
+            .stderrDrained(serverID: "memory", bytes: 128, tail: "stdio ready"),
         ]
     }
 

@@ -299,9 +299,12 @@ public final class MCPHub: @unchecked Sendable {
             }
             stderrTally.add(data.count)
             // 🧹 diagnostics drained — the decision point that keeps the
-            // child un-blocked; logged so a silent upstream is auditable.
+            // child un-blocked; the tail is why the child died, not just
+            // how many bytes it wrote.
             self?.telemetry.event(.stderrDrained(
-                serverID: server.config.id, bytes: data.count
+                serverID: server.config.id,
+                bytes: data.count,
+                tail: DiagnosticScrub.tail(data)
             ))
         }
     }
