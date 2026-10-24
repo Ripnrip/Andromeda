@@ -16,6 +16,20 @@ struct DiagnosticScrubTests {
         let data = Data("boom api_key=super-secret-value\n".utf8)
         #expect(DiagnosticScrub.tail(data) == "<redacted>")
     }
+
+    /// Codex P2: `API_KEY=` and `abc123\n` arrive as two pipe reads. The
+    /// first slice must not be logged, and the completed line must redact.
+    @Test("a credential split across pipe reads is one redacted line")
+    func splitCredentialIsOneRedactedLine() {
+        let assembler = LineAssembler()
+        let first = DiagnosticScrub.completedLines(Data("API_KEY=".utf8), assembler: assembler)
+        #expect(first.isEmpty)
+        let second = DiagnosticScrub.completedLines(
+            Data("abc123-example-value\n".utf8), assembler: assembler
+        )
+        #expect(second == ["<redacted>"])
+        #expect(!second.joined().contains("abc123"))
+    }
 }
 
 // MARK: - Census

@@ -18,6 +18,13 @@ public enum DiagnosticScrub {
         return redact(clipped)
     }
 
+    /// Complete stderr lines from one pipe read. A chunk that ends mid-line
+    /// stays in `assembler` — scrubbing each `availableData` slice on its
+    /// own leaks the second half of a split credential (Codex P2).
+    public static func completedLines(_ data: Data, assembler: LineAssembler) -> [String] {
+        assembler.append(data).map { tail($0) }
+    }
+
     static func redact(_ line: String) -> String {
         let lower = line.lowercased()
         if markers.contains(where: { lower.contains($0) }) {

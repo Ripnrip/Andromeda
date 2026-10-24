@@ -290,22 +290,33 @@ public final class MCPHub: @unchecked Sendable {
 
         // Codex P2: an undrained stderr pipe fills its buffer and the child
         // blocks on its next diagnostic write — drain continuously.
+        // Assemble to a newline before scrubbing. Pipe reads do not keep
+        // line boundaries, and a credential split across two reads would
+        // otherwise log the secret half in the clear.
         let stderrTally = ByteTally()
+        let stderrAssembler = LineAssembler()
         pipes.stderr.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
+                let remainder = stderrAssembler.flush()
+                if !remainder.isEmpty {
+                    self?.telemetry.event(.stderrDrained(
+                        serverID: server.config.id,
+                        bytes: remainder.count,
+                        tail: DiagnosticScrub.tail(remainder)
+                    ))
+                }
                 return
             }
             stderrTally.add(data.count)
-            // 🧹 diagnostics drained — the decision point that keeps the
-            // child un-blocked; the tail is why the child died, not just
-            // how many bytes it wrote.
-            self?.telemetry.event(.stderrDrained(
-                serverID: server.config.id,
-                bytes: data.count,
-                tail: DiagnosticScrub.tail(data)
-            ))
+            for line in DiagnosticScrub.completedLines(data, assembler: stderrAssembler) {
+                self?.telemetry.event(.stderrDrained(
+                    serverID: server.config.id,
+                    bytes: line.utf8.count,
+                    tail: line
+                ))
+            }
         }
     }
 

@@ -26,6 +26,16 @@ public final class LineAssembler: @unchecked Sendable {
         return lines
     }
 
+    /// Return any unterminated tail and clear it. Used when the pipe closes
+    /// so the last diagnostic is scrubbed as one line, not dropped.
+    public func flush() -> Data {
+        lock.lock()
+        defer { lock.unlock() }
+        let pending = buffer
+        buffer = Data()
+        return pending
+    }
+
     /// Bytes buffered awaiting a terminator (diagnostics).
     public var pendingByteCount: Int {
         lock.lock()
