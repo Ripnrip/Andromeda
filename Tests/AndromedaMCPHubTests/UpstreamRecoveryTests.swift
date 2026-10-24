@@ -21,7 +21,7 @@ struct DiagnosticScrubTests {
     /// first slice must not be logged, and the completed line must redact.
     @Test("a credential split across pipe reads is one redacted line")
     func splitCredentialIsOneRedactedLine() {
-        let assembler = LineAssembler()
+        let assembler = BoundedDiagnosticAssembler()
         let first = DiagnosticScrub.completedLines(Data("API_KEY=".utf8), assembler: assembler)
         #expect(first.isEmpty)
         let second = DiagnosticScrub.completedLines(
@@ -29,6 +29,26 @@ struct DiagnosticScrubTests {
         )
         #expect(second == ["<redacted>"])
         #expect(!second.joined().contains("abc123"))
+    }
+
+    @Test("an unterminated flood is dropped, not retained or emitted in pieces")
+    func oversizedLineIsDroppedWhole() {
+        let assembler = BoundedDiagnosticAssembler(limit: 8)
+        let flood = DiagnosticScrub.completedLines(Data(repeating: 0x41, count: 64), assembler: assembler)
+        #expect(flood.isEmpty)
+        #expect(assembler.pendingByteCount <= 8)
+        let closed = DiagnosticScrub.completedLines(Data("SECRET\n".utf8), assembler: assembler)
+        #expect(closed == [BoundedDiagnosticAssembler.droppedMarker])
+        #expect(!closed.joined().contains("SECRET"))
+        #expect(!closed.joined().contains("AAAA"))
+    }
+
+    @Test("carriage-return progress does not accumulate")
+    func carriageReturnEndsTheLine() {
+        let assembler = BoundedDiagnosticAssembler(limit: 32)
+        let lines = DiagnosticScrub.completedLines(Data("one\rtwo\r".utf8), assembler: assembler)
+        #expect(lines == ["one", "two"])
+        #expect(assembler.pendingByteCount == 0)
     }
 }
 
@@ -60,6 +80,27 @@ struct UpstreamCensusTests {
 }
 
 // MARK: - Supervisor rearm
+
+struct ReaderBindingTests {
+    @Test("a second shim on the same stderr handle does not take the binding")
+    func samePipeIsNotRebound() {
+        let server = HostedServer(
+            config: HubServerConfig(
+                id: "filesystem",
+                packageName: "example",
+                command: "/usr/bin/true",
+                duplicateGroup: "filesystem"
+            ),
+            host: CountingHost(),
+            telemetry: HubTelemetry(jsonlPath: "/tmp/andromeda-mcp-hub-bind-test.jsonl")
+        )
+        let pipe = Pipe()
+        #expect(server.claimReaderBinding(stderr: pipe.fileHandleForReading))
+        #expect(!server.claimReaderBinding(stderr: pipe.fileHandleForReading))
+        let respawned = Pipe()
+        #expect(server.claimReaderBinding(stderr: respawned.fileHandleForReading))
+    }
+}
 
 struct UpstreamSupervisorRearmTests {
     @Test("budget sticks until the cooldown, then a launch is allowed again")
