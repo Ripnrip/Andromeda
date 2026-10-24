@@ -15,6 +15,9 @@ public enum HubEvent: Sendable {
     case upstreamExited(serverID: String, restarts: Int)
     case upstreamRestartScheduled(serverID: String, restarts: Int, backoffSeconds: Double)
     case upstreamExhausted(serverID: String, restarts: Int)
+    /// Restart budget rearmed after the cooldown. The previous process
+    /// treated exhaustion as terminal for the life of the hub.
+    case upstreamRearmed(serverID: String)
     case shimConnected(serverID: String, connection: String)
     case shimDisconnected(serverID: String, connection: String)
     case upstreamResponseRouted(serverID: String, connection: String)
@@ -40,7 +43,8 @@ public enum HubEvent: Sendable {
     /// the connection-namespaced form.
     case cancelledRequestIDRewritten(serverID: String, connection: String)
     /// Upstream stderr diagnostics were drained (keeps the child un-blocked).
-    case stderrDrained(serverID: String, bytes: Int)
+    /// `tail` is the last line, credential-shaped text already scrubbed.
+    case stderrDrained(serverID: String, bytes: Int, tail: String)
 
     /// Emoji glyph per decision point (canon logging law).
     var glyph: String {
@@ -51,6 +55,7 @@ public enum HubEvent: Sendable {
         case .upstreamExited: "👋"
         case .upstreamRestartScheduled: "🔁"
         case .upstreamExhausted: "🛑"
+        case .upstreamRearmed: "🔄"
         case .shimConnected: "🔌"
         case .shimDisconnected: "🔌"
         case .upstreamResponseRouted: "📬"
@@ -74,6 +79,7 @@ public enum HubEvent: Sendable {
         case .upstreamExited: "upstream.exited"
         case .upstreamRestartScheduled: "upstream.restart_scheduled"
         case .upstreamExhausted: "upstream.exhausted"
+        case .upstreamRearmed: "upstream.rearmed"
         case .shimConnected: "shim.connected"
         case .shimDisconnected: "shim.disconnected"
         case .upstreamResponseRouted: "upstream.response_routed"
@@ -107,6 +113,8 @@ public enum HubEvent: Sendable {
             ]
         case let .upstreamExhausted(serverID, restarts):
             ["server": serverID, "restarts": String(restarts)]
+        case let .upstreamRearmed(serverID):
+            ["server": serverID]
         case let .shimConnected(serverID, connection):
             ["server": serverID, "connection": connection]
         case let .shimDisconnected(serverID, connection):
@@ -129,8 +137,8 @@ public enum HubEvent: Sendable {
             ["server": serverID, "connection": connection]
         case let .cancelledRequestIDRewritten(serverID, connection):
             ["server": serverID, "connection": connection]
-        case let .stderrDrained(serverID, bytes):
-            ["server": serverID, "bytes": String(bytes)]
+        case let .stderrDrained(serverID, bytes, tail):
+            ["server": serverID, "bytes": String(bytes), "tail": tail]
         }
     }
 
