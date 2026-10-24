@@ -31,9 +31,8 @@ final class Gate0CompileSmokeTests: XCTestCase {
     }
 
     func testInferWriteIsNotAdvertisedAsLLMProxy() {
-        let infer = BarPillar.all.first { $0.id == ClientCapabilityID.inferWrite.rawValue }
-        XCTAssertEqual(infer?.name, ClientCapabilityID.inferWrite.rawValue)
-        XCTAssertEqual(infer?.health, .spec)
+        XCTAssertNil(BarPillar.all.first { $0.id == ClientCapabilityID.inferWrite.rawValue })
+        XCTAssertNotNil(BarPillar.all.first { $0.id == ClientCapabilityID.memoryStore.rawValue })
         XCTAssertEqual(Pillar.models.title, ClientCapabilityID.inferWrite.rawValue)
         XCTAssertEqual(Pillar.models.status, .specified)
         // Honesty language may mention generation; never advertise as an LLM proxy product.

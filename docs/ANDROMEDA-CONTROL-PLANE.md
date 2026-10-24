@@ -44,7 +44,7 @@ flowchart TB
 
 | # | Pillar | Client-facing IDs (examples) | Status 2026-07-19 | Code / doc lineage |
 |---|--------|------------------------------|-------------------|--------------------|
-| 1 | **Memory (Anima)** | `memory.recall`, `memory.store` (+ journal/session aliases), `project.state.*` — **not** `infer.write` | 🚧 curtain + MemoryKit live; HUD journal/privacy landed on promotion branch; CloudKit GUI / Letta WS open | [MEMORY-ONEPAGER.md](./MEMORY-ONEPAGER.md), [MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md), MemoryKit |
+| 1 | **Memory (Anima)** | `memory.recall`, `memory.store` (+ journal/session aliases), `project.state.*` — **not** `infer.write` | ✅ client verbs on main (journal/session-dump included). `infer.write` is a shim, not a menu row. CloudKit replica and Letta websocket are **not** claimed | [MEMORY-ONEPAGER.md](./MEMORY-ONEPAGER.md), [MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md), MemoryKit |
 | 2 | **MCP home** | MCP tools appear as capabilities after host consolidate — not 50× `npm exec` per Studio | 🚧 `MCPServerRegistry` observe/scan + sprawl bent 55→37; **shared lifecycle / dedupe host not shipped** | BIN-41, [MCP-SPRAWL-PROBLEM.md](./MCP-SPRAWL-PROBLEM.md), Gate F |
 | 3 | **Agent skills home** | Skill invoke via registry surface (not tribal `~/.claude/skills` hunting) | 📐 `SkillRegistry` target entity; inventory exists in surface-area | HAB-39, [ANDROMEDA-SURFACE-AREA.md](./ANDROMEDA-SURFACE-AREA.md) §F |
 | 4 | **LLM proxy** | Autocache / future `infer.generate` / `write.too` — clients never pick Cerebras/OpenRouter/Anthropic; **LLM ≠ memory write** | 🚧 Autocache Anthropic Hummingbird surface live; full multi-provider router / OpenAI-compat / breakers **not** done | `GatewayConfig`, Gate D, Autocache proofs |
@@ -213,12 +213,11 @@ dependency or required pillar.
 
 ## Open gaps and re-audit criteria
 
-- Land the tested HUD journal/session-dump + visibility-policy slice on Andromeda main;
-  keep distinct capability identity and cloak→internal E2E coverage.
+- HUD journal/session-dump is on main (`memory.journal`, `memory.session_dump`). Remaining: cloak→internal E2E if a path still lacks it.
 - Add optional `visibility` and `content_hash` to Python materialized-note contracts;
   interpret missing visibility as private.
 - Prove public/friends-only CloudKit and vector export; do not call CloudKit shipped first.
-- Retire `infer.write` from client menus (shim → `WriteKind.inferAliasDeprecated`);
+- `infer.write` is retired from client menus (shim still parses old strings → `WriteKind.inferAliasDeprecated`);
   keep real LLM under Autocache / `write.too` / future `infer.generate` — see
   [MEMORY-CURTAIN-CONSOLIDATION.md](./MEMORY-CURTAIN-CONSOLIDATION.md).
 - Promote page/structured index + graphify in `memory.recall`; demote ripgrep to
