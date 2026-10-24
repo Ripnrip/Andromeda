@@ -56,6 +56,24 @@ final class HostedServer: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         return connections.count
     }
+
+    /// Stderr FileHandle the readers are already bound to. A second shim
+    /// must not replace that handler — the replacement drops the buffered
+    /// half of a credential line (Codex P2).
+    private var boundStderrID: ObjectIdentifier?
+
+    /// True when this pipe is new and the caller should attach readers.
+    /// Same handle returns false and leaves the existing assembler in place.
+    func claimReaderBinding(stderr: FileHandle) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        let id = ObjectIdentifier(stderr)
+        if boundStderrID == id {
+            return false
+        }
+        boundStderrID = id
+        return true
+    }
 }
 
 // MARK: - Hub
@@ -266,9 +284,11 @@ public final class MCPHub: @unchecked Sendable {
             }
         }
 
-        // Upstream stdout reader — attached per live pipe instance so a
+        // Upstream stdout reader — attached once per live pipe instance so a
         // respawned upstream gets fresh readers (Codex P1: the old set-based
-        // guard refused reattachment after a restart).
+        // guard refused reattachment after a restart) without a second shim
+        // discarding the stderr assembler of the same pipes (Codex P2).
+        guard server.claimReaderBinding(stderr: pipes.stderr) else { return }
         attachUpstreamReaders(pipes: pipes, server: server)
     }
 
@@ -294,7 +314,7 @@ public final class MCPHub: @unchecked Sendable {
         // line boundaries, and a credential split across two reads would
         // otherwise log the secret half in the clear.
         let stderrTally = ByteTally()
-        let stderrAssembler = LineAssembler()
+        let stderrAssembler = BoundedDiagnosticAssembler()
         pipes.stderr.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             if data.isEmpty {

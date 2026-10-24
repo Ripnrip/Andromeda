@@ -10,18 +10,18 @@ public enum DiagnosticScrub {
         "authorization", "bearer",
     ]
 
-    /// The last line of `data`, clipped, with credential-shaped text removed.
+    /// Scrub the whole line first, then clip. Clipping before the scrub
+    /// can cut a credential in half and leave the remaining half loggable.
     public static func tail(_ data: Data, limit: Int = 180) -> String {
         let text = String(decoding: data, as: UTF8.self)
-        let line = text.split(whereSeparator: \.isNewline).last.map(String.init) ?? ""
-        let clipped = String(line.prefix(limit))
-        return redact(clipped)
+        let line = text.split(whereSeparator: \.isNewline).last.map(String.init) ?? text
+        return String(redact(line).prefix(limit))
     }
 
     /// Complete stderr lines from one pipe read. A chunk that ends mid-line
     /// stays in `assembler` — scrubbing each `availableData` slice on its
     /// own leaks the second half of a split credential (Codex P2).
-    public static func completedLines(_ data: Data, assembler: LineAssembler) -> [String] {
+    public static func completedLines(_ data: Data, assembler: BoundedDiagnosticAssembler) -> [String] {
         assembler.append(data).map { tail($0) }
     }
 
@@ -31,6 +31,80 @@ public enum DiagnosticScrub {
             return "<redacted>"
         }
         return line
+    }
+}
+
+/// Stderr-only assembler. Caps the unterminated tail so a newline-less
+/// progress stream cannot retain every byte, and never emits a fragment of
+/// a line that crossed the cap — that fragment can be the secret half.
+/// `@unchecked Sendable`: `lock` guards `buffer` and `discarding`.
+public final class BoundedDiagnosticAssembler: @unchecked Sendable {
+    public static let defaultLimit = 1024
+    public static let droppedMarker = "<dropped oversized diagnostic>"
+
+    private let lock = NSLock()
+    private var buffer = Data()
+    private var discarding = false
+    private let limit: Int
+
+    public init(limit: Int = defaultLimit) {
+        self.limit = limit
+    }
+
+    public func append(_ data: Data) -> [Data] {
+        lock.lock()
+        defer { lock.unlock() }
+        var lines: [Data] = []
+        for byte in data {
+            if byte == 0x0A || byte == 0x0D {
+                lines.append(contentsOf: finishLine())
+                continue
+            }
+            if discarding {
+                continue
+            }
+            if buffer.count >= limit {
+                discarding = true
+                buffer.removeAll(keepingCapacity: false)
+                continue
+            }
+            buffer.append(byte)
+        }
+        return lines
+    }
+
+    /// Pipe closed. A discarded overflow becomes the marker, never the bytes.
+    public func flush() -> Data {
+        lock.lock()
+        defer { lock.unlock() }
+        if discarding {
+            discarding = false
+            buffer.removeAll(keepingCapacity: false)
+            return Data(Self.droppedMarker.utf8)
+        }
+        let pending = buffer
+        buffer.removeAll(keepingCapacity: false)
+        return pending
+    }
+
+    public var pendingByteCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return buffer.count
+    }
+
+    private func finishLine() -> [Data] {
+        if discarding {
+            discarding = false
+            buffer.removeAll(keepingCapacity: false)
+            return [Data(Self.droppedMarker.utf8)]
+        }
+        if buffer.isEmpty {
+            return []
+        }
+        let line = buffer
+        buffer.removeAll(keepingCapacity: false)
+        return [line]
     }
 }
 
