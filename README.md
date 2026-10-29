@@ -12,7 +12,7 @@ Andromeda is **not** HUD + memory alone. It is the local-first Swift **control p
 
 | # | Pillar | Role |
 |---|--------|------|
-| 1 | **Memory (Anima)** | Durable recall/store behind `memory.*` / `infer.write` / `project.state.*` |
+| 1 | **Memory (Anima)** | Durable recall/store behind `memory.*` / `project.state.*` (legacy `infer.write` strings parse as `memory.store`) |
 | 2 | **MCP home** | Host/consolidate MCPs so Studio does not run ~50 `npm` processes |
 | 3 | **Agent skills home** | Registry/surface for skills agents use (`SkillRegistry`) |
 | 4 | **LLM proxy** | Andromeda-owned inference routing (Autocache/gateway lineage); clients do not pick providers |

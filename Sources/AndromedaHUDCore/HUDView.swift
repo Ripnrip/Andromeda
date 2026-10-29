@@ -1007,7 +1007,7 @@ public extension Notification.Name {
     let model = HUDModel()
     model.recordRecentQuery("recall fleet observe")
     model.recordRecentQuery(HUDCapabilityID.project.rawValue)
-    model.recordRecentQuery("infer.write dogfood note")
+    model.recordRecentQuery("store dogfood note")
     return HUDView(isExpanded: true, searchQuery: "", model: model)
         .padding()
         .background(Color.gray)

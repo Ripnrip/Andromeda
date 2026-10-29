@@ -271,7 +271,7 @@ A committed three-family system:
 
 - **Instrument Serif** (400, roman + italic) — display and section titles only. Editorial, tight tracking (`-0.025em`). Italic is used for single emphasized phrases inside a headline, e.g. *visible, durable, graph-aware*.
 - **Space Grotesk** (300–600) — body and all UI. Body is 16px at 1.625 line height. H2 is the only sans heading, at 600.
-- **JetBrains Mono** — machine truth: capability IDs (`memory.recall`, `infer.write`, `project.state.*`), paths, status words, version strings, field keys, commands.
+- **JetBrains Mono** — machine truth: capability IDs (`memory.recall`, `memory.store`, `project.state.*`), paths, status words, version strings, field keys, commands.
 
 The **eyebrow** is the signature label: mono, uppercase, `0.3em` tracking, in `primary`, usually preceded by a 32px hairline in `primary/60`. In the TUI it is rendered as letter-spaced uppercase.
 
@@ -357,7 +357,7 @@ Base radius is **14px** (`--radius: 0.875rem`; `AndromedaTheme.cornerRadius`). D
 - Don't set body text in Instrument Serif, or headlines in mono.
 - Don't use the cyan as a large background fill behind paragraphs.
 - Don't put text on an `accent` fill (`bg-accent text-accent-foreground`); it fails contrast.
-- Don't expose provider or vendor brands (Linear, Multica, n8n, model providers) in client-facing UI; surfaces show capabilities (`memory.*`, `infer.write`, `project.state.*`) only.
+- Don't expose provider or vendor brands (Linear, Multica, n8n, model providers) in client-facing UI; surfaces show capabilities (`memory.*`, `project.state.*`) only.
 - Don't add motion that ignores reduced-motion settings.
 
 ## Agent Prompt Guide
