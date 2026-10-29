@@ -172,7 +172,7 @@ struct HUDComponentsSnapshotTests {
 
     @Test("HUDRecentQueriesView · dark")
     func recentQueriesView() {
-        let queries = ["project.state", "recall fleet observe", "store hello", "infer.write note"]
+        let queries = ["project.state", "recall fleet observe", "store hello", "store dogfood note"]
         snapshot(
             HUDRecentQueriesView(queries: queries, selectedIndex: 1, onSelect: { _ in }),
             size: NSSize(width: 380, height: 200),

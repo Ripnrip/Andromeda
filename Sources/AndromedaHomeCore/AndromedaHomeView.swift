@@ -99,7 +99,7 @@ public struct AndromedaHomeView: View {
             ForEach([
                 ("memory.*", "recall · store · journal"),
                 ("project.state.*", "list · create · update"),
-                (MemoryCompatibilityAlias.inferWrite.rawValue, "provider selection hidden"),
+                ("memory.store (infer.write shim)", "legacy strings still parse — provider selection hidden"),
             ], id: \.0) { id, blurb in
                 HStack {
                     Text(id)

@@ -33,7 +33,9 @@ public struct SlideSwap: View {
     public var values: [String]
     @State private var shifted = false
     /// Capability IDs by default — provider brands stay behind the curtain.
-    public init(values: [String] = ["infer.deep", "infer.fast"]) { self.values = values }
+    /// `infer.generate` / `write.too` are the documented future proxy ids;
+    /// the deprecated `infer.write` alias is a memory-store shim, never shown.
+    public init(values: [String] = ["infer.generate", "write.too"]) { self.values = values }
     public var body: some View {
         // Empty input renders a quiet placeholder instead of trapping on
         // `values[0]` — a library client passing [] gets a blank chip.
@@ -314,7 +316,7 @@ public struct ChevronRotate: View {
 public struct Marquee: View {
     public var text: String
     @State private var run = false
-    public init(_ text: String = "memory.recall · mcp.host · infer.write · fleet.pulse ·  ") { self.text = text }
+    public init(_ text: String = "memory.recall · memory.store · mcp.host · fleet.pulse ·  ") { self.text = text }
     public var body: some View {
         HStack(spacing: 0) {
             Text(text); Text(text)

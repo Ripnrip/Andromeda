@@ -416,9 +416,9 @@ public struct LLMProxyPillarCard: View {
             .frame(width: 54, height: 54)
 
             VStack(spacing: 14) {
-                proxyLane(label: "infer.write · fast", offset: travel ? 38 : -8, tone: .live)
-                proxyLane(label: "infer.write · deep", offset: travel ? 54 : -10, tone: .specified)
-                proxyLane(label: "infer.write · code", offset: travel ? 44 : -6, tone: .partial)
+                proxyLane(label: "infer.generate · spec", offset: travel ? 38 : -8, tone: .specified)
+                proxyLane(label: "write.too · spec", offset: travel ? 54 : -10, tone: .specified)
+                proxyLane(label: "autocache · live", offset: travel ? 44 : -6, tone: .live)
             }
         }
         .onAppear {
