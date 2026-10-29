@@ -207,10 +207,19 @@ jobs:
       - name: Lint (swiftlint + swiftformat)
         if: ${{ always() && steps.scope.outputs.run_orchestrator == 'true' }}
         run: |
-          brew install swiftlint swiftformat
+          # Pin swiftformat: the runner pool carries mixed preinstalls
+          # (0.63.1 / 0.64.0 observed same day) with conflicting indent
+          # rules — `brew install` reports up-to-date and does not upgrade.
+          # Pinning makes the gate deterministic and matches the checked-in
+          # formatting of OrchestratorSnapshotSupport.swift (0.64.x rules).
+          curl -fsSL https://github.com/nicklockwood/SwiftFormat/releases/download/0.64.4/swiftformat.zip -o /tmp/swiftformat.zip
+          unzip -oq /tmp/swiftformat.zip -d /tmp/swiftformat-pin
+          chmod +x /tmp/swiftformat-pin/swiftformat
+          /tmp/swiftformat-pin/swiftformat --version
+          brew install swiftlint
           # Gate: zero SERIOUS violations (errors). Warnings are visible debt.
           swiftlint
-          swiftformat --lint Packages/AndromedaOrchestrator
+          /tmp/swiftformat-pin/swiftformat --lint Packages/AndromedaOrchestrator
 
       - name: Test (root package)
         if: steps.scope.outputs.run_root == 'true' && steps.snapshots.outputs.record != 'true'
