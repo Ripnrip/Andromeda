@@ -1,3 +1,4 @@
+@testable import AndromedaOrchestrator
 import Foundation
 import SnapshotTesting
 import SwiftUI
@@ -8,8 +9,6 @@ import XCTest
 #elseif canImport(AppKit)
     @preconcurrency import AppKit
 #endif
-
-@testable import AndromedaOrchestrator
 
 // MARK: - Hosting
 
@@ -82,7 +81,7 @@ enum OrchestratorSnapshotSupport {
         if let raw = ProcessInfo.processInfo.environment["SNAPSHOT_TESTING_RECORD"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased(),
-            !raw.isEmpty
+           !raw.isEmpty
         {
             switch raw {
             case "all", "true", "1", "yes":
