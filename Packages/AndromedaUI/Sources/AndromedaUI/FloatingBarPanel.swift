@@ -91,9 +91,9 @@ public final class AndromedaBarDelegate: NSObject, NSApplicationDelegate {
 public struct AndromedaBarContent: View {
     private let caps: [(String, String)] = [
         (ClientCapabilityID.memoryRecall.rawValue, "brain.head.profile"),
+        (ClientCapabilityID.memoryStore.rawValue, "square.and.arrow.down"),
         (ClientCapabilityID.mcpHost.rawValue, "point.3.connected.trianglepath.dotted"),
         (ClientCapabilityID.skillsInvoke.rawValue, "sparkles"),
-        (ClientCapabilityID.inferWrite.rawValue, "square.and.pencil"),
         (ClientCapabilityID.secretsBroker.rawValue, "lock.shield"),
         (ClientCapabilityID.fleetPulse.rawValue, "waveform.path.ecg"),
     ]
