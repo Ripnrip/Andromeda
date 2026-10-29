@@ -6,7 +6,7 @@ Until MemoryKit is battle-tested against live multibrain stores, day-to-day flee
 
 ## Capability hiding
 
-Clients and satellite agents see `memory.*`, `infer.write`, `project.state.*` only — never Linear/Multica/n8n/provider brands. Andromeda owns selection behind the curtain.
+Clients and satellite agents see `memory.*`, `project.state.*` (legacy `infer.write` parses as `memory.store`) — never Linear/Multica/n8n/provider brands. Andromeda owns selection behind the curtain.
 
 ## Project tracking
 

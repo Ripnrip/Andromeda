@@ -61,7 +61,7 @@ public struct CapabilityListSection: View {
     }
 }
 
-// MARK: - Models section (infer.write capability lanes)
+// MARK: - Models section (LLM proxy capability lanes)
 
 public struct ModelsSection: View {
     public var onAdd: (() -> Void)?
@@ -71,7 +71,7 @@ public struct ModelsSection: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("CAVEAT · infer.write is an episodic-store alias today — not model generation. Lanes below are stable capability IDs only.")
+            Text("`infer.write` retired — clients write via `memory.store`; generation lanes below are future ids (spec). Stable capability IDs only.")
                 .font(AndromedaFont.mono(11))
                 .foregroundStyle(Color.andromedaAmber)
                 .fixedSize(horizontal: false, vertical: true)
@@ -160,7 +160,8 @@ public struct ModelsSection: View {
 
     private var health: some View {
         let cards: [(String, String, Color, String)] = [
-            (ClientCapabilityID.inferWrite.rawValue, "spec", .andromedaDim, "episodic-store alias — not model generation"),
+            ("memory.store", "live", .andromedaTeal, "episodic store — one write verb, WriteKind behind curtain"),
+            ("infer.generate · write.too", "spec", .andromedaDim, "future generation lanes — the retired `infer.write` alias is not one of them"),
             ("proxy routing", "unbuilt", .andromedaAmber, "provider selection stays behind the curtain"),
             ("client catalog", "IDs only", .andromedaTeal, "no provider model brands on this surface"),
         ]

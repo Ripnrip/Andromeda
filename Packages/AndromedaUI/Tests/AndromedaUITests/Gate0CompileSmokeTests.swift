@@ -33,16 +33,23 @@ final class Gate0CompileSmokeTests: XCTestCase {
     func testInferWriteIsNotAdvertisedAsLLMProxy() {
         XCTAssertNil(BarPillar.all.first { $0.id == ClientCapabilityID.inferWrite.rawValue })
         XCTAssertNotNil(BarPillar.all.first { $0.id == ClientCapabilityID.memoryStore.rawValue })
-        XCTAssertEqual(Pillar.models.title, ClientCapabilityID.inferWrite.rawValue)
+        // The proxy lane is the documented future id, never the retired store alias.
+        XCTAssertEqual(Pillar.models.capabilityID, "infer.generate")
         XCTAssertEqual(Pillar.models.status, .specified)
+        // No user-facing proxy surface names the deprecated alias as a lane.
+        XCTAssertFalse(ControlPlaneData.models.contains { $0.name.contains(ClientCapabilityID.inferWrite.rawValue) })
+        XCTAssertFalse(ControlPlaneData.speed.contains { $0.name.contains(ClientCapabilityID.inferWrite.rawValue) })
         // Honesty language may mention generation; never advertise as an LLM proxy product.
         let blurb = Pillar.models.blurb.lowercased()
         XCTAssertFalse(blurb.contains("llm proxy"))
-        XCTAssertTrue(blurb.contains("episodic") || blurb.contains("alias"))
+        XCTAssertTrue(blurb.contains("shim"))
     }
 
     func testModelCatalogHidesProviderBrands() {
         let banned = ["claude", "gpt", "gemini", "grok", "kimi", "deepseek", "openai", "anthropic"]
+        // Proxy lanes are the documented future ids — the retired `infer.write`
+        // store alias must never appear in the generation catalog.
+        let allowedPrefixes = ["infer.generate", "write.too"]
         let names = ControlPlaneData.models.map(\.name) + ControlPlaneData.speed.map(\.name)
         for name in names {
             let lower = name.lowercased()
@@ -50,8 +57,12 @@ final class Gate0CompileSmokeTests: XCTestCase {
                 XCTAssertFalse(lower.contains(brand), "client catalog leaked provider brand \(brand) in \(name)")
             }
             XCTAssertTrue(
-                name.hasPrefix(ClientCapabilityID.inferWrite.rawValue),
-                "expected capability alias, got \(name)"
+                allowedPrefixes.contains(where: { name.hasPrefix($0) }),
+                "expected a future proxy capability id, got \(name)"
+            )
+            XCTAssertFalse(
+                name.contains(ClientCapabilityID.inferWrite.rawValue),
+                "retired store alias \(ClientCapabilityID.inferWrite.rawValue) leaked into the generation catalog: \(name)"
             )
         }
     }
