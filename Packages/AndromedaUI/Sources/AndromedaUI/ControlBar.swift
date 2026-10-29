@@ -35,14 +35,13 @@ public struct BarPillar: Identifiable, Sendable {
         self.id = id; self.name = name; self.short = short; self.symbol = symbol; self.health = health
     }
 
-    /// The six pillars, locked 2026-07-19.
-    /// `infer.write` remains a stable client id but is an episodic-store alias today —
-    /// never advertise it as LLM inference (see AGENTS.md).
+    /// Client menu. `infer.write` stays a typed shim id, not a menu row —
+    /// old strings still resolve to the episodic store, new menus show memory.store.
     public static let all: [BarPillar] = [
-        .init(id: ClientCapabilityID.memoryRecall.rawValue,  name: "Memory · Anima",  short: "memory",  symbol: "waveform",              health: .live),
+        .init(id: ClientCapabilityID.memoryRecall.rawValue,  name: "Memory · Anima",  short: "recall",  symbol: "waveform",              health: .live),
+        .init(id: ClientCapabilityID.memoryStore.rawValue,   name: "Memory store",    short: "store",   symbol: "square.and.arrow.down", health: .live),
         .init(id: ClientCapabilityID.mcpHost.rawValue,       name: "MCP host",        short: "mcp",     symbol: "point.3.connected.trianglepath.dotted", health: .partial),
         .init(id: ClientCapabilityID.skillsInvoke.rawValue,  name: "Skills registry", short: "skills",  symbol: "sparkles",              health: .spec),
-        .init(id: ClientCapabilityID.inferWrite.rawValue,    name: ClientCapabilityID.inferWrite.rawValue, short: "infer",   symbol: "square.and.pencil",     health: .spec),
         .init(id: ClientCapabilityID.secretsBroker.rawValue, name: "Secrets broker",  short: "secrets", symbol: "lock.shield.fill",      health: .spec),
         .init(id: ClientCapabilityID.fleetPulse.rawValue,    name: "Fleet runtime",   short: "fleet",   symbol: "chart.line.uptrend.xyaxis", health: .partial),
     ]

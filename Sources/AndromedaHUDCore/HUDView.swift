@@ -71,13 +71,13 @@ public struct HUDView: View {
                         .accessibilityHidden(true)
                         .onTapGesture { expandAndFocusSearch() }
 
-                    TextField("recall · store · journal · infer.write…", text: $searchQuery)
+                    TextField("recall · store · journal · project.state…", text: $searchQuery)
                         .focused($isSearchFocused)
                         .textFieldStyle(.plain)
                         .font(.body)
                         .frame(maxWidth: .infinity)
                         .accessibilityLabel("Memory command")
-                        .accessibilityHint("Type recall, store, journal, infer.write, or project.state. Arrow keys move among results. Escape dismisses results.")
+                        .accessibilityHint("Type recall, store, journal, or project.state. Arrow keys move among results. Escape dismisses results. Legacy infer.write strings still parse as memory.store.")
                         .hudIdentifier(.searchField)
                         .onSubmit {
                             handleSubmit()
