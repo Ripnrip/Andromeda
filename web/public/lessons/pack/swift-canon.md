@@ -59,7 +59,8 @@ This canon explicitly covers:
 ### SwiftUI surface
 1. `references/swiftui-state.md` — property wrappers, `@Observable`
 2. `references/swiftui-views.md` — extraction, performance, lists, sheets
-3. `references/animations.md` — motion, transitions, keyframes
+3. `references/animations.md` — motion, transitions, keyframes, springs, shape morphing (VibeKit/Morphling-proven)
+3b. `references/animated-components.md` — ready-made animated components (typewriter, glitch, swoosh, dots, counter, staged progress) — check BEFORE hand-rolling; VibeKit (`~/Developer/VibeKit`) is the living library
 4. `references/motion-haptics.md` — haptics + Reduce Motion
 5. `references/typography.md` — SF Pro, hierarchy, metrics
 6. `references/accessibility.md` — VoiceOver, Dynamic Type
@@ -109,6 +110,8 @@ This canon explicitly covers:
 - Never hand-roll JSON serialization — `JSONEncoder`/`JSONDecoder`, `.sortedKeys` for determinism
 - Drain child pipes before awaiting exit; never iterate `.bytes` per-byte for bulk reads
 - If a `try?` probe order is load-bearing, document it and test it
+- Settled snapshot state (reveals, text content alike) derives from the environment — never from a `.task` having fired (Exhibit 7, two scars)
+- Snapshot environments are image + Xcode + fonts — a change to any leg is a record-all, compile-gated, provenance byte-diffed
 
 ### Logging
 - Default to `os.Logger` for app/server logging
@@ -190,7 +193,8 @@ This canon explicitly covers:
 | `tca.md` | Reducers, clients, TestStore |
 | `swiftui-state.md` | Property wrappers, data flow |
 | `swiftui-views.md` | Composition, lists, sheets, performance |
-| `animations.md` | Implicit/explicit, phase, keyframe |
+| `animations.md` | Implicit/explicit, phase, keyframe, springs, shape morphing, HUD theater |
+| `animated-components.md` | VibeKit component inventory: typewriter, glitch, swoosh, dots, counter, staged progress |
 | `motion-haptics.md` | UIImpactFeedback, NSHapticFeedback, motion a11y |
 | `accessibility.md` | VoiceOver, Dynamic Type, announcements |
 | `previews.md` | `#Preview`, `@Previewable`, fixtures |
