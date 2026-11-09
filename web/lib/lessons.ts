@@ -80,7 +80,7 @@ export const LESSONS: Lesson[] = [
     summary:
       "Sequence/flow diagram is law. Visual evidence is law. The six merge-blocker boxes from the review gate belong on the template so authors see them at PR-open time.",
     kind: "template",
-    status: "partial",
+    status: "shipped",
     github: "https://github.com/Ripnrip/Andromeda/blob/main/.github/PULL_REQUEST_TEMPLATE.md",
     downloads: [
       {
@@ -95,7 +95,7 @@ export const LESSONS: Lesson[] = [
     title: "AndromedaUI",
     eyebrow: "Component library",
     summary:
-      "Instrumentable primitives, not smart widgets. Caller-supplied identifiers, no networking inside GlassCard. Previews and snapshots already exist — App Control is the headed-drive half.",
+      "Instrumentable primitives on shared design tokens (BIN-271). Caller-supplied identifiers, no networking inside GlassCard. Previews and snapshots exist — App Control is the headed-drive half.",
     kind: "ui",
     status: "partial",
     github: "https://github.com/Ripnrip/Andromeda/tree/main/Packages/AndromedaUI",
@@ -106,11 +106,29 @@ export const LESSONS: Lesson[] = [
     title: "App Control",
     eyebrow: "Drivable UI",
     summary:
-      "Not the product Control Plane. A debug/test adapter: identifiers, GET /state, POST /action, GET /screenshot. Same methods the buttons call. Loopback, env-gated, typed enum — never a second HTTP host.",
+      "Not the product Control Plane. HUD loopback plane on main (HAB-838): identifiers, GET /state, POST /action, GET /screenshot, triple lock. Same methods the buttons call. Env-gated — never a second public host.",
     kind: "ui",
-    status: "spec",
+    status: "partial",
+    github: "https://github.com/Ripnrip/Andromeda/blob/main/docs/APP-CONTROL-HUD.md",
     downloads: [
       { label: "app-control.md", href: "/lessons/pack/app-control.md", filename: "app-control.md" },
+    ],
+  },
+  {
+    slug: "swift-ui-design",
+    title: "Swift & Apple UI design",
+    eyebrow: "Native craft standard",
+    summary:
+      "Unified design resource for native surfaces: drivable UI, Inject hot reload, previews, SF Symbols/typography, fleet Swift canon, and the 15-question gate — without AI slop.",
+    kind: "canon",
+    status: "shipped",
+    github: "https://github.com/Ripnrip/Andromeda/blob/main/docs/SWIFT-UI-DESIGN-RESOURCE.md",
+    downloads: [
+      {
+        label: "swift-ui-design-resource.md",
+        href: "/lessons/pack/swift-ui-design-resource.md",
+        filename: "swift-ui-design-resource.md",
+      },
     ],
   },
   {

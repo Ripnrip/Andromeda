@@ -17,6 +17,7 @@ const PACK = [
   { href: "/lessons/pack/anti-patterns.md", label: "anti-patterns.md" },
   { href: "/lessons/pack/PULL_REQUEST_TEMPLATE.md", label: "PULL_REQUEST_TEMPLATE.md" },
   { href: "/lessons/pack/app-control.md", label: "app-control.md" },
+  { href: "/lessons/pack/swift-ui-design-resource.md", label: "swift-ui-design-resource.md" },
   { href: "/lessons/pack/sequence-diagram.mmd", label: "sequence-diagram.mmd" },
   { href: "/lessons/pack/README.md", label: "README.md" },
 ]
