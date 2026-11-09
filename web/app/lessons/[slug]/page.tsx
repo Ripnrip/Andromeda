@@ -99,6 +99,14 @@ function renderBody(slug: string) {
       return <UiBody />
     case "app-control":
       return <AppControlBody />
+    case "swift-ui-design":
+      return (
+        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          Full resource is the downloadable markdown (and the git path above). Keep native craft and
+          App Control / review-gate links in one place so design agents do not invent a parallel
+          standard.
+        </p>
+      )
     case "claude-mem-for-all":
       return <CaseStudyBody />
     case "diagrams":
