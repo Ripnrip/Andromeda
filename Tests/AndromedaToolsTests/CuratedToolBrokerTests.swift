@@ -324,7 +324,9 @@ struct CuratedToolBrokerTests {
 
         #expect(result.isError == true)
         #expect(result.content.first?.text.contains("Host secret unavailable") == true)
-        #expect(result.content.first?.text.contains("andromeda.github") == true)
+        // Caller-facing failures must not expose internal credential references.
+        #expect(result.content.first?.text == "Host secret unavailable.")
+        #expect(result.content.first?.text.contains("andromeda.github") == false)
     }
 
     @Test("unknown tools are rejected")
