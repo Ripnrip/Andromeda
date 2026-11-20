@@ -7,7 +7,7 @@ export function HonestStatus() {
     <section id="status" className="relative border-t border-border/60 py-20">
       <div className="mx-auto max-w-6xl px-6">
         <SectionHeading
-          eyebrow="Honest status · 2026-07-19"
+          eyebrow="Honest status · through 2026-10-29"
           title="What is and isn't shipped"
           desc="A portfolio piece should be accurate. Here is the real state of the system today — no greenwashing."
         />
