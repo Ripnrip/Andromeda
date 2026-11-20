@@ -1,0 +1,16 @@
+sequenceDiagram
+    autonumber
+    participant Human
+    participant UI as Headed UI
+    participant Plane as App Control
+    participant Model as AppModel
+    participant Proof as Evidence dir
+
+    Human->>UI: click
+    UI->>Model: same method the dispatcher calls
+    Note over Plane: POST /action (typed enum)
+    Plane->>Model: identical method
+    Model-->>Plane: state
+    Plane->>Proof: state JSON + screenshot PNG
+    Plane-->>Human: GET /state
+    Note over Proof: receipts, not vibes (gate Q14)

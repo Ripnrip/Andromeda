@@ -6,6 +6,7 @@ const LINKS = [
   { href: "#pillars", label: "Six pillars" },
   { href: "#curtain", label: "Curtain" },
   { href: "#status", label: "Status" },
+  { href: "/lessons", label: "Lessons" },
   { href: "#story", label: "Our story" },
   { href: "#roadmap", label: "Roadmap" },
 ]

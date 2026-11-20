@@ -65,10 +65,10 @@ export const PILLARS: Pillar[] = [
     name: "Skills",
     short: "Registry",
     icon: Boxes,
-    status: "spec",
+    status: "partial",
     tagline: "A home for agent skills",
     description:
-      "One registry surface for skill discovery and invocation — no more tribal hunting through scattered skill directories across machines.",
+      "SkillRegistry observe ships: stable skill.* IDs and an honest-absent scan, so missing skills stay visible. Invocation from one registry surface is still specified, not built.",
     capabilities: ["skill.list", "skill.invoke"],
   },
   {
@@ -104,7 +104,7 @@ export const PILLARS: Pillar[] = [
     status: "partial",
     tagline: "Every daemon on the record",
     description:
-      "LaunchAgents, plists, and launchd become first-class entities with a health pulse and telemetry. Observe now; typed Swift mutation lands with the installer.",
+      "andromeda fleet install and fleet status ship, with a LettaChannels health probe and fail-closed LaunchAgent installers. HUD roster wiring and typed plist mutation are not done.",
     capabilities: ["fleet.roster", "fleet.health", "fleet.telemetry"],
   },
 ]
