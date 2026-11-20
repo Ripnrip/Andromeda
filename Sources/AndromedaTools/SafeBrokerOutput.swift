@@ -67,38 +67,16 @@ struct SafeBrokerOutput: Sendable {
             guard body.count <= maxAcceptedBodyBytes else {
                 return try notice("<upstream body withheld: accepted size limit exceeded>", pattern: pattern, check: checkCancellation)
             }
-            try checkCancellation(.beforeUTF8Decode)
-            let decoded = String(data: body, encoding: .utf8)
-            try checkCancellation(.afterUTF8Decode)
-            guard let text = decoded else {
+            guard let text = try decodeUTF8Body(body, check: checkCancellation) else {
                 return try notice("<non-utf8 body: \(body.count) bytes>", pattern: pattern, check: checkCancellation)
             }
-            // The two marker alphabets are disjoint, so a nonempty token cannot
-            // occur in both. Marker selection is bounded, not trial replacement.
-            let ordinaryMarker = "[redacted]"
-            let replacement = try pattern.contains(Array(ordinaryMarker.utf8), check: checkCancellation) ? "■" : ordinaryMarker
-            let jsonFiltered = try quotedStrings(text, pattern: pattern, replacement: replacement, validateOnly: false, check: checkCancellation)
-            let filtered = try pattern.redact(jsonFiltered, replacement: replacement, check: checkCancellation)
-            guard try !pattern.contains(Array(filtered.utf8), check: checkCancellation) else {
-                throw FilteringFailure.invariant
-            }
-            // Raw replacement can change quoted boundaries. Recheck recognized
-            // decoded spans after it, not merely the decoded input strings.
-            _ = try quotedStrings(filtered, pattern: pattern, replacement: replacement, validateOnly: true, check: checkCancellation)
-            let limit = max(0, maxBytes)
-            let sanitizedBytes = filtered.utf8.count
-            let output: String
-            if sanitizedBytes > limit {
-                output = try utf8Prefix(filtered, maxBytes: limit, check: checkCancellation)
-                    + "\n[truncated: upstream body was \(body.count) bytes, sanitized body was \(sanitizedBytes) bytes, limit is \(limit)]"
-            } else {
-                output = filtered
-            }
+            let filtered = try sanitizeBodyText(text, pattern: pattern, check: checkCancellation)
+            let output = try truncateBodyText(
+                filtered, upstreamBytes: body.count, maxBytes: maxBytes, check: checkCancellation
+            )
             // Metadata or its boundary with the prefix must not manufacture a
             // literal token either. If it does, drop the whole output once.
-            guard try !pattern.contains(Array(output.utf8), check: checkCancellation) else {
-                throw FilteringFailure.invariant
-            }
+            try requireLiteralTokenAbsent(in: output, pattern: pattern, check: checkCancellation)
             return output
         } catch is CancellationError {
             throw CancellationError()
@@ -106,6 +84,51 @@ struct SafeBrokerOutput: Sendable {
             return try notice("<upstream body withheld: output sanitization limit exceeded>", pattern: pattern, check: checkCancellation)
         } catch {
             return try notice("<upstream body withheld: output sanitization failed>", pattern: pattern, check: checkCancellation)
+        }
+    }
+
+    /// Decodes an already size-checked body without altering the two codec checkpoints.
+    private static func decodeUTF8Body(_ body: Data, check: CancellationCheck) throws -> String? {
+        try check(.beforeUTF8Decode)
+        let decoded = String(data: body, encoding: .utf8)
+        try check(.afterUTF8Decode)
+        return decoded
+    }
+
+    /// Filters decoded quoted spans, then raw bytes, and validates both resulting representations.
+    private static func sanitizeBodyText(
+        _ text: String, pattern: LiteralPattern, check: CancellationCheck
+    ) throws -> String {
+        // The two marker alphabets are disjoint, so a nonempty token cannot
+        // occur in both. Marker selection is bounded, not trial replacement.
+        let ordinaryMarker = "[redacted]"
+        let replacement = try pattern.contains(Array(ordinaryMarker.utf8), check: check) ? "■" : ordinaryMarker
+        let jsonFiltered = try quotedStrings(text, pattern: pattern, replacement: replacement, validateOnly: false, check: check)
+        let filtered = try pattern.redact(jsonFiltered, replacement: replacement, check: check)
+        try requireLiteralTokenAbsent(in: filtered, pattern: pattern, check: check)
+        // Raw replacement can change quoted boundaries. Recheck recognized
+        // decoded spans after it, not merely the decoded input strings.
+        _ = try quotedStrings(filtered, pattern: pattern, replacement: replacement, validateOnly: true, check: check)
+        return filtered
+    }
+
+    /// Budgets sanitized UTF-8 bytes, preserving the original scalar-safe prefix and metadata copy.
+    private static func truncateBodyText(
+        _ text: String, upstreamBytes: Int, maxBytes: Int, check: CancellationCheck
+    ) throws -> String {
+        let limit = max(0, maxBytes)
+        let sanitizedBytes = text.utf8.count
+        guard sanitizedBytes > limit else { return text }
+        return try utf8Prefix(text, maxBytes: limit, check: check)
+            + "\n[truncated: upstream body was \(upstreamBytes) bytes, sanitized body was \(sanitizedBytes) bytes, limit is \(limit)]"
+    }
+
+    /// Uses the existing cooperative scan to reject literal matches without changing failure classification.
+    private static func requireLiteralTokenAbsent(
+        in text: String, pattern: LiteralPattern, check: CancellationCheck
+    ) throws {
+        guard try !pattern.contains(Array(text.utf8), check: check) else {
+            throw FilteringFailure.invariant
         }
     }
 
