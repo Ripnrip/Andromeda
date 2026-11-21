@@ -1,0 +1,19 @@
+flowchart TD
+    A["Existing route checks"] --> B["Resolve and validate bearer"]
+    A -->|deny| X["Fixed caller-safe error"]
+    B -->|invalid, failure, cancel| X
+    B -->|valid exact bytes| C["HTTP through injected seam"]
+    C --> D["Check status, body ceiling, Slack ok"]
+    C -->|error or cancel| X
+    D -->|reject| X
+    D --> E["Strict UTF-8 decode"]
+    E -->|invalid| W["Withhold body with safe notice"]
+    E --> F["Filter JSON spans, then raw token"]
+    F --> G["Check pre-truncation invariants"]
+    F -->|cancel| X
+    F -->|work bound or collision| W
+    G -->|fail| W
+    G --> H["Scalar-safe sanitized truncation"]
+    H --> I["Final literal-token check"]
+    I -->|fail| W
+    I -->|pass| J["Safe response text"]
