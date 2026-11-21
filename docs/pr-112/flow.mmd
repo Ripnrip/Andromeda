@@ -1,0 +1,12 @@
+flowchart TD
+    A["Check cancellation; reserve slot"] --> B["Activate five-second caller deadline"]
+    A -->|cancelled or busy| X["Reject; no worker lookup"]
+    B --> C{"Worker claim valid?"}
+    B -. cancel or deadline .-> H["Finish caller once; retain slot"]
+    C -->|no; skip native call| F["Worker finishes; release slot"]
+    C -->|yes| D["Serial native lookup; UI forbidden"]
+    D -. cancel or deadline .-> H
+    D --> E["Classify status; preserve exact UTF-8"]
+    E --> F
+    H -. slot held until worker finishes .-> F
+    F --> G["Deliver result or discard late outcome"]
