@@ -1,0 +1,15 @@
+flowchart TD
+    A["Host grants; auth required elsewhere"] --> B["Validate typed refs, bounds and caps"]
+    B -->|invalid| X["Payload-free validation error"]
+    B --> C["Validated grants and finite request"]
+    C -->|list| L["List nonempty capability scopes"]
+    C -->|authorize| D{"Capability allowed?"}
+    D -->|no| E["capabilityDenied"]
+    D -->|yes| F{"Exact resource granted?"}
+    F -->|no| G["resourceDenied"]
+    F -->|yes| H["Immutable authorized intent"]
+    X --> N["Pure return only; no route, auth or I/O"]
+    L --> N
+    E --> N
+    G --> N
+    H --> N
