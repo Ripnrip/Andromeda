@@ -254,8 +254,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          out=$(swift test --filter HUDIdentifierTests --filter HUDViewSnapshotTests --filter HUDComponentSnapshotTests --filter HUDComponentsSnapshotTests --filter HUDResultsViewSnapshotTests --filter HUDChainHealthViewSnapshotTests --filter HUDModelAppControlTests)
+          # Capture must not use set -e around the substitution: a failing
+          # `swift test` otherwise exits before printf, and the job log shows
+          # only "exit code 1" (PR #108 run 45119191430).
+          set +e
+          out=$(swift test --filter HUDIdentifierTests --filter HUDViewSnapshotTests --filter HUDComponentSnapshotTests --filter HUDComponentsSnapshotTests --filter HUDResultsViewSnapshotTests --filter HUDChainHealthViewSnapshotTests --filter HUDModelAppControlTests 2>&1)
+          status=$?
+          set -e
           printf '%s\n' "$out"
+          if [ "$status" -ne 0 ]; then
+            echo "heavy-suite tests failed (exit ${status})"
+            exit "$status"
+          fi
           # Fake-green guard: a renamed suite would empty this filter set and pass
           # with 0 tests — fail loudly instead. (grep, not rg — runners may lack rg.)
           printf '%s\n' "$out" | grep -q 'in 7 suites' || { echo 'heavy-suite selection shrank — expected 7 suites; update the filters above'; exit 1; }
