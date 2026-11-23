@@ -24,3 +24,7 @@ Clients and satellite agents see `memory.*`, `infer.write`, `project.state.*` on
 4. Run targeted tests before broad tests.
 5. Avoid Bash automation files or hidden launch/watchdog behavior.
 6. Surface background operations through visible status plus telemetry.
+
+## Public boundary (2026-11-22)
+
+This repo is **public product surface only** — no fleet/ops specifics (real hostnames, home paths, workspace/channel IDs, internal ports, network-topology prose). The public surface is kept deliberately free of operational specifics — enforced at push time. Rules: `docs/PUBLIC-REPO-RULES.md`; pre-push checklist: the private workspace docs (`docs/PUBLIC-REPO-HYGIENE.md` in multibrain). Pushes are disabled by default — run the checklist before re-enabling any push.
