@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Letta OAuth keepalive. Swift binary refreshes the Cloud grant every 2h
+  and SIGTERMs the computer listener so the desktop daemon relaunches it
+  against the new token. Without this, OAuth expiry signs the computer out.
+
+  Install (typed Swift, fleet lane — never bash):
+    swift build -c release --product LettaOAuthKeepalive
+    .build/release/LettaOAuthKeepalive --install
+  Visible in the LaunchEntity roster as svc.letta.oauth-keepalive.
+  Status: ~/.letta/logs/letta-oauth-keepalive.status (no secrets)
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.andromeda.letta-oauth-keepalive</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/<user>/.local/bin/LettaOAuthKeepalive</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/<user></string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>LimitLoadToSessionType</key>
+	<string>Aqua</string>
+	<key>StandardOutPath</key>
+	<string>/Users/<user>/.letta/logs/letta-oauth-keepalive.out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/<user>/.letta/logs/letta-oauth-keepalive.err.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>/Users/<user></string>
+	</dict>
+</dict>
+</plist>
