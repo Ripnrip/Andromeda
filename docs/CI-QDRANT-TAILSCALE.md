@@ -36,7 +36,9 @@ The port is intentionally separate from the existing Serve listeners.
 The repository has a self-hosted runner named `studio-andromeda` with labels
 `self-hosted`, `macOS`, and `studio`. Keep the runner process under launchd so
 it can be selected as a manual fallback. The normal PR job uses GitHub-hosted
-macOS plus the repository's ephemeral `TS_AUTHKEY`.
+macOS plus the repository's ephemeral `TS_AUTHKEY`. The live endpoint is the
+`QDRANT_LIVE_URL` repository secret (a full `http://…` URL); the live leg is
+skipped cleanly when either secret is unset.
 
 The workflow curls `/collections` before compiling, so a missing runner or
 Qdrant service fails with an explicit connectivity error instead of a
