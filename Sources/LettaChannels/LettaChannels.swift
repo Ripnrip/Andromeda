@@ -113,7 +113,7 @@ enum Keychain {
 }
 
 enum Paths {
-    static let home = ProcessInfo.processInfo.environment["HOME"] ?? "/Users/<user>"
+    static let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
     static let path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
     static let node = "/opt/homebrew/bin/node"
     static let slackSkillsDirectory = home + "/.letta/channels/slack-skills"
