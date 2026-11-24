@@ -38,6 +38,14 @@ struct LaunchEntityRegistryTests {
         #expect(registry.all().count == 16) // 9 multibrain + 6 HAB-42 habitat/Multica + Mini tunnel
     }
 
+    @Test("📜 Catalog seeds resolve the ops template directory from the home directory")
+    func testCatalogSeedsOpsDirectoryDefaultsToHome() {
+        let retro = LaunchEntityRegistry.catalogSeeds().first { $0.label == "com.multibrain.retro" }
+        let expected = NSHomeDirectory() + "/Developer/multibrain/ops/com.multibrain.retro.plist"
+
+        #expect(retro?.plistPath == expected)
+    }
+
     @Test("👻 HAB-42 habitat ghosts are seeded (Multica + agent-habitat lane)")
     func testHabitatGhostEntitiesSeeded() throws {
         let registry = LaunchEntityRegistry(observingHostRole: .hub)
