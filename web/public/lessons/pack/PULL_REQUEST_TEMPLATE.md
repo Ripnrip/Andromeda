@@ -1,6 +1,5 @@
 <!-- Thank you! Keep every section — write "n/a" if it truly does not apply.
-     Visual evidence + a sequence/flow diagram are LAW, not preference.
-     Fleet source: Andromeda /lessons — https://andromeda site /lessons/pr-template -->
+     Visual evidence + a sequence/flow diagram are LAW, not preference. -->
 
 ## What changed
 
@@ -43,19 +42,18 @@ sequenceDiagram
 
 - [ ] Tests / build green locally — paste the command you ran
 
-## Review gate — merge blockers
+## Review gate — merge blockers (swift-review-gate skill / review-canon §8)
 
-<!-- From swift-review-gate. Unchecked blocker = do not merge.
-     Non-blockers: answer or write N/A. See /lessons/review-gate -->
+<!-- The 6 blocking questions from the fleet's 15-question gate.
+     Unchecked = not mergeable. The other 9 are judgment-tier:
+     reviewer walks them; N/A needs a one-line rationale. -->
 
-- [ ] **Q1** Enums over magic strings — finite sets are enums + exhaustive switch
-- [ ] **Q2** Codable on the wire — no hand-built JSON literals; canonical writer if byte-equality matters (Exhibit 13)
-- [ ] **Q6** Actors / Sendable — shared mutable state isolated; `@unchecked Sendable` justified in writing
-- [ ] **Q8** Emoji telemetry at every new decision point
-- [ ] **Q9** Secrets & data posture — no ambient env inheritance, no PII in logs, brokered secrets
-- [ ] **Q14** Exhaustive proof — CaseIterable tests, sequence diagram, snapshots if UI, receipts from a real run
-
-Non-blockers (answer or N/A): Q3 expression · Q4 protocol vs enum · Q5 functional · Q7 lifetime · Q10 previews · Q11 snapshots · Q12 haptics/a11y · Q13 performance · Q15 simpler shape?
+- [ ] **Q1 Enums over magic** — closed sets are `enum` + exhaustive switch (+ `CaseIterable` where tests iterate)
+- [ ] **Q2 Codable on the wire** — no hand-built JSON literals in production code; byte-equality where wire shape matters (canonical writer for stable bytes — canon Exhibit 13)
+- [ ] **Q6 Actors/Sendable** — shared mutable state actor-isolated; `@unchecked Sendable` justified in writing
+- [ ] **Q8 Emoji telemetry at decision points** — typed events + glyphs for every meaningful branch
+- [ ] **Q9 Secrets & data posture** — enum env allowlists; auth before privileged side effects; no PII in logs/mirrors
+- [ ] **Q14 Exhaustive proof** — CaseIterable-driven tests, Codable fixture builders, e2e paths run with receipts
 
 ## Secrets / data posture
 
@@ -65,3 +63,23 @@ Non-blockers (answer or N/A): Q3 expression · Q4 protocol vs enum · Q5 functio
 ## Blast radius & rollback
 
 <!-- What could this break outside its own module? How do we roll it back (revert commit / feature flag / migration down)? -->
+
+## Self-evaluation
+
+<!-- Complete every item. Write "n/a — <reason>" beside anything that does not apply. -->
+
+- [ ] The title and What changed describe the user-visible or operational behavior accurately.
+- [ ] Why explains the problem, decision, and intended outcome.
+- [ ] The tracking issue or decision record is linked, or marked n/a.
+- [ ] The change is scoped to the smallest practical surface.
+- [ ] The sequence/flow diagram has committed Mermaid source, or is marked n/a.
+- [ ] Diagram evidence is readable in both GitHub light and dark mode.
+- [ ] UI-affecting changes include screenshots, previews, or visual-diff evidence.
+- [ ] Happy paths and relevant failure/authorization paths were tested.
+- [ ] Exact local validation commands and results are recorded above.
+- [ ] CI results have been reviewed; failures, flakes, and pre-existing failures are distinguished.
+- [ ] Tests cover regressions introduced or fixed by this change.
+- [ ] Documentation, examples, and API/CLI help are updated where behavior changed.
+- [ ] Compatibility, migrations, configuration defaults, and feature flags are addressed.
+- [ ] Secrets, privacy, permissions, and externally exposed surfaces were reviewed.
+- [ ] Logs, metrics, traces, and operator-facing evidence are present—or the observability gap is explicitly called out.

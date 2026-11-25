@@ -406,6 +406,25 @@ locale): inject and derive, never hope a task fires. CI enforcement for the
 baseline side: `BaselineIntegrityTests` (a committed baseline that is a
 2-color flat image fails the suite).
 
+**Second scar, same law — content, not just reveals (PR #65/#67, Sep 2026):**
+`TypedText` settled its *text* through a task — `@State shown = ""` plus
+`.task { await type() }` whose reduce-motion branch assigns `shown = full`.
+A capture landing before the task fires records an empty label and passes
+quietly until the beat shifts:
+
+```swift
+// Broken: empty until the task lands, even under reduce-motion
+Text(shown) … .task { guard !reduceMotion else { shown = full; return } … }
+
+// Exhibit 7 shape: the settled content derives from the environment, synchronously
+Text(reduceMotion ? full : shown)
+```
+
+The law generalizes: whatever the settled frame *shows* — opacity, offset,
+text, lists — must be derivable from the environment at first render. The
+`.task` may animate toward it when motion is allowed; it must never be the
+only thing standing between the view and its content.
+
 ## Exhibit 8 — Lazy containers for fixed, small collections
 
 `LazyVStack`/`LazyVGrid` defer materialization until "needed" — and offscreen
@@ -475,7 +494,11 @@ the artifact-provenance byte-diff rule born from landing stale bytes as
 "runner-recorded".
 Project-specific scar details live in the project skill layered on this canon.
 
-## Exhibit 7: snapshot tests that capture animated or reveal states without pinning the random source
+## Exhibit 12: snapshot tests that capture animated or reveal states without pinning the random source
+
+*(Renumbered from a colliding "Exhibit 7" — the number now belongs to the
+`.task`-gated settled-state exhibit; pre-September-2026 citations saying
+"Exhibit 7" for RNG-pinning mean this one.)*
 
 **Shape**: a snapshot suite records a view whose pixels depend on anything
 time-, RNG-, or appearance-dependent — then passes locally and flakes on
@@ -574,3 +597,47 @@ in 0.001s.
 appended to the `~/.agents` sync copy as Exhibit 8 — **clobbered by the PR #63 canon
 sync**, restored here as Exhibit 11. Meta-lesson now law: canon edits land in the
 git-tracked source (this file), never the synced copy.
+
+## Exhibit 13 — Trusting JSONEncoder for stable wire bytes (macOS 26 randomizes key order)
+
+**Symptom**: a Codable rewrite of a JSON literal "passes tests" — sometimes. The
+byte-equality test flakes per-process: same code, same input, different bytes.
+
+**What happened** (Andromeda PR #75, 2026-09-10): replacing raw-string JSON-RPC error
+frames with `Codable` types looked green on first probe. Running the suite across
+processes showed the probe had passed 2/8 times by luck: on Swift 6.2/macOS 26,
+`JSONEncoder` **randomizes object key order per-process** (a custom `encode(to:)`
+does not pin it — the randomization happens below user code) and escapes `/` as `\/`.
+Any consumer that compares bytes, signs payloads, or pins a format silently breaks.
+
+**Rules**:
+1. Codable is for decode/round-trip. **Stable wire bytes need a canonical writer** —
+   fixed member order, explicit escaping policy, string-escaping delegated to
+   JSONEncoder per-fragment.
+2. Wire-format rewrites carry a **byte-equality regression oracle**: the legacy
+   literal kept verbatim in a test, asserted equal to the typed encoder's output,
+   across multiple runs.
+3. A test that passes once means nothing for output stability — run format-sensitive
+   suites ≥5× before claiming green.
+
+## Exhibit 14 — xcodegen owns the file: hand edits to generated artifacts don't survive regen
+
+**Symptom**: entitlements (or any generated config) you wrote are `<dict/>` empty at
+review time, though you definitely wrote them. The app works in the simulator and is
+silently dead on device.
+
+**What happened** (multibrain PR #27, 2026-09-10, Codex review catch): the widget's
+app-group entitlement was hand-written into `Entitlements/*.entitlements`; the next
+`bootstrap-xcode.sh` run executed `xcodegen generate`, which **regenerates declared
+entitlements files when project.yml declares them without a `properties:` block** —
+wiping the content to empty dicts before the commit. On device, `containerURL(forSecurityApplicationGroupIdentifier:)`
+returns nil, snapshot saves no-op, the widget shows empty forever. The simulator
+can't catch this class: no vault exists there, so the empty state is legitimately correct.
+
+**Rules**:
+1. Content for xcodegen-owned files is authored **in project.yml**
+   (`entitlements.properties.…`), never by hand — regen then *writes* the content.
+2. After any `xcodegen generate`, diff generated artifacts before committing; an
+   emptied file you just filled is this exhibit.
+3. Simulator green ≠ device green for entitlement/capability classes — device build
+   is the only real verification of app-group/keychain/push surfaces.
