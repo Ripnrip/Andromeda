@@ -35,7 +35,9 @@ struct LaunchEntityRegistryTests {
         ]
 
         #expect(labels == expected)
-        #expect(registry.all().count == 16) // 9 multibrain + 6 HAB-42 habitat/Multica + Mini tunnel
+        #expect(registry.all().count == 17) // 9 multibrain + habitat/Multica + Mini tunnel + oauth keepalive
+        #expect(registry.entity(slug: "svc.letta.oauth-keepalive")?.label == "com.andromeda.letta-oauth-keepalive")
+        #expect(registry.entity(slug: "svc.letta.oauth-keepalive")?.schedule == .keepAlive)
     }
 
     @Test("👻 HAB-42 habitat ghosts are seeded (Multica + agent-habitat lane)")

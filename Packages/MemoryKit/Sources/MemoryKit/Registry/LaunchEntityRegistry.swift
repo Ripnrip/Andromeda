@@ -106,6 +106,15 @@ public struct LaunchEntityRegistry: Sendable {
                 purpose: "Hourly healthcheck + Telegram alert gate"
             ),
             LaunchEntity(
+                slug: "svc.letta.oauth-keepalive",
+                label: "com.andromeda.letta-oauth-keepalive",
+                kind: .service,
+                plistPath: live("com.andromeda.letta-oauth-keepalive"),
+                schedule: .keepAlive,
+                hostRole: .hub,
+                purpose: "Refresh Letta Cloud OAuth every 2h and reload the computer listener before sign-out"
+            ),
+            LaunchEntity(
                 slug: "svc.letta",
                 label: "com.multibrain.letta",
                 kind: .service,

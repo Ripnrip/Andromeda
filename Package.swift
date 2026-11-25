@@ -27,6 +27,7 @@ let package = Package(
         .library(name: "AndromedaServer", targets: ["AndromedaServer"]),
         .executable(name: "andromeda", targets: ["AndromedaCLI"]),
         .executable(name: "LettaChannels", targets: ["LettaChannels"]),
+        .executable(name: "LettaOAuthKeepalive", targets: ["LettaOAuthKeepalive"]),
         .executable(name: "andromeda-mcp-shim", targets: ["AndromedaMCPShim"]),
         .executable(name: "andromeda-runtime", targets: ["AndromedaRuntimeCLI"]),
         .executable(name: "AndromedaHome", targets: ["AndromedaHome"]),
@@ -204,6 +205,11 @@ let package = Package(
         .executableTarget(
             name: "LettaChannels",
             path: "Sources/LettaChannels"
+        ),
+        .executableTarget(
+            name: "LettaOAuthKeepalive",
+            dependencies: ["AndromedaHostOps"],
+            path: "Sources/LettaOAuthKeepalive"
         ),
         .executableTarget(
             name: "AndromedaCLI",
