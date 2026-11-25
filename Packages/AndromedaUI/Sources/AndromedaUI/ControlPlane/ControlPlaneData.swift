@@ -33,7 +33,7 @@ public enum Pillar: String, CaseIterable, Identifiable, Sendable {
         case .memory: return "Memory · Anima"
         case .mcp: return "MCP host"
         case .skills: return "Skills registry"
-        case .models: return ClientCapabilityID.inferWrite.rawValue
+        case .models: return "LLM proxy"
         case .secrets: return "Secrets broker"
         case .fleet: return "Fleet runtime"
         case .search: return "Ask Andromeda"
@@ -45,7 +45,7 @@ public enum Pillar: String, CaseIterable, Identifiable, Sendable {
         case .memory: return ClientCapabilityID.memoryRecall.rawValue
         case .mcp: return ClientCapabilityID.mcpHost.rawValue
         case .skills: return ClientCapabilityID.skillsInvoke.rawValue
-        case .models: return ClientCapabilityID.inferWrite.rawValue
+        case .models: return "infer.generate"
         case .secrets: return ClientCapabilityID.secretsBroker.rawValue
         case .fleet: return ClientCapabilityID.fleetPulse.rawValue
         case .search: return ClientCapabilityID.searchAsk.rawValue
@@ -76,7 +76,7 @@ public enum Pillar: String, CaseIterable, Identifiable, Sendable {
         case .memory: return "The salience-ranked working set behind the curtain — SwiftData is the shipped hot store. Clients call recall/store; Andromeda owns routing."
         case .mcp: return "One consolidated host for Model-Context-Protocol servers — observed, deduped, surfaced as capabilities instead of 50× npm exec per studio."
         case .skills: return "Every agent skill invoked by stable id from one registry surface — no tribal hunting through ~/.claude/skills."
-        case .models: return "\(ClientCapabilityID.inferWrite.rawValue) is a stable client id. Today it aliases episodic-store write — not model generation. Real proxy routing is specified, not shipped."
+        case .models: return "One generation endpoint behind the curtain — `infer.generate` / `write.too` are specified, not shipped; Autocache is the live surface. The deprecated `infer.write` alias stays a memory-store shim and never appears on this surface."
         case .secrets: return "Capability IDs in, secrets injected server-side at call time — raw values never touch a client process."
         case .fleet: return "LaunchAgents, health, and telemetry as first-class entities — one auditable roster and pulse instead of scattered plists."
         case .search: return "Ask about Andromeda's own internals, or run real external web search — same surface, two very different sources."
@@ -153,16 +153,18 @@ public struct MemLayer: Identifiable, Sendable {
 
 public enum ControlPlaneData {
     /// Client-facing lanes only — capability / tier aliases, never provider brands.
+    /// LLM-proxy lanes are future capability ids (spec) — the deprecated
+    /// `infer.write` alias is a memory-store shim and never appears here.
     public static let models: [ModelRow] = [
-        .init("\(ClientCapabilityID.inferWrite.rawValue) · fast", "fast"),
-        .init("\(ClientCapabilityID.inferWrite.rawValue) · deep", "deep"),
-        .init("\(ClientCapabilityID.inferWrite.rawValue) · code", "code"),
+        .init("infer.generate · fast", "spec"),
+        .init("infer.generate · deep", "spec"),
+        .init("write.too · code", "spec"),
     ]
-    /// Speed board uses the same stable aliases (no provider model names).
+    /// Speed board uses the same future aliases (no provider model names).
     public static let speed: [SpeedRow] = [
-        .init("1", "\(ClientCapabilityID.inferWrite.rawValue) · fast", "—", "spec"),
-        .init("2", "\(ClientCapabilityID.inferWrite.rawValue) · deep", "—", "spec"),
-        .init("3", "\(ClientCapabilityID.inferWrite.rawValue) · code", "—", "spec"),
+        .init("1", "infer.generate · fast", "—", "spec"),
+        .init("2", "infer.generate · deep", "—", "spec"),
+        .init("3", "write.too · code", "—", "spec"),
     ]
     public static let changes: [MemChange] = [
         .init("Berserker", "3m ago", "Record snapshot policy preference for non-visual PRs"),

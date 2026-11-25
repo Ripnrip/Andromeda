@@ -285,7 +285,7 @@ public enum ProxyState: String, PillarState {
     }
     public var badge: String {
         switch self {
-        case .proxying: "proxying · warm"; case .streaming: "streaming · infer.deep"
+        case .proxying: "proxying · warm"; case .streaming: "streaming · infer.generate"
         case .routing:  "routing · re-routed"; case .tokens: "token meter · live"
         }
     }
@@ -293,7 +293,7 @@ public enum ProxyState: String, PillarState {
         switch self {
         case .proxying:  "gateway warm · upstream thinking…"
         case .streaming: "decoding 41 tok/s · block 7"
-        case .routing:   "infer.deep saturated → infer.fast · 4ms triage"
+        case .routing:   "infer.generate saturated → write.too · 4ms triage"
         case .tokens:    "spend visible before it becomes a surprise"
         }
     }
@@ -312,7 +312,7 @@ public enum ProxyState: String, PillarState {
 
     /// Stable capability IDs only — upstream provider/model brands stay
     /// behind the operator curtain (AGENTS.md capability hiding).
-    public static let models = ["infer.deep", "infer.fast", "infer.local"]
+    public static let models = ["infer.generate", "write.too", "autocache"]
     /// Which upstream is carrying the request, if any.
     public var activeModel: Int? {
         switch self { case .routing: 1; case .proxying, .streaming: 0; case .tokens: nil }

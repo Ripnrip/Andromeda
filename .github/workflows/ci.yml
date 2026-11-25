@@ -207,10 +207,19 @@ jobs:
       - name: Lint (swiftlint + swiftformat)
         if: ${{ always() && steps.scope.outputs.run_orchestrator == 'true' }}
         run: |
-          brew install swiftlint swiftformat
+          # Pin swiftformat: the runner pool carries mixed preinstalls
+          # (0.63.1 / 0.64.0 observed same day) with conflicting indent
+          # rules — `brew install` reports up-to-date and does not upgrade.
+          # Pinning makes the gate deterministic and matches the checked-in
+          # formatting of OrchestratorSnapshotSupport.swift (0.64.x rules).
+          curl -fsSL https://github.com/nicklockwood/SwiftFormat/releases/download/0.64.4/swiftformat.zip -o /tmp/swiftformat.zip
+          unzip -oq /tmp/swiftformat.zip -d /tmp/swiftformat-pin
+          chmod +x /tmp/swiftformat-pin/swiftformat
+          /tmp/swiftformat-pin/swiftformat --version
+          brew install swiftlint
           # Gate: zero SERIOUS violations (errors). Warnings are visible debt.
           swiftlint
-          swiftformat --lint Packages/AndromedaOrchestrator
+          /tmp/swiftformat-pin/swiftformat --lint Packages/AndromedaOrchestrator
 
       - name: Test (root package)
         if: steps.scope.outputs.run_root == 'true' && steps.snapshots.outputs.record != 'true'
@@ -245,8 +254,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          out=$(swift test --filter HUDIdentifierTests --filter HUDViewSnapshotTests --filter HUDComponentSnapshotTests --filter HUDComponentsSnapshotTests --filter HUDResultsViewSnapshotTests --filter HUDChainHealthViewSnapshotTests --filter HUDModelAppControlTests)
+          # Capture must not use set -e around the substitution: a failing
+          # `swift test` otherwise exits before printf, and the job log shows
+          # only "exit code 1" (PR #108 run 45119191430).
+          set +e
+          out=$(swift test --filter HUDIdentifierTests --filter HUDViewSnapshotTests --filter HUDComponentSnapshotTests --filter HUDComponentsSnapshotTests --filter HUDResultsViewSnapshotTests --filter HUDChainHealthViewSnapshotTests --filter HUDModelAppControlTests 2>&1)
+          status=$?
+          set -e
           printf '%s\n' "$out"
+          if [ "$status" -ne 0 ]; then
+            echo "heavy-suite tests failed (exit ${status})"
+            exit "$status"
+          fi
           # Fake-green guard: a renamed suite would empty this filter set and pass
           # with 0 tests — fail loudly instead. (grep, not rg — runners may lack rg.)
           printf '%s\n' "$out" | grep -q 'in 7 suites' || { echo 'heavy-suite selection shrank — expected 7 suites; update the filters above'; exit 1; }
