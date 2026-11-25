@@ -39,3 +39,12 @@ Ignore/
 
 # Never commit binary wheels (P2 from review 5513531856)
 *.whl
+
+# Agent-workspace droppings (local scratch, never product) 2026-11-22
+.hermes/
+.kilo/
+.letta/
+.manus/
+.vscode/
+.work/
+Andromeda-*-plan.zip
