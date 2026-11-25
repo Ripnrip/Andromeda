@@ -77,7 +77,7 @@ public struct LaunchEntityRegistry: Sendable {
     /// 📜 Canonical seed list from ANDROMEDA-SURFACE-AREA §G + HAB-42 habitat ghosts + Mini isolated lane.
     public static func catalogSeeds(
         launchAgentsDirectory: String = ("~/Library/LaunchAgents" as NSString).expandingTildeInPath,
-        opsDirectory: String = "/Users/<user>/Developer/multibrain/ops"
+        opsDirectory: String = ("~/Developer/multibrain/ops" as NSString).expandingTildeInPath
     ) -> [LaunchEntity] {
         let live: (String) -> String = { label in
             "\(launchAgentsDirectory)/\(label).plist"

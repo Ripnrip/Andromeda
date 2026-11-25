@@ -147,20 +147,22 @@ jobs:
 
       # Fork PRs do not receive repository secrets (Codex P2 / BIN-218). Gate live
       # Qdrant so ordinary build+unit tests still run without TS_AUTHKEY.
+      # The live endpoint itself lives in the QDRANT_LIVE_URL repository secret.
       - name: Detect live Qdrant availability
         if: steps.scope.outputs.needs_qdrant == 'true'
         id: qdrant
         env:
           TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+          QDRANT_LIVE_URL: ${{ secrets.QDRANT_LIVE_URL }}
         run: |
-          if [ -n "$TS_AUTHKEY" ]; then
+          if [ -n "$TS_AUTHKEY" ] && [ -n "$QDRANT_LIVE_URL" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
-            echo "url=http://<funnel-host>:<funnel-port>" >> "$GITHUB_OUTPUT"
-            echo "Live Qdrant enabled (TS_AUTHKEY present)"
+            echo "url=$QDRANT_LIVE_URL" >> "$GITHUB_OUTPUT"
+            echo "Live Qdrant enabled (TS_AUTHKEY + QDRANT_LIVE_URL present)"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             echo "url=" >> "$GITHUB_OUTPUT"
-            echo "TS_AUTHKEY absent — skipping Tailscale/live Qdrant; unit tests still run"
+            echo "TS_AUTHKEY or QDRANT_LIVE_URL absent — skipping Tailscale/live Qdrant; unit tests still run"
           fi
 
       - name: Connect to Studio tailnet
