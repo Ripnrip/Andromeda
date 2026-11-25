@@ -1,0 +1,15 @@
+flowchart TD
+    A["Validate policy; acquire permit"] --> B["Validate HTTPS request and budgets"]
+    A -->|reject| X["Reject without native work"]
+    B -->|reject; release permit| X
+    B --> C["Install timers and native handle"]
+    C --> D{"Active?"}
+    D -->|yes; resume| E["Match head; collect bounded chunks"]
+    D -->|outcome selected; no resume| F["Select response or failure"]
+    D -->|already invalidated| O["Dispose late orphan; no revival"]
+    E -->|completion and framing| F
+    E -->|error, cancel, deadline| F
+    F --> G["Invalidate native session"]
+    G --> H["Wait for native ACK; retain custody"]
+    H --> I["Publish once; release permit"]
+    I --> J["Recheck cancellation; return or throw"]
