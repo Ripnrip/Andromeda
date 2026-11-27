@@ -22,7 +22,7 @@ backend changes.
 4. `Sources/AndromedaHUDCore/HUDModel.swift` — `HUDFleetPulse` chip pattern you must
    match for the HUD chip.
 5. Live service forreal data: `curl 127.0.0.1:3640/hud.json`, `/api/census`,
-   `/api/pool-stats` (if down: `cd ~/Developer/multica/server-swift && DATABASE_URL="postgres://multica:multica@localhost:5442/multica?sslmode=disable" swift run multica-server`).
+   `/api/pool-stats` (if down: `cd ~/Developer/multica/server-swift && DATABASE_URL="postgres://<user>:<password>@localhost:5442/multica?sslmode=disable" swift run multica-server`).
 
 ## Load these skills before designing
 
