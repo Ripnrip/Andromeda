@@ -22,7 +22,7 @@ On Studio, Qdrant remains bound to loopback. Publish it only to the tailnet
 (never Funnel/public internet):
 
 ```bash
-tailscale serve --bg --tcp=8447 tcp://127.0.0.1:6333
+tailscale serve --bg --tcp=<tailnet-port> tcp://127.0.0.1:6333
 curl --fail --silent http://<funnel-host>:<funnel-port>/collections
 ```
 
