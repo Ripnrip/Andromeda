@@ -1,0 +1,52 @@
+{
+  "flowchart" : {
+    "htmlLabels" : true,
+    "nodeSpacing" : 25,
+    "padding" : 12,
+    "rankSpacing" : 25,
+    "useMaxWidth" : false
+  },
+  "securityLevel" : "strict",
+  "sequence" : {
+    "diagramMarginX" : 20,
+    "diagramMarginY" : 20,
+    "useMaxWidth" : false,
+    "wrap" : true
+  },
+  "theme" : "base",
+  "themeVariables" : {
+    "actorBkg" : "#081619",
+    "actorBorder" : "#1DE4DB",
+    "actorLineColor" : "#E6F1F2",
+    "actorTextColor" : "#E6F1F2",
+    "background" : "#040F12",
+    "clusterBkg" : "#122225",
+    "clusterBorder" : "#1DE4DB",
+    "darkMode" : true,
+    "edgeLabelBackground" : "#040F12",
+    "fontFamily" : "Space Grotesk, -apple-system, BlinkMacSystemFont, sans-serif",
+    "fontSize" : "16px",
+    "labelBoxBkgColor" : "#122225",
+    "labelBoxBorderColor" : "#1DE4DB",
+    "labelTextColor" : "#E6F1F2",
+    "lineColor" : "#E6F1F2",
+    "loopTextColor" : "#E6F1F2",
+    "mainBkg" : "#081619",
+    "nodeBorder" : "#1DE4DB",
+    "noteBkgColor" : "#122225",
+    "noteBorderColor" : "#1DE4DB",
+    "noteTextColor" : "#E6F1F2",
+    "primaryBorderColor" : "#1DE4DB",
+    "primaryColor" : "#081619",
+    "primaryTextColor" : "#E6F1F2",
+    "secondaryBorderColor" : "#1DE4DB",
+    "secondaryColor" : "#122225",
+    "secondaryTextColor" : "#E6F1F2",
+    "signalColor" : "#E6F1F2",
+    "signalTextColor" : "#E6F1F2",
+    "tertiaryBorderColor" : "#1DE4DB",
+    "tertiaryColor" : "#081619",
+    "tertiaryTextColor" : "#E6F1F2",
+    "textColor" : "#E6F1F2"
+  }
+}
